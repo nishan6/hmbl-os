@@ -2,7 +2,7 @@ import { db } from "@/server/db";
 import { loadGrants } from "@/server/permissions/grants";
 import { ensureDefaultRoles } from "@/server/permissions/roles";
 import type { Actor } from "@/server/permissions/authorize";
-import { createUser } from "@/server/users/service";
+import { assignRole, createUser } from "@/server/users/service";
 
 export const TEST_PASSWORD = "correct-horse-battery";
 
@@ -19,4 +19,11 @@ export async function makeActor(...roleKeys: string[]): Promise<Actor> {
     roleKeys,
   });
   return { id: user.id, name: user.name, email: user.email, grants: await loadGrants(db, user.id) };
+}
+
+/** Creates a user holding `roleKey` for one legal entity only. */
+export async function makeScopedActor(roleKey: string, legalEntityId: string): Promise<Actor> {
+  const actor = await makeActor();
+  await assignRole("system", actor.id, roleKey, legalEntityId);
+  return { ...actor, grants: await loadGrants(db, actor.id) };
 }

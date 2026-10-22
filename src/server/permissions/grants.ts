@@ -4,11 +4,16 @@ import type { Grant } from "./evaluate";
 
 export async function loadGrants(db: PrismaClient, userId: string): Promise<Grant[]> {
   const assignments = await db.userRole.findMany({
-    where: { userId },
-    select: { role: { select: { key: true, permissions: { select: { permission: true } } } } },
+    // Grants scoped to an archived entity stop applying.
+    where: { userId, OR: [{ legalEntityId: null }, { legalEntity: { status: "ACTIVE" } }] },
+    select: {
+      legalEntityId: true,
+      role: { select: { key: true, permissions: { select: { permission: true } } } },
+    },
   });
-  return assignments.map(({ role }) => ({
+  return assignments.map(({ role, legalEntityId }) => ({
     roleKey: role.key,
+    legalEntityId,
     permissions: new Set(role.permissions.map((p) => p.permission)),
   }));
 }

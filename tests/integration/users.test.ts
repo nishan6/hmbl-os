@@ -94,3 +94,61 @@ describe("disableUser", () => {
     await expect(disableUser(admin, owner.id)).rejects.toBeInstanceOf(ConflictError);
   });
 });
+
+describe("entity-scoped grants", () => {
+  it("grants a role for one entity, once per scope", async () => {
+    const { makeEntity } = await import("../helpers/organisation");
+    const owner = await makeActor("owner");
+    const target = await makeActor();
+    const entity = await makeEntity();
+    await assignRole(owner, target.id, "finance", entity.id);
+    await assignRole(owner, target.id, "finance", entity.id);
+    await assignRole(owner, target.id, "finance");
+    await assignRole(owner, target.id, "finance");
+    expect(await db.userRole.count({ where: { userId: target.id } })).toBe(2);
+  });
+
+  it("enforces one global grant per role in the database", async () => {
+    const target = await makeActor();
+    const role = await db.role.findUniqueOrThrow({ where: { key: "viewer" } });
+    await db.userRole.create({ data: { userId: target.id, roleId: role.id } });
+    await expect(
+      db.userRole.create({ data: { userId: target.id, roleId: role.id } }),
+    ).rejects.toThrow();
+  });
+
+  it("stops a scoped owner granting roles globally or in other entities", async () => {
+    const { makeEntity } = await import("../helpers/organisation");
+    const { makeScopedActor } = await import("../helpers/actors");
+    const india = await makeEntity();
+    const uk = await makeEntity();
+    const scopedOwner = await makeScopedActor("owner", india.id);
+    const target = await makeActor();
+
+    await assignRole(scopedOwner, target.id, "finance", india.id);
+    await expect(assignRole(scopedOwner, target.id, "finance")).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+    await expect(assignRole(scopedOwner, target.id, "finance", uk.id)).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+  });
+
+  it("rejects grants for an unknown or archived entity", async () => {
+    const { makeEntity } = await import("../helpers/organisation");
+    const owner = await makeActor("owner");
+    const target = await makeActor();
+    const archived = await makeEntity({ status: "ARCHIVED" });
+    await expect(assignRole(owner, target.id, "viewer", archived.id)).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+  });
+
+  it("does not count an entity-scoped owner as a group owner", async () => {
+    const { makeEntity } = await import("../helpers/organisation");
+    const owner = await makeActor("owner");
+    const entity = await makeEntity();
+    await assignRole(owner, owner.id, "owner", entity.id);
+    await expect(revokeRole(owner, owner.id, "owner")).rejects.toBeInstanceOf(ConflictError);
+  });
+});
