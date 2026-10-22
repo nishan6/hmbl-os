@@ -9,9 +9,12 @@ import { EntitySwitcher } from "@/components/shell/entity-switcher";
 import { UserMenu } from "@/components/shell/user-menu";
 import { Brand } from "@/components/shell/brand";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
+import { TwoFactorRequired } from "@/components/account/two-factor-required";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const actor = await requireActorOrRedirect();
+  // Until this is done the user holds no permissions, so nothing else is shown.
+  if (actor.twoFactor?.setupRequired) return <TwoFactorRequired name={actor.name} />;
   const [{ entities, selectedId }, cookieStore] = await Promise.all([
     getEntityContext(actor),
     cookies(),

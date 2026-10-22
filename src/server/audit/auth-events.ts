@@ -74,3 +74,22 @@ export async function auditSignInFailed(
     userAgent,
   });
 }
+
+export async function auditTwoFactorFailed(
+  userId: string | null,
+  ipAddress: string | null,
+  userAgent: string | null,
+) {
+  await write("auth.two_factor_failed", { id: null, label: "Anonymous" }, userId, {
+    ipAddress,
+    userAgent,
+  });
+}
+
+/** Turning two-factor on or off, or replacing backup codes, for the user's own account. */
+export async function auditTwoFactorChange(
+  userId: string,
+  action: "user.two_factor_enabled" | "user.two_factor_disabled" | "user.backup_codes_regenerated",
+) {
+  await write(action, { id: userId, label: await userLabel(userId) }, userId, {});
+}

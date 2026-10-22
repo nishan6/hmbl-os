@@ -8,7 +8,8 @@ services:
       POSTGRES_PASSWORD: hmbl
       POSTGRES_DB: hmbl_dev
     ports:
-      - "5432:5432"
+      # Reachable from this computer only, never from the network.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro

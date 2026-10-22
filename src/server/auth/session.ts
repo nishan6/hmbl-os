@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "./auth";
 import { db } from "@/server/db";
 import { loadGrants } from "@/server/permissions/grants";
+import { applyTwoFactorPolicy } from "./two-factor-policy";
 import { authorize, type Actor } from "@/server/permissions/authorize";
 import type { Permission } from "@/server/permissions/catalog";
 import { UnauthenticatedError } from "@/lib/errors";
@@ -18,14 +19,20 @@ export const getActor = cache(async (): Promise<Actor | null> => {
   if (!session) return null;
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, status: true },
+    select: { id: true, name: true, email: true, status: true, twoFactorEnabled: true },
   });
   if (!user || user.status !== "ACTIVE") return null;
+  const policy = applyTwoFactorPolicy(await loadGrants(db, user.id), user.twoFactorEnabled);
   return {
     id: user.id,
     name: user.name,
     email: user.email,
-    grants: await loadGrants(db, user.id),
+    grants: policy.grants,
+    twoFactor: {
+      enabled: user.twoFactorEnabled,
+      required: policy.required,
+      setupRequired: policy.setupRequired,
+    },
     request: {
       ipAddress: requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
       userAgent: requestHeaders.get("user-agent"),

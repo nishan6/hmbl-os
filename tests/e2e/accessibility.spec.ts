@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { DEMO, signIn } from "./helpers/session";
+import { DEMO, enterPassword, signIn } from "./helpers/session";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
@@ -20,6 +20,18 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expectNoViolations(page);
     });
 
+    test("the two-factor code step meets WCAG 2.2 AA", async ({ page }) => {
+      await enterPassword(page, DEMO.owner);
+      await expect(page.getByLabel("6-digit code")).toBeVisible();
+      await expectNoViolations(page);
+    });
+
+    test("the required two-factor setup meets WCAG 2.2 AA", async ({ page }) => {
+      await enterPassword(page, DEMO.newFinance);
+      await expect(page.getByRole("heading", { name: "Set up two-factor sign-in" })).toBeVisible();
+      await expectNoViolations(page);
+    });
+
     test("app pages meet WCAG 2.2 AA", async ({ page }) => {
       await signIn(page, DEMO.owner);
       for (const path of [
@@ -29,6 +41,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/admin/numbering",
         "/admin/users",
         "/admin/audit",
+        "/account/security",
       ]) {
         await test.step(path, async () => {
           await page.goto(path);
