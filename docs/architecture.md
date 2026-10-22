@@ -16,6 +16,7 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 - **Validation**: `src/lib/validation.ts` (codes, ISO country and currency, IANA time zones) and `parseInput()` in `src/lib/parse.ts`, which turns Zod failures into a `ValidationError` with field messages.
 - **Migrations**: CI fails if `prisma/schema.prisma` and the migrations disagree (`pnpm db:drift`). A few invariants that Prisma can't express, such as CHECK constraints, are hand-written in the migration SQL.
 - **Errors**: `src/lib/errors.ts` defines `AppError` subclasses (unauthenticated, forbidden, not found, validation, conflict) whose messages are safe to show users.
+- **UI**: design tokens in `src/app/globals.css`, primitives in `src/components/ui`, the shell in `src/components/shell`. See [design-system.md](design-system.md).
 - **Rendering**: Cache Components is off. Every screen depends on the signed-in user and their permissions, so pages render per request.
 
 ## What exists
@@ -24,3 +25,8 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 | ------------------------------------------ | -------------------------------------------------------------- |
 | Scaffold, CI, local Postgres, env template | Built                                                          |
 | Authentication, roles and permissions      | Built — see [auth-and-permissions.md](auth-and-permissions.md) |
+| Legal entities and organisation structure  | Built — see [organisation.md](organisation.md)                 |
+| Audit log                                  | Built — see [audit-log.md](audit-log.md)                       |
+| Numbering schemes                          | Built — see [numbering.md](numbering.md)                       |
+| Design system and app shell                | Built — see [design-system.md](design-system.md)               |
+| Business modules (CRM, finance and so on)  | Not started; listed in the navigation as "Planned"             |

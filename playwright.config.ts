@@ -28,8 +28,9 @@ export default defineConfig({
   webServer: {
     command: `pnpm start --port ${port}`,
     url: `${baseURL}/api/health`,
-    // Better Auth checks the request origin against APP_URL.
-    env: { APP_URL: baseURL },
+    // Better Auth checks the request origin against APP_URL. The suite signs in
+    // more often than the sign-in rate limit allows, which APP_ENV=test turns off.
+    env: { APP_URL: baseURL, APP_ENV: "test" },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

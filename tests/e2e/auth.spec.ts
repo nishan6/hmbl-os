@@ -1,7 +1,5 @@
 import { expect, test } from "@playwright/test";
-
-// Demo accounts from prisma/seed.ts. Run `pnpm db:seed` before these tests.
-const OWNER = { email: "owner@demo.hmbl.test", password: "demo-password-2026" };
+import { DEMO, signIn } from "./helpers/session";
 
 test("anonymous visitors are sent to sign in, then back where they were going", async ({
   page,
@@ -13,7 +11,7 @@ test("anonymous visitors are sent to sign in, then back where they were going", 
 
 test("a wrong password shows one generic error", async ({ page }) => {
   await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(OWNER.email);
+  await page.getByLabel("Email").fill(DEMO.owner);
   await page.getByLabel("Password").fill("not-the-password");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(
@@ -23,15 +21,11 @@ test("a wrong password shows one generic error", async ({ page }) => {
 });
 
 test("an owner signs in, sees their roles, and signs out", async ({ page }) => {
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(OWNER.email);
-  await page.getByLabel("Password").fill(OWNER.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await signIn(page, DEMO.owner);
+  await expect(page.getByRole("region", { name: "Your access" })).toContainText("owner");
 
-  await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
-  await expect(page.getByText(`Signed in as ${OWNER.email}`)).toContainText("owner");
-
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Account: Demo Owner" }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.goto("/");
   await expect(page).toHaveURL(/\/sign-in$/);

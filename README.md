@@ -51,4 +51,5 @@ Development and test use separate databases (`DATABASE_URL`, `TEST_DATABASE_URL`
 - [Organisation structure](docs/organisation.md)
 - [Audit log](docs/audit-log.md)
 - [Numbering schemes](docs/numbering.md)
+- [Design system and app shell](docs/design-system.md)
 - [Decision register](docs/decisions.md)

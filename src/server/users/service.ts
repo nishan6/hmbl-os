@@ -228,7 +228,12 @@ export async function listUsers(caller: Actor) {
       name: true,
       email: true,
       status: true,
-      roles: { select: { role: { select: { key: true, name: true } } } },
+      roles: {
+        select: {
+          role: { select: { key: true, name: true } },
+          legalEntity: { select: { code: true } },
+        },
+      },
     },
   });
 }

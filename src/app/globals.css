@@ -1,26 +1,268 @@
 @import "tailwindcss";
 
+/*
+ * HMBL OS design tokens.
+ *
+ * Components use the semantic names below (bg-surface, text-secondary,
+ * border-separator, bg-accent …), never raw colours, so light and dark
+ * themes stay in step. Raw values live only in this file.
+ */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #1d1d1f;
+  color-scheme: light;
+
+  /* Surfaces */
+  --hm-bg: #f5f5f7;
+  --hm-surface: #ffffff;
+  --hm-surface-2: #fafafb;
+  --hm-surface-sunken: #efeff2;
+  --hm-elevated: #ffffff;
+  --hm-sidebar: #f0f0f3;
+  --hm-hover: rgb(0 0 0 / 0.045);
+  --hm-selected: rgb(47 91 234 / 0.1);
+
+  /* Text */
+  --hm-text: #1d1d1f;
+  --hm-text-secondary: #55555c;
+  --hm-text-muted: #66666d;
+  --hm-text-disabled: #a1a1a8;
+  --hm-text-on-accent: #ffffff;
+
+  /* Lines */
+  --hm-border: #d9d9de;
+  --hm-separator: #e6e6ea;
+  --hm-border-strong: #b8b8bf;
+
+  /* Brand accent: one deliberate colour */
+  --hm-accent: #2f5bea;
+  --hm-accent-hover: #2449c7;
+  --hm-accent-soft: #e9eefd;
+  --hm-focus: #2f5bea;
+
+  /* Status: always paired with an icon or label */
+  --hm-success: #17733f;
+  --hm-success-soft: #e5f4ea;
+  --hm-warning: #9a5b00;
+  --hm-warning-soft: #fdf1dc;
+  --hm-danger: #c42b1c;
+  --hm-danger-soft: #fbe7e5;
+  --hm-info: #1c6ca8;
+  --hm-info-soft: #e3f0fa;
+  --hm-neutral: #5d5d64;
+  --hm-neutral-soft: #ececef;
+
+  /* Elevation */
+  --hm-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+  --hm-shadow-md: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.06);
+  --hm-shadow-lg: 0 2px 6px rgb(0 0 0 / 0.06), 0 16px 40px rgb(0 0 0 / 0.12);
+  --hm-overlay: rgb(0 0 0 / 0.32);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b0b0c;
-    --foreground: #f5f5f7;
-  }
+/*
+ * Dark theme: re-tuned, not inverted; surfaces get lighter as they rise.
+ * The same values repeat in the prefers-color-scheme block below — keep the
+ * two in sync (a unit test checks they match).
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --hm-bg: #0f0f11;
+  --hm-surface: #17171a;
+  --hm-surface-2: #1b1b1f;
+  --hm-surface-sunken: #121214;
+  --hm-elevated: #222226;
+  --hm-sidebar: #131315;
+  --hm-hover: rgb(255 255 255 / 0.06);
+  --hm-selected: rgb(122 150 255 / 0.16);
+
+  --hm-text: #f2f2f4;
+  --hm-text-secondary: #b9b9c0;
+  --hm-text-muted: #94949b;
+  --hm-text-disabled: #5f5f66;
+  --hm-text-on-accent: #0b1020;
+
+  --hm-border: #34343a;
+  --hm-separator: #26262b;
+  --hm-border-strong: #4a4a52;
+
+  --hm-accent: #7a96ff;
+  --hm-accent-hover: #93aaff;
+  --hm-accent-soft: #1f2747;
+  --hm-focus: #93aaff;
+
+  --hm-success: #4cc27d;
+  --hm-success-soft: #143222;
+  --hm-warning: #f0b450;
+  --hm-warning-soft: #3a2a0f;
+  --hm-danger: #ff7a6b;
+  --hm-danger-soft: #3d1a17;
+  --hm-info: #6cb6f0;
+  --hm-info-soft: #132c40;
+  --hm-neutral: #a4a4ab;
+  --hm-neutral-soft: #26262b;
+
+  --hm-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --hm-shadow-md: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.35);
+  --hm-shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 16px 40px rgb(0 0 0 / 0.5);
+  --hm-overlay: rgb(0 0 0 / 0.6);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Colours */
+  --color-bg: var(--hm-bg);
+  --color-surface: var(--hm-surface);
+  --color-surface-2: var(--hm-surface-2);
+  --color-sunken: var(--hm-surface-sunken);
+  --color-elevated: var(--hm-elevated);
+  --color-sidebar: var(--hm-sidebar);
+  --color-hover: var(--hm-hover);
+  --color-selected: var(--hm-selected);
+  --color-text: var(--hm-text);
+  --color-secondary: var(--hm-text-secondary);
+  --color-muted: var(--hm-text-muted);
+  --color-disabled: var(--hm-text-disabled);
+  --color-on-accent: var(--hm-text-on-accent);
+  --color-border: var(--hm-border);
+  --color-separator: var(--hm-separator);
+  --color-border-strong: var(--hm-border-strong);
+  --color-accent: var(--hm-accent);
+  --color-accent-hover: var(--hm-accent-hover);
+  --color-accent-soft: var(--hm-accent-soft);
+  --color-focus: var(--hm-focus);
+  --color-success: var(--hm-success);
+  --color-success-soft: var(--hm-success-soft);
+  --color-warning: var(--hm-warning);
+  --color-warning-soft: var(--hm-warning-soft);
+  --color-danger: var(--hm-danger);
+  --color-danger-soft: var(--hm-danger-soft);
+  --color-info: var(--hm-info);
+  --color-info-soft: var(--hm-info-soft);
+  --color-neutral: var(--hm-neutral);
+  --color-neutral-soft: var(--hm-neutral-soft);
+  --color-overlay: var(--hm-overlay);
+
+  /* Typography: system stack, a small deliberate scale */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-xs: 0.75rem; /* 12 metadata */
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.8125rem; /* 13 table data, labels */
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem; /* 14 body */
+  --text-base--line-height: 1.375rem;
+  --text-md: 1rem; /* 16 card and section titles */
+  --text-md--line-height: 1.5rem;
+  --text-lg: 1.25rem; /* 20 page titles */
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.5rem; /* 24 sign-in and empty-state headings */
+  --text-xl--line-height: 2rem;
+
+  /* Radii: three sizes only */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Elevation */
+  --shadow-sm: var(--hm-shadow-sm);
+  --shadow-md: var(--hm-shadow-md);
+  --shadow-lg: var(--hm-shadow-lg);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+
+  /* Layout */
+  --spacing-sidebar: 15rem;
+  --spacing-topbar: 3.25rem;
+  --spacing-control: 2rem; /* default input and button height */
+  --spacing-control-sm: 1.75rem;
+  --spacing-control-lg: 2.5rem;
+  --spacing-row: 2.5rem; /* comfortable table row */
+  --spacing-row-dense: 2rem;
+  --container-content: 80rem;
+  --container-form: 40rem;
+  --container-prose: 42rem;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+/* Dark when the system asks for it and the user hasn't chosen light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --hm-bg: #0f0f11;
+    --hm-surface: #17171a;
+    --hm-surface-2: #1b1b1f;
+    --hm-surface-sunken: #121214;
+    --hm-elevated: #222226;
+    --hm-sidebar: #131315;
+    --hm-hover: rgb(255 255 255 / 0.06);
+    --hm-selected: rgb(122 150 255 / 0.16);
+    --hm-text: #f2f2f4;
+    --hm-text-secondary: #b9b9c0;
+    --hm-text-muted: #94949b;
+    --hm-text-disabled: #5f5f66;
+    --hm-text-on-accent: #0b1020;
+    --hm-border: #34343a;
+    --hm-separator: #26262b;
+    --hm-border-strong: #4a4a52;
+    --hm-accent: #7a96ff;
+    --hm-accent-hover: #93aaff;
+    --hm-accent-soft: #1f2747;
+    --hm-focus: #93aaff;
+    --hm-success: #4cc27d;
+    --hm-success-soft: #143222;
+    --hm-warning: #f0b450;
+    --hm-warning-soft: #3a2a0f;
+    --hm-danger: #ff7a6b;
+    --hm-danger-soft: #3d1a17;
+    --hm-info: #6cb6f0;
+    --hm-info-soft: #132c40;
+    --hm-neutral: #a4a4ab;
+    --hm-neutral-soft: #26262b;
+    --hm-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --hm-shadow-md: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.35);
+    --hm-shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 16px 40px rgb(0 0 0 / 0.5);
+    --hm-overlay: rgb(0 0 0 / 0.6);
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* One visible focus style everywhere; keyboard only. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--color-selected);
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

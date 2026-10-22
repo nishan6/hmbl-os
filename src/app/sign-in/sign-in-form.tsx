@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { Field, Input } from "@/components/ui/field";
+import { Alert } from "@/components/ui/page";
 
 export function SignInForm({ next }: { next: string }) {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -28,44 +29,30 @@ export function SignInForm({ next }: { next: string }) {
       );
       return;
     }
-    router.replace(next);
-    router.refresh();
+    // A full load, so nothing the router cached while signed out is reused.
+    window.location.assign(next);
   }
 
   return (
     <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4" noValidate>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Email
-        <input
-          name="email"
-          type="email"
-          autoComplete="username"
-          required
-          className="h-9 rounded-md border border-black/15 bg-transparent px-3 font-normal dark:border-white/20"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Password
-        <input
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          className="h-9 rounded-md border border-black/15 bg-transparent px-3 font-normal dark:border-white/20"
-        />
-      </label>
-      {error ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      ) : null}
-      <button
-        type="submit"
-        disabled={pending}
-        className="bg-foreground text-background h-9 rounded-md text-sm font-medium disabled:opacity-60"
-      >
+      <Field label="Email">
+        {(props) => <Input {...props} name="email" type="email" autoComplete="username" required />}
+      </Field>
+      <Field label="Password">
+        {(props) => (
+          <Input
+            {...props}
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+          />
+        )}
+      </Field>
+      {error ? <Alert tone="danger" title={error} /> : null}
+      <Button type="submit" variant="primary" size="lg" disabled={pending} className="w-full">
         {pending ? "Signing in…" : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }

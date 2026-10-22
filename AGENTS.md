@@ -17,5 +17,6 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Money is integer minor units plus an ISO 4217 currency code. Never floats.
 - Schema changes go through a Prisma migration; never edit an applied migration. `prisma migrate dev` is interactive; without a terminal, apply existing migrations with `pnpm db:migrate:deploy`, write the new one from `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`, then confirm `pnpm db:drift` passes.
 - Records that belong to a legal entity carry `legalEntityId` and are checked with that scope (`authorize(actor, perm, { legalEntityId })`, `entityFilter`).
+- UI uses the semantic token utilities and `src/components/ui` primitives, never raw colours (see `docs/design-system.md`). Status is always colour plus icon plus label; figures use `tabular`.
 - Demo records set `isDemo: true` and are created only by `prisma/seed.ts`.
 - Run `pnpm check` before pushing. Do not weaken or skip a test to get green.
