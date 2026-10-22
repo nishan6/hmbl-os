@@ -8,6 +8,8 @@ export type Actor = {
   name: string;
   email: string;
   grants: Grant[];
+  /** Two-factor state; set for signed-in users (see src/server/auth/two-factor-policy.ts). */
+  twoFactor?: { enabled: boolean; required: boolean; setupRequired: boolean };
   /** Where the request came from, for the audit log. */
   request?: { ipAddress: string | null; userAgent: string | null };
 };

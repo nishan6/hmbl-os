@@ -2,16 +2,18 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
-import { createAuthMiddleware, isAPIError } from "better-auth/api";
-import { auditSignedIn, auditSignInBlocked, auditSignInFailed } from "@/server/audit/auth-events";
+import { twoFactor } from "better-auth/plugins/two-factor";
+import { auditSignInBlocked } from "@/server/audit/auth-events";
 import { db } from "@/server/db";
 import { env } from "@/lib/env";
+import { hmblAuthPolicy } from "./audit-plugin";
 
 const HOUR = 60 * 60;
 
 /**
- * Better Auth configuration. Email and password only; public sign-up is off,
- * so accounts are created by an administrator or `pnpm user:create`.
+ * Better Auth configuration. Email and password, plus two-factor with an
+ * authenticator app; public sign-up is off, so accounts are created by an
+ * administrator or `pnpm user:create`.
  * Session lengths are labelled defaults (docs/decisions.md).
  */
 export const auth = betterAuth({
@@ -39,7 +41,8 @@ export const auth = betterAuth({
   },
   advanced: {
     database: { generateId: "uuid" },
-    useSecureCookies: env().APP_ENV === "production",
+    // Secure cookies need HTTPS; a production build on http://localhost runs without them.
+    useSecureCookies: env().APP_URL.startsWith("https://"),
   },
   user: {
     additionalFields: {
@@ -59,22 +62,15 @@ export const auth = betterAuth({
           await auditSignInBlocked(session, "user disabled");
           return false;
         },
-        after: async (session) => {
-          await auditSignedIn(session);
-        },
       },
     },
   },
-  hooks: {
-    after: createAuthMiddleware(async (ctx) => {
-      if (ctx.path !== "/sign-in/email" || !isAPIError(ctx.context.returned)) return;
-      const headers = ctx.request?.headers ?? ctx.headers;
-      await auditSignInFailed(
-        (ctx.body as { email?: unknown } | undefined)?.email,
-        headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
-        headers?.get("user-agent") ?? null,
-      );
-    }),
-  },
-  plugins: [nextCookies()],
+  plugins: [
+    // Authenticator apps (TOTP) plus one-time backup codes. Free, no SMS or
+    // third-party service. Secrets and codes are encrypted at rest.
+    twoFactor({ issuer: "HMBL OS" }),
+    // Must follow twoFactor(): audits sign-ins only once any code is verified.
+    hmblAuthPolicy(),
+    nextCookies(),
+  ],
 });

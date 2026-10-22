@@ -2,7 +2,8 @@
 
 import { useTransition } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Check, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import Link from "next/link";
+import { Check, LogOut, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { setThemePreference } from "@/app/(app)/actions";
 import type { Theme } from "@/lib/theme";
@@ -73,6 +74,12 @@ export function UserMenu({ name, email, theme }: { name: string; email: string; 
             ))}
           </DropdownMenu.RadioGroup>
           <DropdownMenu.Separator className="bg-separator my-1 h-px" />
+          <DropdownMenu.Item asChild className={item}>
+            <Link href="/account/security">
+              <ShieldCheck aria-hidden />
+              Sign-in security
+            </Link>
+          </DropdownMenu.Item>
           <DropdownMenu.Item
             className={cn(item)}
             onSelect={async () => {

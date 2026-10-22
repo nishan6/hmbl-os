@@ -8,9 +8,8 @@ import { env } from "@/lib/env";
 import { ensureDefaultRoles } from "@/server/permissions/roles";
 import { assignRole, createUser } from "@/server/users/service";
 import { seedDemoOrganisation } from "./seed/organisation";
-
-// Shared password for every demo account. Demo data only, never production.
-export const DEMO_PASSWORD = "demo-password-2026";
+import { seedDemoTwoFactor } from "./seed/two-factor";
+import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
 export const DEMO_USERS = [
   { name: "Demo Owner", email: "owner@demo.hmbl.test", roleKeys: ["owner"] },
@@ -21,6 +20,8 @@ export const DEMO_USERS = [
   { name: "Demo Viewer", email: "viewer@demo.hmbl.test", roleKeys: ["viewer"] },
   // Finance for the Indian demo entity only, to show entity scoping.
   { name: "Demo Finance India", email: "finance.in@demo.hmbl.test", roleKeys: [] },
+  // Finance without two-factor yet: shows the forced setup screen on sign-in.
+  { name: "Demo New Finance", email: "new.finance@demo.hmbl.test", roleKeys: ["finance"] },
 ];
 
 async function main() {
@@ -42,6 +43,10 @@ async function main() {
     where: { email: "finance.in@demo.hmbl.test" },
   });
   await assignRole("system", financeIndia.id, "finance", india.id);
+  await seedDemoTwoFactor(
+    db,
+    DEMO_USERS.map((u) => u.email).filter((email) => !email.startsWith("new.")),
+  );
 }
 
 main()

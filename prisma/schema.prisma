@@ -19,20 +19,23 @@ enum UserStatus {
 }
 
 model User {
-  id            String     @id @default(uuid()) @db.Uuid
-  name          String
-  email         String     @unique
-  emailVerified Boolean    @default(false)
-  image         String?
+  id               String     @id @default(uuid()) @db.Uuid
+  name             String
+  email            String     @unique
+  emailVerified    Boolean    @default(false)
+  image            String?
   // DISABLED users cannot start a session; existing sessions are revoked on disable.
-  status        UserStatus @default(ACTIVE)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  status           UserStatus @default(ACTIVE)
+  // Set by Better Auth once an authenticator app is verified.
+  twoFactorEnabled Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
-  sessions Session[]
-  accounts Account[]
-  roles    UserRole[] @relation("UserRoles")
-  grants   UserRole[] @relation("UserRoleGrantedBy")
+  sessions   Session[]
+  accounts   Account[]
+  twoFactors TwoFactor[]
+  roles      UserRole[]  @relation("UserRoles")
+  grants     UserRole[]  @relation("UserRoleGrantedBy")
 
   @@map("users")
 }
@@ -70,6 +73,23 @@ model Account {
 
   @@index([userId])
   @@map("accounts")
+}
+
+// Authenticator-app secret and backup codes, both encrypted with BETTER_AUTH_SECRET.
+model TwoFactor {
+  id                      String    @id @default(uuid()) @db.Uuid
+  secret                  String
+  backupCodes             String
+  userId                  String    @db.Uuid
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // False until the user proves the app works by entering a code.
+  verified                Boolean   @default(true)
+  failedVerificationCount Int       @default(0)
+  lockedUntil             DateTime?
+
+  @@index([userId])
+  @@index([secret])
+  @@map("two_factors")
 }
 
 model Verification {

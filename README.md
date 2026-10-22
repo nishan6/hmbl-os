@@ -21,7 +21,9 @@ pnpm db:seed                  # default roles and DEMO users (refuses in product
 pnpm dev                      # http://localhost:3000
 ```
 
-Demo accounts are `owner@`, `admin@`, `finance@`, `finance.in@` (Finance for the demo Indian entity only), `sales@`, `pm@` and `viewer@demo.hmbl.test`, all with the password `demo-password-2026`. They exist only in development and test databases. To create a real user, see [docs/auth-and-permissions.md](docs/auth-and-permissions.md).
+Demo accounts are `owner@`, `admin@`, `finance@`, `finance.in@` (Finance for the demo Indian entity only), `sales@`, `pm@` and `viewer@demo.hmbl.test`, all with the password `demo-password-2026`. They exist only in development and test databases.
+
+Owner, Administrator and Finance demo users need a two-factor code. Add the demo key `JBGUETCEIVGU6VCPKRIFGRKDKJCVIRCPJZHVIVKTIVEU4UCSJ5CA` to any authenticator app (time-based, 6 digits) and use its codes; it is public and works only on seeded demo data. `new.finance@demo.hmbl.test` has no two-factor yet, to show the setup screen. To create a real user, see [docs/auth-and-permissions.md](docs/auth-and-permissions.md).
 
 `GET /api/health` reports whether the app can reach the database.
 
@@ -42,7 +44,7 @@ CI runs every check, migrations included, on each pull request against a fresh P
 
 ## Environments
 
-Development and test use separate databases (`DATABASE_URL`, `TEST_DATABASE_URL`). Integration tests refuse to run against the development database. Hosting is not chosen yet, so the repository has no deployment configuration.
+Development and test use separate databases (`DATABASE_URL`, `TEST_DATABASE_URL`). Integration tests refuse to run against the development database. For now HMBL OS runs on one computer with its own `hmbl_live` database and daily backups; see [docs/running-locally.md](docs/running-locally.md). There is no cloud deployment configuration yet.
 
 ## Documentation
 
@@ -52,4 +54,5 @@ Development and test use separate databases (`DATABASE_URL`, `TEST_DATABASE_URL`
 - [Audit log](docs/audit-log.md)
 - [Numbering schemes](docs/numbering.md)
 - [Design system and app shell](docs/design-system.md)
+- [Running HMBL OS on your own computer](docs/running-locally.md)
 - [Decision register](docs/decisions.md)

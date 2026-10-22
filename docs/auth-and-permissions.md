@@ -14,6 +14,17 @@
 - The sign-in form shows one message for every failure so it doesn't reveal which emails have accounts.
 - `src/proxy.ts` redirects requests with no session cookie to `/sign-in`. That is a convenience only; it is not the security boundary.
 
+## Two-factor sign-in
+
+- After the password, users with two-factor enter a 6-digit code from a free authenticator app (Google Authenticator, Microsoft Authenticator, 1Password and similar). No SMS and no paid service: it is Better Auth's `twoFactor` plugin.
+- **Required for Owner, Administrator and Finance** (`TWO_FACTOR_REQUIRED_ROLES` in `src/server/auth/two-factor-policy.ts`, a labelled default in the [decision register](decisions.md)). Until such a user sets it up, `getActor()` gives them **no permissions** and the app shows only the setup screen, so every page and service refuses them on the server. They can't turn it off; the `/two-factor/disable` endpoint returns 403 for them.
+- Everyone else can turn it on or off at **Account menu → Sign-in security**.
+- Setup: confirm password, scan a QR code (or type the key), enter one code to prove the app works, then save ten one-use backup codes.
+- Secrets and backup codes are encrypted with `BETTER_AUTH_SECRET` before they are stored. Losing that secret means everyone sets up two-factor again.
+- "Don't ask again on this device" skips the code for 30 days on that browser.
+- Wrong codes are limited per sign-in attempt and per account (Better Auth locks the account's code check for 15 minutes after 10 failures).
+- Audit events: `auth.signed_in` is written only once the code is accepted; `auth.two_factor_failed`, `user.two_factor_enabled`, `user.two_factor_disabled` and `user.backup_codes_regenerated` are also recorded (`src/server/auth/audit-plugin.ts`).
+
 ## Permissions
 
 - Permission keys are `<module>.<action>`, listed in `src/server/permissions/catalog.ts`. Actions follow the spec: view, create, edit, submit, approve, reject, issue, post, void, archive, export, configure, view_sensitive. Each module lists only the actions that make sense for it (only Finance can `post` or `void`).
