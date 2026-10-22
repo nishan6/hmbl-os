@@ -28,6 +28,8 @@ export default defineConfig({
   webServer: {
     command: `pnpm start --port ${port}`,
     url: `${baseURL}/api/health`,
+    // Better Auth checks the request origin against APP_URL.
+    env: { APP_URL: baseURL },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
