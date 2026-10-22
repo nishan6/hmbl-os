@@ -2,6 +2,8 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
+import { createAuthMiddleware, isAPIError } from "better-auth/api";
+import { auditSignedIn, auditSignInBlocked, auditSignInFailed } from "@/server/audit/auth-events";
 import { db } from "@/server/db";
 import { env } from "@/lib/env";
 
@@ -53,10 +55,26 @@ export const auth = betterAuth({
             where: { id: session.userId },
             select: { status: true },
           });
-          return user?.status === "ACTIVE";
+          if (user?.status === "ACTIVE") return true;
+          await auditSignInBlocked(session, "user disabled");
+          return false;
+        },
+        after: async (session) => {
+          await auditSignedIn(session);
         },
       },
     },
+  },
+  hooks: {
+    after: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-in/email" || !isAPIError(ctx.context.returned)) return;
+      const headers = ctx.request?.headers ?? ctx.headers;
+      await auditSignInFailed(
+        (ctx.body as { email?: unknown } | undefined)?.email,
+        headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+        headers?.get("user-agent") ?? null,
+      );
+    }),
   },
   plugins: [nextCookies()],
 });

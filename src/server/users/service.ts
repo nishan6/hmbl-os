@@ -1,18 +1,19 @@
 import "server-only";
-import { z } from "zod";
 import { hashPassword } from "better-auth/crypto";
 import { db } from "@/server/db";
-import { authorize, can, canEverywhere, type Actor } from "@/server/permissions/authorize";
+import { recordAudit } from "@/server/audit/record";
+import {
+  authorize,
+  can,
+  canEverywhere,
+  type Actor,
+  type Caller,
+} from "@/server/permissions/authorize";
 import type { Grant } from "@/server/permissions/evaluate";
 import type { Permission } from "@/server/permissions/catalog";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { parseInput } from "@/lib/parse";
 import { createUserInput, type CreateUserInput } from "./schemas";
-
-/**
- * Who is doing this. `system` is only for trusted bootstrap paths (the
- * `user:create` script and the dev seed), never for anything reachable over HTTP.
- */
-export type Caller = Actor | "system";
 
 /** null: every legal entity. */
 type EntityScope = string | null;
@@ -62,14 +63,7 @@ async function rolesByKey(keys: string[]) {
 
 export async function createUser(caller: Caller, raw: CreateUserInput) {
   check(caller, "users.create");
-  const parsed = createUserInput.safeParse(raw);
-  if (!parsed.success) {
-    throw new ValidationError(
-      "Check the highlighted fields.",
-      z.flattenError(parsed.error).fieldErrors,
-    );
-  }
-  const input = parsed.data;
+  const input = parseInput(createUserInput, raw);
   const roles = await rolesByKey(input.roleKeys);
   if (roles.length) check(caller, "users.configure");
   await assertCanGrant(
@@ -97,8 +91,20 @@ export async function createUser(caller: Caller, raw: CreateUserInput) {
         password: passwordHash,
       },
     });
+    await recordAudit(tx, caller, {
+      action: "user.created",
+      targetType: "user",
+      targetId: user.id,
+      changes: { name: { from: null, to: user.name }, email: { from: null, to: user.email } },
+    });
     for (const role of roles) {
       await tx.userRole.create({ data: { userId: user.id, roleId: role.id, grantedById } });
+      await recordAudit(tx, caller, {
+        action: "user.role_granted",
+        targetType: "user",
+        targetId: user.id,
+        metadata: { role: role.key, scope: "all-entities" },
+      });
     }
     return user;
   });
@@ -124,8 +130,18 @@ export async function assignRole(
   const existing = await db.userRole.findFirst({ where });
   if (existing) return existing;
   try {
-    return await db.userRole.create({
-      data: { ...where, grantedById: caller === "system" ? null : caller.id },
+    return await db.$transaction(async (tx) => {
+      const grant = await tx.userRole.create({
+        data: { ...where, grantedById: caller === "system" ? null : caller.id },
+      });
+      await recordAudit(tx, caller, {
+        action: "user.role_granted",
+        targetType: "user",
+        targetId: userId,
+        legalEntityId,
+        metadata: { role: roleKey, scope: legalEntityId ?? "all-entities" },
+      });
+      return grant;
     });
   } catch (error) {
     // A concurrent identical grant won the race; the unique index kept one row.
@@ -159,7 +175,19 @@ export async function revokeRole(
   if (roleKey === "owner" && legalEntityId === null && (await activeOwnerCount(userId)) === 0) {
     throw new ConflictError("HMBL OS must keep at least one active owner.");
   }
-  await db.userRole.deleteMany({ where: { userId, roleId: role!.id, legalEntityId } });
+  await db.$transaction(async (tx) => {
+    const { count } = await tx.userRole.deleteMany({
+      where: { userId, roleId: role!.id, legalEntityId },
+    });
+    if (count === 0) return;
+    await recordAudit(tx, caller, {
+      action: "user.role_revoked",
+      targetType: "user",
+      targetId: userId,
+      legalEntityId,
+      metadata: { role: roleKey, scope: legalEntityId ?? "all-entities" },
+    });
+  });
 }
 
 /** Disables a user and signs them out everywhere. */
@@ -177,10 +205,18 @@ export async function disableUser(caller: Caller, userId: string) {
   if (isOwner && (await activeOwnerCount(userId)) === 0) {
     throw new ConflictError("HMBL OS must keep at least one active owner.");
   }
-  await db.$transaction([
-    db.user.update({ where: { id: userId }, data: { status: "DISABLED" } }),
-    db.session.deleteMany({ where: { userId } }),
-  ]);
+  if (target.status === "DISABLED") return;
+  await db.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { status: "DISABLED" } });
+    const { count } = await tx.session.deleteMany({ where: { userId } });
+    await recordAudit(tx, caller, {
+      action: "user.disabled",
+      targetType: "user",
+      targetId: userId,
+      changes: { status: { from: "ACTIVE", to: "DISABLED" } },
+      metadata: { sessionsRevoked: count },
+    });
+  });
 }
 
 export async function listUsers(caller: Actor) {
