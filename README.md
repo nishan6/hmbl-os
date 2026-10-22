@@ -21,7 +21,7 @@ pnpm db:seed                  # default roles and DEMO users (refuses in product
 pnpm dev                      # http://localhost:3000
 ```
 
-Demo accounts are `owner@`, `admin@`, `finance@`, `sales@`, `pm@` and `viewer@demo.hmbl.test`, all with the password `demo-password-2026`. They exist only in development and test databases. To create a real user, see [docs/auth-and-permissions.md](docs/auth-and-permissions.md).
+Demo accounts are `owner@`, `admin@`, `finance@`, `finance.in@` (Finance for the demo Indian entity only), `sales@`, `pm@` and `viewer@demo.hmbl.test`, all with the password `demo-password-2026`. They exist only in development and test databases. To create a real user, see [docs/auth-and-permissions.md](docs/auth-and-permissions.md).
 
 `GET /api/health` reports whether the app can reach the database.
 
@@ -48,4 +48,5 @@ Development and test use separate databases (`DATABASE_URL`, `TEST_DATABASE_URL`
 
 - [Architecture](docs/architecture.md)
 - [Authentication and permissions](docs/auth-and-permissions.md)
+- [Organisation structure](docs/organisation.md)
 - [Decision register](docs/decisions.md)

@@ -2,8 +2,9 @@
 // Every change goes through a reviewed migration: `pnpm db:migrate:dev --name <change>`.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -119,17 +120,168 @@ model RolePermission {
   @@map("role_permissions")
 }
 
+// A role granted to a user. With legalEntityId set, the role applies to that
+// legal entity only; null means every entity, including ones added later.
 model UserRole {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String   @db.Uuid
-  user        User     @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
-  roleId      String   @db.Uuid
-  role        Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  grantedById String?  @db.Uuid
-  grantedBy   User?    @relation("UserRoleGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now())
+  id            String       @id @default(uuid()) @db.Uuid
+  userId        String       @db.Uuid
+  user          User         @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
+  roleId        String       @db.Uuid
+  role          Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  legalEntityId String?      @db.Uuid
+  legalEntity   LegalEntity? @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  grantedById   String?      @db.Uuid
+  grantedBy     User?        @relation("UserRoleGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
 
-  @@unique([userId, roleId])
+  // A role is granted at most once per user per scope. Two indexes because a
+  // plain unique index treats NULL ("all entities") values as distinct.
+  @@unique([userId, roleId, legalEntityId])
+  @@unique([userId, roleId], map: "user_roles_userId_roleId_all_entities_key", where: raw("\"legalEntityId\" IS NULL"))
+  @@index([userId])
   @@index([roleId])
+  @@index([legalEntityId])
   @@map("user_roles")
+}
+
+// ─── Organisation structure ───────────────────────────────────────────────────
+// The deployment itself is the group (HMBL Group). Shared master data never
+// implies shared accounting ownership: anything financial belongs to exactly
+// one legal entity.
+
+enum RecordStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+// A company with its own books, tax registrations and base currency.
+model LegalEntity {
+  id           String       @id @default(uuid()) @db.Uuid
+  code         String       @unique
+  legalName    String
+  tradingName  String?
+  countryCode  String       @db.Char(2) // ISO 3166-1 alpha-2
+  baseCurrency String       @db.Char(3) // ISO 4217
+  timezone     String // IANA zone, e.g. Asia/Kolkata
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  region       String? // State or province; for India, the GST state
+  postalCode   String?
+  status       RecordStatus @default(ACTIVE)
+  isDemo       Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  taxRegistrations TaxRegistration[]
+  costCentres      CostCentre[]
+  locations        Location[]
+  userRoles        UserRole[]
+
+  @@map("legal_entities")
+}
+
+// A tax or statutory identifier held by a legal entity (GSTIN, PAN, TAN, VAT…).
+// Types are free text so new jurisdictions need configuration, not code.
+model TaxRegistration {
+  id            String       @id @default(uuid()) @db.Uuid
+  legalEntityId String       @db.Uuid
+  legalEntity   LegalEntity  @relation(fields: [legalEntityId], references: [id], onDelete: Cascade)
+  type          String
+  value         String
+  region        String?
+  validFrom     DateTime?    @db.Date
+  validTo       DateTime?    @db.Date
+  status        RecordStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([legalEntityId, type, value])
+  @@map("tax_registrations")
+}
+
+// A line of business (live production, broadcast, rentals…). Group-wide:
+// one business unit can trade through several legal entities.
+model BusinessUnit {
+  id          String       @id @default(uuid()) @db.Uuid
+  code        String       @unique
+  name        String
+  description String?
+  status      RecordStatus @default(ACTIVE)
+  isDemo      Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  costCentres CostCentre[]
+
+  @@map("business_units")
+}
+
+// A department or team. Group-wide and optionally nested.
+model Department {
+  id        String       @id @default(uuid()) @db.Uuid
+  code      String       @unique
+  name      String
+  parentId  String?      @db.Uuid
+  parent    Department?  @relation("DepartmentTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children  Department[] @relation("DepartmentTree")
+  status    RecordStatus @default(ACTIVE)
+  isDemo    Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  costCentres CostCentre[]
+
+  @@map("departments")
+}
+
+// Where costs are collected. Always owned by one legal entity.
+model CostCentre {
+  id             String        @id @default(uuid()) @db.Uuid
+  legalEntityId  String        @db.Uuid
+  legalEntity    LegalEntity   @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  code           String
+  name           String
+  businessUnitId String?       @db.Uuid
+  businessUnit   BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  departmentId   String?       @db.Uuid
+  department     Department?   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  status         RecordStatus  @default(ACTIVE)
+  isDemo         Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([legalEntityId, code])
+  @@map("cost_centres")
+}
+
+enum LocationType {
+  OFFICE
+  WAREHOUSE
+  STUDIO
+  VENUE
+  OTHER
+}
+
+// An office, warehouse or equipment store, studio or regular venue.
+model Location {
+  id            String       @id @default(uuid()) @db.Uuid
+  code          String       @unique
+  name          String
+  type          LocationType
+  legalEntityId String?      @db.Uuid
+  legalEntity   LegalEntity? @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  region        String?
+  postalCode    String?
+  countryCode   String       @db.Char(2)
+  timezone      String
+  status        RecordStatus @default(ACTIVE)
+  isDemo        Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("locations")
 }

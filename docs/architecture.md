@@ -13,6 +13,8 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 
 - **Configuration**: `src/lib/env.ts` validates environment variables at first use and never prints their values.
 - **Logging**: `src/lib/logger.ts` writes JSON lines and redacts keys that look like secrets.
+- **Validation**: `src/lib/validation.ts` (codes, ISO country and currency, IANA time zones) and `parseInput()` in `src/lib/parse.ts`, which turns Zod failures into a `ValidationError` with field messages.
+- **Migrations**: CI fails if `prisma/schema.prisma` and the migrations disagree (`pnpm db:drift`). A few invariants that Prisma can't express, such as CHECK constraints, are hand-written in the migration SQL.
 - **Errors**: `src/lib/errors.ts` defines `AppError` subclasses (unauthenticated, forbidden, not found, validation, conflict) whose messages are safe to show users.
 - **Rendering**: Cache Components is off. Every screen depends on the signed-in user and their permissions, so pages render per request.
 

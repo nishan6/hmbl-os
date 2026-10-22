@@ -6,7 +6,8 @@ import "dotenv/config";
 import { db } from "@/server/db";
 import { env } from "@/lib/env";
 import { ensureDefaultRoles } from "@/server/permissions/roles";
-import { createUser } from "@/server/users/service";
+import { assignRole, createUser } from "@/server/users/service";
+import { seedDemoOrganisation } from "./seed/organisation";
 
 // Shared password for every demo account. Demo data only, never production.
 export const DEMO_PASSWORD = "demo-password-2026";
@@ -18,6 +19,8 @@ export const DEMO_USERS = [
   { name: "Demo Sales", email: "sales@demo.hmbl.test", roleKeys: ["sales"] },
   { name: "Demo Project Manager", email: "pm@demo.hmbl.test", roleKeys: ["project_manager"] },
   { name: "Demo Viewer", email: "viewer@demo.hmbl.test", roleKeys: ["viewer"] },
+  // Finance for the Indian demo entity only, to show entity scoping.
+  { name: "Demo Finance India", email: "finance.in@demo.hmbl.test", roleKeys: [] },
 ];
 
 async function main() {
@@ -27,11 +30,18 @@ async function main() {
   const createdRoles = await ensureDefaultRoles(db);
   console.log(`Roles created: ${createdRoles.join(", ") || "none (already present)"}`);
 
+  const { india } = await seedDemoOrganisation(db);
+  console.log("Demo organisation: DEMO-IN, DEMO-AE");
+
   for (const user of DEMO_USERS) {
     if (await db.user.findUnique({ where: { email: user.email } })) continue;
     await createUser("system", { ...user, password: DEMO_PASSWORD });
     console.log(`Demo user: ${user.email}`);
   }
+  const financeIndia = await db.user.findUniqueOrThrow({
+    where: { email: "finance.in@demo.hmbl.test" },
+  });
+  await assignRole("system", financeIndia.id, "finance", india.id);
 }
 
 main()

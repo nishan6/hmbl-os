@@ -24,7 +24,8 @@
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test",
-    "user:create": "tsx --conditions=react-server --tsconfig tsconfig.json scripts/create-user.ts"
+    "user:create": "tsx --conditions=react-server --tsconfig tsconfig.json scripts/create-user.ts",
+    "db:drift": "prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",

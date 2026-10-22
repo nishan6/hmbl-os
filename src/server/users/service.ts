@@ -2,8 +2,9 @@ import "server-only";
 import { z } from "zod";
 import { hashPassword } from "better-auth/crypto";
 import { db } from "@/server/db";
-import { authorize, type Actor } from "@/server/permissions/authorize";
-import { permissionsOf } from "@/server/permissions/evaluate";
+import { authorize, can, canEverywhere, type Actor } from "@/server/permissions/authorize";
+import type { Grant } from "@/server/permissions/evaluate";
+import type { Permission } from "@/server/permissions/catalog";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { createUserInput, type CreateUserInput } from "./schemas";
 
@@ -13,24 +14,43 @@ import { createUserInput, type CreateUserInput } from "./schemas";
  */
 export type Caller = Actor | "system";
 
-function check(caller: Caller, permission: Parameters<typeof authorize>[1]) {
-  if (caller !== "system") authorize(caller, permission);
+/** null: every legal entity. */
+type EntityScope = string | null;
+
+/** Does the caller hold `permission` across the whole of `scope`? */
+function holds(grants: Grant[], permission: Permission, scope: EntityScope): boolean {
+  const actor = { id: "", name: "", email: "", grants };
+  return scope === null
+    ? canEverywhere(actor, permission)
+    : can(actor, permission, { legalEntityId: scope });
+}
+
+function check(caller: Caller, permission: Permission, scope: EntityScope = null) {
+  if (caller === "system") return;
+  if (!holds(caller.grants, permission, scope)) throw new ForbiddenError();
 }
 
 /**
- * An actor may only hand out permissions they hold themselves, so nobody can
- * escalate by assigning a stronger role.
+ * An actor may only hand out permissions they hold themselves, over the same
+ * entities, so nobody can escalate by assigning a stronger or wider role.
  */
-async function assertCanGrant(caller: Caller, roleIds: string[]) {
+async function assertCanGrant(caller: Caller, roleIds: string[], scope: EntityScope = null) {
   if (caller === "system" || roleIds.length === 0) return;
-  const held = permissionsOf(caller.grants);
   const rolePermissions = await db.rolePermission.findMany({
     where: { roleId: { in: roleIds } },
     select: { permission: true },
   });
-  if (rolePermissions.some(({ permission }) => !held.has(permission))) {
+  if (
+    rolePermissions.some(({ permission }) => !holds(caller.grants, permission as Permission, scope))
+  ) {
     throw new ForbiddenError("You can't grant a role with permissions you don't hold.");
   }
+}
+
+async function assertEntityExists(scope: EntityScope) {
+  if (scope === null) return;
+  const entity = await db.legalEntity.findUnique({ where: { id: scope } });
+  if (!entity || entity.status !== "ACTIVE") throw new ValidationError("Unknown legal entity.");
 }
 
 async function rolesByKey(keys: string[]) {
@@ -84,33 +104,62 @@ export async function createUser(caller: Caller, raw: CreateUserInput) {
   });
 }
 
-export async function assignRole(caller: Caller, userId: string, roleKey: string) {
-  check(caller, "users.configure");
+/**
+ * Grants a role to a user, for one legal entity or (legalEntityId null) all of
+ * them. Granting the same role and scope twice is a no-op.
+ */
+export async function assignRole(
+  caller: Caller,
+  userId: string,
+  roleKey: string,
+  legalEntityId: EntityScope = null,
+) {
+  check(caller, "users.configure", legalEntityId);
   const [role] = await rolesByKey([roleKey]);
-  await assertCanGrant(caller, [role!.id]);
+  await assertEntityExists(legalEntityId);
+  await assertCanGrant(caller, [role!.id], legalEntityId);
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new NotFoundError();
-  return db.userRole.upsert({
-    where: { userId_roleId: { userId, roleId: role!.id } },
-    update: {},
-    create: { userId, roleId: role!.id, grantedById: caller === "system" ? null : caller.id },
-  });
+  const where = { userId, roleId: role!.id, legalEntityId };
+  const existing = await db.userRole.findFirst({ where });
+  if (existing) return existing;
+  try {
+    return await db.userRole.create({
+      data: { ...where, grantedById: caller === "system" ? null : caller.id },
+    });
+  } catch (error) {
+    // A concurrent identical grant won the race; the unique index kept one row.
+    const raced = await db.userRole.findFirst({ where });
+    if (raced) return raced;
+    throw error;
+  }
 }
 
+/** Active users other than `excludingUserId` who are owner across all entities. */
 async function activeOwnerCount(excludingUserId: string) {
   return db.userRole.count({
-    where: { role: { key: "owner" }, userId: { not: excludingUserId }, user: { status: "ACTIVE" } },
+    where: {
+      role: { key: "owner" },
+      legalEntityId: null,
+      userId: { not: excludingUserId },
+      user: { status: "ACTIVE" },
+    },
   });
 }
 
-export async function revokeRole(caller: Caller, userId: string, roleKey: string) {
-  check(caller, "users.configure");
+export async function revokeRole(
+  caller: Caller,
+  userId: string,
+  roleKey: string,
+  legalEntityId: EntityScope = null,
+) {
+  check(caller, "users.configure", legalEntityId);
   const [role] = await rolesByKey([roleKey]);
-  await assertCanGrant(caller, [role!.id]);
-  if (roleKey === "owner" && (await activeOwnerCount(userId)) === 0) {
+  await assertCanGrant(caller, [role!.id], legalEntityId);
+  if (roleKey === "owner" && legalEntityId === null && (await activeOwnerCount(userId)) === 0) {
     throw new ConflictError("HMBL OS must keep at least one active owner.");
   }
-  await db.userRole.deleteMany({ where: { userId, roleId: role!.id } });
+  await db.userRole.deleteMany({ where: { userId, roleId: role!.id, legalEntityId } });
 }
 
 /** Disables a user and signs them out everywhere. */
@@ -124,7 +173,8 @@ export async function disableUser(caller: Caller, userId: string) {
     include: { roles: { include: { role: true } } },
   });
   if (!target) throw new NotFoundError();
-  if (target.roles.some((r) => r.role.key === "owner") && (await activeOwnerCount(userId)) === 0) {
+  const isOwner = target.roles.some((r) => r.role.key === "owner" && r.legalEntityId === null);
+  if (isOwner && (await activeOwnerCount(userId)) === 0) {
     throw new ConflictError("HMBL OS must keep at least one active owner.");
   }
   await db.$transaction([

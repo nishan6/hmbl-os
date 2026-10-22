@@ -20,8 +20,8 @@
 - A **role** is a named set of permission keys stored in the database. A user can hold several roles; their permissions are the union.
 - **Deny by default.** No wildcards and no implied actions: `finance.edit` does not grant `finance.post`.
 - Checks run on the server: `requirePermission("crm.view")` in actions and route handlers, `authorize(actor, …)` inside services. Hiding a button is never the check.
-- **No privilege escalation:** a user can only grant a role whose permissions they already hold, so an Administrator cannot make someone an Owner.
-- HMBL OS always keeps at least one active Owner: the last one cannot be disabled or lose the role.
+- **No privilege escalation:** a user can only grant a role whose permissions they already hold, over entities they already cover, so an Administrator cannot make someone an Owner and an entity-scoped owner cannot grant group-wide roles.
+- HMBL OS always keeps at least one active all-entities Owner: the last one cannot be disabled or lose the role.
 
 ## Default roles
 
@@ -36,6 +36,10 @@ Created once if missing by `pnpm db:seed` or `pnpm user:create`, then editable. 
 | Project manager  | Projects up to submit, production, crew, equipment, procurement and logistics requests       |
 | Viewer           | View-only, no sensitive data, no users or audit                                              |
 
+## Entity scope
+
+A role can be granted for all legal entities or for one. `authorize(actor, perm, { legalEntityId })` checks a specific entity; `entityFilter(actor, perm)` narrows a query to the entities the actor reaches; `authorizeEverywhere` demands an all-entities grant for group-wide changes. Details in [organisation.md](organisation.md).
+
 ## Coming next
 
-Entity-level scoping (a role granted for one legal entity only) arrives with legal entities. Every permission and role change will write to the audit log once it exists.
+Every permission and role change will write to the audit log once it exists.
