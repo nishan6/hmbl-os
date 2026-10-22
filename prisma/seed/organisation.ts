@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@/generated/prisma/client";
+import { DEFAULT_SCHEMES } from "@/server/numbering/document-types";
 
 /**
  * DEMO organisation: two fictional legal entities and a sample structure.
@@ -119,6 +120,30 @@ export async function seedDemoOrganisation(db: PrismaClient) {
       isDemo: true,
     },
   });
+
+  // Default number formats for each demo entity. The UAE fiscal year is the
+  // calendar year, so its schemes start in January.
+  for (const [entity, fiscalYearStartMonth] of [
+    [india, 4],
+    [uae, 1],
+  ] as const) {
+    for (const [documentType, { pattern, resetPolicy }] of Object.entries(DEFAULT_SCHEMES)) {
+      const exists = await db.numberingScheme.findFirst({
+        where: { legalEntityId: entity.id, documentType, status: "ACTIVE" },
+      });
+      if (exists) continue;
+      await db.numberingScheme.create({
+        data: {
+          documentType,
+          legalEntityId: entity.id,
+          pattern,
+          resetPolicy,
+          fiscalYearStartMonth,
+          isDemo: true,
+        },
+      });
+    }
+  }
 
   return { india, uae };
 }
