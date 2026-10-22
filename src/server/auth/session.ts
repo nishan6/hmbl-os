@@ -13,14 +13,24 @@ export { authorize, can, type Actor } from "@/server/permissions/authorize";
 
 /** The signed-in user and their grants, read once per request. */
 export const getActor = cache(async (): Promise<Actor | null> => {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
   if (!session) return null;
   const user = await db.user.findUnique({
     where: { id: session.user.id },
     select: { id: true, name: true, email: true, status: true },
   });
   if (!user || user.status !== "ACTIVE") return null;
-  return { id: user.id, name: user.name, email: user.email, grants: await loadGrants(db, user.id) };
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    grants: await loadGrants(db, user.id),
+    request: {
+      ipAddress: requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      userAgent: requestHeaders.get("user-agent"),
+    },
+  };
 });
 
 /** For pages: sends anonymous visitors to sign in. */

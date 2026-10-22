@@ -49,4 +49,5 @@ Development and test use separate databases (`DATABASE_URL`, `TEST_DATABASE_URL`
 - [Architecture](docs/architecture.md)
 - [Authentication and permissions](docs/auth-and-permissions.md)
 - [Organisation structure](docs/organisation.md)
+- [Audit log](docs/audit-log.md)
 - [Decision register](docs/decisions.md)

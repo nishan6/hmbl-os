@@ -285,3 +285,39 @@ model Location {
 
   @@map("locations")
 }
+
+// ─── Audit log ────────────────────────────────────────────────────────────────
+// Append-only. A database trigger (see the audit_log migration) rejects UPDATE
+// and DELETE, so history can't be edited through the application.
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  ANONYMOUS
+}
+
+model AuditEvent {
+  id            String         @id @default(uuid()) @db.Uuid
+  occurredAt    DateTime       @default(now()) @db.Timestamptz(3)
+  actorType     AuditActorType
+  // No foreign key: the log must outlive any change to the users table.
+  actorId       String?        @db.Uuid
+  // Name and email at the time of the action.
+  actorLabel    String
+  // Dotted verb, e.g. "user.role_granted", "legal_entity.updated".
+  action        String
+  targetType    String
+  targetId      String?
+  // Set when the event concerns one legal entity; controls who can see it.
+  legalEntityId String?        @db.Uuid
+  // Field-level before/after values: { field: { from, to } }.
+  changes       Json?
+  // Reason, IP address, user agent and other context.
+  metadata      Json?
+
+  @@index([targetType, targetId, occurredAt])
+  @@index([actorId, occurredAt])
+  @@index([legalEntityId, occurredAt])
+  @@index([occurredAt])
+  @@map("audit_events")
+}

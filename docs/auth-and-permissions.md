@@ -40,6 +40,6 @@ Created once if missing by `pnpm db:seed` or `pnpm user:create`, then editable. 
 
 A role can be granted for all legal entities or for one. `authorize(actor, perm, { legalEntityId })` checks a specific entity; `entityFilter(actor, perm)` narrows a query to the entities the actor reaches; `authorizeEverywhere` demands an all-entities grant for group-wide changes. Details in [organisation.md](organisation.md).
 
-## Coming next
+## Audit
 
-Every permission and role change will write to the audit log once it exists.
+Sign-ins (successful, failed and blocked), user creation, role grants and revocations, and disabling a user are all recorded. See [audit-log.md](audit-log.md).

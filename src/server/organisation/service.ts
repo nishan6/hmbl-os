@@ -1,6 +1,8 @@
 import "server-only";
 import { db } from "@/server/db";
 import { withUniqueConflict } from "@/server/db-errors";
+import { recordAudit } from "@/server/audit/record";
+import { diffChanges } from "@/server/audit/diff";
 import {
   authorize,
   authorizeEverywhere,
@@ -35,6 +37,29 @@ type ListOptions = { includeArchived?: boolean };
 const statusFilter = (o: ListOptions = {}) =>
   o.includeArchived ? {} : { status: "ACTIVE" as const };
 
+const ENTITY_FIELDS = [
+  "code",
+  "legalName",
+  "tradingName",
+  "countryCode",
+  "baseCurrency",
+  "timezone",
+  "addressLine1",
+  "addressLine2",
+  "city",
+  "region",
+  "postalCode",
+  "status",
+] as const;
+
+/** Before/after for a newly created record: every given field from null. */
+function created<T extends Record<string, unknown>>(
+  record: T,
+  fields: readonly (keyof T & string)[],
+) {
+  return diffChanges<T>(null, record, fields);
+}
+
 // ─── Legal entities ──────────────────────────────────────────────────────────
 
 export async function listLegalEntities(actor: Actor, options?: ListOptions) {
@@ -64,25 +89,63 @@ export async function createLegalEntity(actor: Actor, input: LegalEntityInput) {
   authorizeEverywhere(actor, "organisation.create");
   const data = parseInput(legalEntityInput, input);
   return withUniqueConflict(`A legal entity with code ${data.code} already exists.`, () =>
-    db.legalEntity.create({ data }),
+    db.$transaction(async (tx) => {
+      const entity = await tx.legalEntity.create({ data });
+      await recordAudit(tx, actor, {
+        action: "legal_entity.created",
+        targetType: "legal_entity",
+        targetId: entity.id,
+        legalEntityId: entity.id,
+        changes: created(entity, ENTITY_FIELDS),
+      });
+      return entity;
+    }),
   );
 }
 
 export async function updateLegalEntity(actor: Actor, id: string, input: LegalEntityInput) {
-  await getLegalEntity(actor, id);
+  const before = await getLegalEntity(actor, id);
   authorize(actor, "organisation.edit", { legalEntityId: id });
   const data = parseInput(legalEntityInput, input);
   return withUniqueConflict(`A legal entity with code ${data.code} already exists.`, () =>
-    db.legalEntity.update({ where: { id }, data }),
+    db.$transaction(async (tx) => {
+      const after = await tx.legalEntity.update({ where: { id }, data });
+      const changes = diffChanges(before, after, ENTITY_FIELDS);
+      if (changes) {
+        await recordAudit(tx, actor, {
+          action: "legal_entity.updated",
+          targetType: "legal_entity",
+          targetId: id,
+          legalEntityId: id,
+          changes,
+        });
+      }
+      return after;
+    }),
   );
 }
 
-export async function setLegalEntityArchived(actor: Actor, id: string, archived: boolean) {
-  await getLegalEntity(actor, id);
+export async function setLegalEntityArchived(
+  actor: Actor,
+  id: string,
+  archived: boolean,
+  reason?: string,
+) {
+  const before = await getLegalEntity(actor, id);
   authorize(actor, "organisation.archive", { legalEntityId: id });
-  return db.legalEntity.update({
-    where: { id },
-    data: { status: archived ? "ARCHIVED" : "ACTIVE" },
+  const status = archived ? "ARCHIVED" : "ACTIVE";
+  if (before.status === status) return before;
+  return db.$transaction(async (tx) => {
+    const after = await tx.legalEntity.update({ where: { id }, data: { status } });
+    await recordAudit(tx, actor, {
+      action: archived ? "legal_entity.archived" : "legal_entity.restored",
+      targetType: "legal_entity",
+      targetId: id,
+      legalEntityId: id,
+      changes: diffChanges(before, after, ["status"]),
+      metadata: reason ? { reason } : undefined,
+    });
+    return after;
   });
 }
 
@@ -100,7 +163,17 @@ export async function addTaxRegistration(
     });
   }
   return withUniqueConflict(`${data.type} ${data.value} is already recorded.`, () =>
-    db.taxRegistration.create({ data: { ...data, legalEntityId } }),
+    db.$transaction(async (tx) => {
+      const registration = await tx.taxRegistration.create({ data: { ...data, legalEntityId } });
+      await recordAudit(tx, actor, {
+        action: "tax_registration.created",
+        targetType: "legal_entity",
+        targetId: legalEntityId,
+        legalEntityId,
+        changes: created(registration, ["type", "value", "region", "validFrom", "validTo"]),
+      });
+      return registration;
+    }),
   );
 }
 
@@ -115,7 +188,16 @@ export async function createBusinessUnit(actor: Actor, input: BusinessUnitInput)
   authorizeEverywhere(actor, "organisation.create");
   const data = parseInput(businessUnitInput, input);
   return withUniqueConflict(`A business unit with code ${data.code} already exists.`, () =>
-    db.businessUnit.create({ data }),
+    db.$transaction(async (tx) => {
+      const unit = await tx.businessUnit.create({ data });
+      await recordAudit(tx, actor, {
+        action: "business_unit.created",
+        targetType: "business_unit",
+        targetId: unit.id,
+        changes: created(unit, ["code", "name", "description"]),
+      });
+      return unit;
+    }),
   );
 }
 
@@ -133,7 +215,16 @@ export async function createDepartment(actor: Actor, input: DepartmentInput) {
     });
   }
   return withUniqueConflict(`A department with code ${data.code} already exists.`, () =>
-    db.department.create({ data }),
+    db.$transaction(async (tx) => {
+      const department = await tx.department.create({ data });
+      await recordAudit(tx, actor, {
+        action: "department.created",
+        targetType: "department",
+        targetId: department.id,
+        changes: created(department, ["code", "name", "parentId"]),
+      });
+      return department;
+    }),
   );
 }
 
@@ -153,7 +244,17 @@ export async function createCostCentre(actor: Actor, input: CostCentreInput) {
   await getLegalEntity(actor, data.legalEntityId);
   authorize(actor, "organisation.create", { legalEntityId: data.legalEntityId });
   return withUniqueConflict(`Cost centre ${data.code} already exists in this entity.`, () =>
-    db.costCentre.create({ data }),
+    db.$transaction(async (tx) => {
+      const centre = await tx.costCentre.create({ data });
+      await recordAudit(tx, actor, {
+        action: "cost_centre.created",
+        targetType: "cost_centre",
+        targetId: centre.id,
+        legalEntityId: centre.legalEntityId,
+        changes: created(centre, ["code", "name", "businessUnitId", "departmentId"]),
+      });
+      return centre;
+    }),
   );
 }
 
@@ -181,6 +282,16 @@ export async function createLocation(actor: Actor, input: LocationInput) {
     authorizeEverywhere(actor, "organisation.create");
   }
   return withUniqueConflict(`A location with code ${data.code} already exists.`, () =>
-    db.location.create({ data }),
+    db.$transaction(async (tx) => {
+      const location = await tx.location.create({ data });
+      await recordAudit(tx, actor, {
+        action: "location.created",
+        targetType: "location",
+        targetId: location.id,
+        legalEntityId: location.legalEntityId,
+        changes: created(location, ["code", "name", "type", "countryCode", "timezone", "city"]),
+      });
+      return location;
+    }),
   );
 }

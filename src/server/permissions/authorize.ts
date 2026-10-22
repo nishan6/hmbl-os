@@ -8,7 +8,15 @@ export type Actor = {
   name: string;
   email: string;
   grants: Grant[];
+  /** Where the request came from, for the audit log. */
+  request?: { ipAddress: string | null; userAgent: string | null };
 };
+
+/**
+ * Who is doing something. `system` is only for trusted bootstrap paths (the
+ * `user:create` script and the dev seed), never for anything reachable over HTTP.
+ */
+export type Caller = Actor | "system";
 
 export function can(actor: Actor, permission: Permission, scope?: Scope): boolean {
   return hasPermission(actor.grants, permission, scope);
