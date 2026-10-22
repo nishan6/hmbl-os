@@ -17,8 +17,11 @@ cp .env.example .env          # local-only values, never committed
 docker compose up -d          # Postgres 16 with hmbl_dev and hmbl_test databases
 pnpm install                  # also generates the Prisma client
 pnpm db:migrate:dev           # apply migrations to hmbl_dev
+pnpm db:seed                  # default roles and DEMO users (refuses in production)
 pnpm dev                      # http://localhost:3000
 ```
+
+Demo accounts are `owner@`, `admin@`, `finance@`, `sales@`, `pm@` and `viewer@demo.hmbl.test`, all with the password `demo-password-2026`. They exist only in development and test databases. To create a real user, see [docs/auth-and-permissions.md](docs/auth-and-permissions.md).
 
 `GET /api/health` reports whether the app can reach the database.
 
@@ -33,7 +36,7 @@ pnpm dev                      # http://localhost:3000
 | `pnpm test:e2e`     | Playwright against a production build  |
 | `pnpm check`        | lint, typecheck, format and unit tests |
 
-Run `pnpm build` before `pnpm test:e2e`; Playwright starts the built app on port 3100. If Chromium is already installed elsewhere, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its path instead of running `pnpm exec playwright install chromium`.
+Integration tests use `TEST_DATABASE_URL`, apply migrations to it and empty it before each test. Run `pnpm build` and `pnpm db:seed` before `pnpm test:e2e`; Playwright starts the built app on port 3100. If Chromium is already installed elsewhere, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its path instead of running `pnpm exec playwright install chromium`.
 
 CI runs every check, migrations included, on each pull request against a fresh Postgres service.
 
@@ -44,4 +47,5 @@ Development and test use separate databases (`DATABASE_URL`, `TEST_DATABASE_URL`
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Authentication and permissions](docs/auth-and-permissions.md)
 - [Decision register](docs/decisions.md)

@@ -5,7 +5,7 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
-    seed: "tsx prisma/seed.ts",
+    seed: "tsx --conditions=react-server prisma/seed.ts",
   },
   datasource: {
     // Prisma reads this only for CLI commands (migrate, studio). The app
