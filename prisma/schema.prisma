@@ -1,0 +1,11 @@
+// HMBL OS database schema.
+// Every change goes through a reviewed migration: `pnpm db:migrate:dev --name <change>`.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
