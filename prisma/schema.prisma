@@ -174,6 +174,7 @@ model LegalEntity {
   updatedAt    DateTime     @updatedAt
 
   taxRegistrations TaxRegistration[]
+  numberingSchemes NumberingScheme[]
   costCentres      CostCentre[]
   locations        Location[]
   userRoles        UserRole[]
@@ -320,4 +321,55 @@ model AuditEvent {
   @@index([legalEntityId, occurredAt])
   @@index([occurredAt])
   @@map("audit_events")
+}
+
+// ─── Numbering schemes ────────────────────────────────────────────────────────
+// Human-readable document numbers (Q-2026-0001). Internal ids stay UUIDs.
+
+enum NumberResetPolicy {
+  NEVER
+  YEARLY // calendar year in the entity's time zone
+  FISCAL_YEARLY // fiscal year starting in fiscalYearStartMonth
+  MONTHLY
+}
+
+model NumberingScheme {
+  id                   String            @id @default(uuid()) @db.Uuid
+  // A key from src/server/numbering/document-types.ts, e.g. "quotation".
+  documentType         String
+  // Every series belongs to one legal entity: invoice series must not be shared
+  // across entities (each GSTIN keeps its own consecutive series).
+  legalEntityId        String            @db.Uuid
+  legalEntity          LegalEntity       @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  // Tokens: {ENTITY} {YYYY} {YY} {MM} {FY} {FYY} {SEQ:n}. See docs/numbering.md.
+  pattern              String
+  resetPolicy          NumberResetPolicy
+  // 1 = January. India's fiscal year starts in April.
+  fiscalYearStartMonth Int               @default(4)
+  // First number issued in each period. Lets a migrated series continue.
+  startAt              Int               @default(1)
+  status               RecordStatus      @default(ACTIVE)
+  isDemo               Boolean           @default(false)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  counters NumberCounter[]
+
+  // At most one active scheme per document type per entity.
+  @@unique([documentType, legalEntityId], map: "numbering_schemes_active_key", where: raw("status = 'ACTIVE'"))
+  @@index([legalEntityId])
+  @@map("numbering_schemes")
+}
+
+// The last number issued for one scheme in one period.
+model NumberCounter {
+  schemeId  String          @db.Uuid
+  scheme    NumberingScheme @relation(fields: [schemeId], references: [id], onDelete: Restrict)
+  // "all", "2026", "FY2026" or "2026-10", depending on the reset policy.
+  periodKey String
+  lastValue Int
+  updatedAt DateTime        @updatedAt
+
+  @@id([schemeId, periodKey])
+  @@map("number_counters")
 }
