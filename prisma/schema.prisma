@@ -51,6 +51,7 @@ model User {
   scheduleItemsCompleted ProjectScheduleItem[]        @relation("ScheduleItemCompletedBy")
   resourcesCreated       ProjectResourceRequirement[] @relation("ResourceCreatedBy")
   documentsUploaded      ProjectDocument[]            @relation("DocumentUploadedBy")
+  journalsCreated        Journal[]                    @relation("JournalCreatedBy")
 
   @@map("users")
 }
@@ -217,6 +218,10 @@ model LegalEntity {
   quotes           Quote[]
   commercial       CommercialSettings?
   projects         Project[]
+  financeSettings  FinanceSettings?
+  ledgerAccounts   LedgerAccount[]
+  periods          AccountingPeriod[]
+  journals         Journal[]
 
   @@map("legal_entities")
 }
@@ -1043,6 +1048,7 @@ model Project {
   resources      ProjectResourceRequirement[]
   documents      ProjectDocument[]
   closeoutItems  ProjectCloseoutItem[]
+  journalLines   JournalLine[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1396,4 +1402,206 @@ model ProjectCloseoutItem {
 
   @@unique([projectId, key])
   @@map("project_closeout_items")
+}
+
+// ─── Finance: ledger ─────────────────────────────────────────────────────────
+// Double-entry books, one set per legal entity (docs/ledger.md). Every
+// financial document posts a journal through src/server/finance/ledger.ts;
+// nothing keeps a balance field. Posted journals never change: corrections
+// are reversals.
+
+enum RevenueRecognition {
+  ON_INVOICE // revenue when the invoice is issued (default)
+  ON_COMPLETION // invoiced amounts wait as client advances until the project completes
+}
+
+/// Per-entity finance rules. A missing row means the defaults below.
+model FinanceSettings {
+  legalEntityId        String             @id @db.Uuid
+  legalEntity          LegalEntity        @relation(fields: [legalEntityId], references: [id], onDelete: Cascade)
+  // 1 = January. India's financial year starts in April.
+  fiscalYearStartMonth Int                @default(4)
+  revenueRecognition   RevenueRecognition @default(ON_INVOICE)
+  updatedAt            DateTime           @updatedAt
+
+  @@map("finance_settings")
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+/// Where an account appears in the financial statements. Each belongs to one AccountType.
+enum AccountSubtype {
+  CASH
+  BANK
+  RECEIVABLE
+  CURRENT_ASSET
+  FIXED_ASSET
+  PAYABLE
+  CURRENT_LIABILITY
+  LONG_TERM_LIABILITY
+  EQUITY
+  REVENUE
+  OTHER_INCOME
+  DIRECT_COST
+  OPERATING_EXPENSE
+}
+
+/// One account in an entity's chart of accounts. Amounts are always in the
+/// entity's base currency.
+model LedgerAccount {
+  id            String         @id @default(uuid()) @db.Uuid
+  legalEntityId String         @db.Uuid
+  legalEntity   LegalEntity    @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  code          String
+  name          String
+  type          AccountType
+  subtype       AccountSubtype
+  description   String?
+  // The role this account plays in automatic postings (receivables, output
+  // CGST…), from src/server/finance/accounts-default.ts. One per entity.
+  systemKey     String?
+  // Control accounts (receivables, payables, advances) are posted only by
+  // their documents, so they always agree with the open items behind them.
+  isControl     Boolean        @default(false)
+  status        RecordStatus   @default(ACTIVE)
+  isDemo        Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  lines JournalLine[]
+
+  @@unique([legalEntityId, code])
+  @@unique([legalEntityId, systemKey])
+  @@index([legalEntityId, type])
+  @@map("ledger_accounts")
+}
+
+enum PeriodStatus {
+  OPEN
+  CLOSED
+}
+
+/// A month of an entity's books. Nothing posts into a closed period.
+model AccountingPeriod {
+  id            String       @id @default(uuid()) @db.Uuid
+  legalEntityId String       @db.Uuid
+  legalEntity   LegalEntity  @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  // "2026-27" for an April–March year, "2026" for a calendar year.
+  fiscalYear    String
+  name          String
+  startDate     DateTime     @db.Date
+  endDate       DateTime     @db.Date
+  status        PeriodStatus @default(OPEN)
+  closedAt      DateTime?
+  closedById    String?      @db.Uuid
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  journals Journal[]
+
+  @@unique([legalEntityId, startDate])
+  @@index([legalEntityId, fiscalYear])
+  @@map("accounting_periods")
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  DISCARDED
+}
+
+/// What created a journal. Manual journals are typed in by Finance; the rest
+/// come from documents and point back at them with `sourceId`.
+enum JournalSource {
+  MANUAL
+  OPENING_BALANCE
+  REVERSAL
+  SALES_INVOICE
+  CREDIT_NOTE
+  RECEIPT
+  VENDOR_BILL
+  VENDOR_PAYMENT
+  EXPENSE_CLAIM
+  ADVANCE
+  BANK
+  PERIOD_CLOSE
+}
+
+model Journal {
+  id             String            @id @default(uuid()) @db.Uuid
+  legalEntityId  String            @db.Uuid
+  legalEntity    LegalEntity       @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  // Given when the journal is posted; drafts have none.
+  number         String?
+  date           DateTime          @db.Date
+  periodId       String?           @db.Uuid
+  period         AccountingPeriod? @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  status         JournalStatus     @default(DRAFT)
+  source         JournalSource     @default(MANUAL)
+  // The invoice, bill, receipt… this journal records.
+  sourceId       String?           @db.Uuid
+  // A human reference for the source, e.g. the invoice number.
+  sourceRef      String?
+  narration      String
+  // The entity's base currency, copied so the journal reads on its own.
+  currency       String            @db.Char(3)
+  // Sum of the debits (equal to the credits once posted).
+  totalMinor     BigInt            @default(0)
+  // Makes posting safe to retry: one journal per key per entity.
+  idempotencyKey String?
+  reversalOfId   String?           @unique @db.Uuid
+  reversalOf     Journal?          @relation("JournalReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy     Journal?          @relation("JournalReversal")
+  postedAt       DateTime?
+  postedById     String?           @db.Uuid
+  createdById    String?           @db.Uuid
+  createdBy      User?             @relation("JournalCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdByLabel String
+  isDemo         Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  lines JournalLine[]
+
+  @@unique([legalEntityId, number])
+  @@unique([legalEntityId, idempotencyKey])
+  @@index([legalEntityId, date])
+  @@index([source, sourceId])
+  @@map("journals")
+}
+
+/// One debit or credit. Exactly one of the two amounts is positive.
+model JournalLine {
+  id            String        @id @default(uuid()) @db.Uuid
+  journalId     String        @db.Uuid
+  journal       Journal       @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  position      Int
+  accountId     String        @db.Uuid
+  account       LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  // In the entity's base currency.
+  debitMinor    BigInt        @default(0)
+  creditMinor   BigInt        @default(0)
+  description   String?
+  // The original currency amount when the document was in another currency.
+  txCurrency    String?       @db.Char(3)
+  txAmountMinor BigInt?
+  fxRate        Decimal?      @db.Decimal(18, 8)
+  // Who the line concerns, for receivable and payable balances:
+  // CLIENT, VENDOR or PERSON (an employee or freelancer), and their id.
+  partyType     String?
+  partyId       String?       @db.Uuid
+  projectId     String?       @db.Uuid
+  project       Project?      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([journalId, position])
+  @@index([accountId])
+  @@index([projectId])
+  @@index([partyType, partyId])
+  @@map("journal_lines")
 }

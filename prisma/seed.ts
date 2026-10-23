@@ -15,6 +15,7 @@ import { seedDemoOrganisation } from "./seed/organisation";
 import { seedDemoCrm, seedDemoPipeline } from "./seed/crm";
 import { seedDemoTwoFactor } from "./seed/two-factor";
 import { seedDemoProject, seedDemoQuotes } from "./seed/commercial";
+import { seedDemoFinance } from "./seed/finance";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
 export const DEMO_USERS = [
@@ -44,6 +45,8 @@ async function main() {
 
   const { india, uae } = await seedDemoOrganisation(db);
   console.log("Demo organisation: DEMO-IN, DEMO-AE");
+  await seedDemoFinance(db, [india, uae]);
+  console.log("Demo chart of accounts and opening balances");
 
   for (const user of DEMO_USERS) {
     if (await db.user.findUnique({ where: { email: user.email } })) continue;
