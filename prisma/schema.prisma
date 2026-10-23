@@ -45,6 +45,7 @@ model User {
   projectsCreated  Project[]           @relation("ProjectCreatedBy")
   projectsManaged  Project[]           @relation("ProjectManager")
   projectsProduced Project[]           @relation("ProjectProducer")
+  projectCosts     ProjectCostEntry[]  @relation("ProjectCostCreatedBy")
 
   @@map("users")
 }
@@ -1019,6 +1020,8 @@ model Project {
   description          String?
   scope                String?
   deliverables         String?
+  // When the original budget was fixed: on approval, or on creation from a quote.
+  baselineLockedAt     DateTime?
   createdById          String         @db.Uuid
   createdBy            User           @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   isDemo               Boolean        @default(false)
@@ -1028,6 +1031,7 @@ model Project {
   budgetLines   ProjectBudgetLine[]
   milestones    ProjectMilestone[]
   statusChanges ProjectStatusChange[]
+  costEntries   ProjectCostEntry[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1055,22 +1059,87 @@ model ProjectStatusChange {
 
 // The cost and revenue plan, one line per quote line.
 model ProjectBudgetLine {
-  id           String       @id @default(uuid()) @db.Uuid
-  projectId    String       @db.Uuid
-  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  position     Int
-  section      String?
-  category     LineCategory
-  description  String
-  quantity     Decimal      @db.Decimal(12, 3)
-  days         Decimal      @db.Decimal(12, 3)
-  unitCode     String?
-  costMinor    BigInt
+  id                String       @id @default(uuid()) @db.Uuid
+  projectId         String       @db.Uuid
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position          Int
+  section           String?
+  category          LineCategory
+  costCodeId        String?      @db.Uuid
+  costCode          CostCode?    @relation(fields: [costCodeId], references: [id], onDelete: Restrict)
+  description       String
+  quantity          Decimal      @db.Decimal(12, 3)
+  days              Decimal      @db.Decimal(12, 3)
+  unitCode          String?
+  // The original approved budget. Frozen once the project's baseline is
+  // locked (a database trigger enforces it); changes go through change orders.
+  costMinor         BigInt
   // Selling amount after discount, before tax.
-  revenueMinor BigInt
+  revenueMinor      BigInt
+  // The project manager's estimate of the final cost, when it differs from
+  // the calculated forecast. Null uses the calculation (docs/budget.md).
+  forecastCostMinor BigInt?
+  forecastNote      String?
+
+  costEntries ProjectCostEntry[]
 
   @@unique([projectId, position])
   @@map("project_budget_lines")
+}
+
+/// Configurable cost codes under the budget categories (the quote line categories).
+model CostCode {
+  id          String       @id @default(uuid()) @db.Uuid
+  code        String       @unique
+  name        String
+  category    LineCategory
+  description String?
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  budgetLines ProjectBudgetLine[]
+
+  @@map("cost_codes")
+}
+
+enum CostEntryKind {
+  // A purchase or booking HMBL has agreed to pay for but not yet been billed.
+  COMMITMENT
+  // A cost incurred: a bill, an expense, a settlement.
+  ACTUAL
+}
+
+/// Committed and actual costs against a budget line. Entries are never edited
+/// or deleted: a mistake is voided with a reason and entered again.
+model ProjectCostEntry {
+  id           String             @id @default(uuid()) @db.Uuid
+  projectId    String             @db.Uuid
+  project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  budgetLineId String             @db.Uuid
+  budgetLine   ProjectBudgetLine  @relation(fields: [budgetLineId], references: [id], onDelete: Restrict)
+  kind         CostEntryKind
+  // In the project's currency; always positive.
+  amountMinor  BigInt
+  entryDate    DateTime           @db.Date
+  description  String
+  supplier     String?
+  reference    String?
+  // An actual cost that draws down a commitment, so it isn't counted twice.
+  commitmentId String?            @db.Uuid
+  commitment   ProjectCostEntry?  @relation("CommitmentDrawdown", fields: [commitmentId], references: [id], onDelete: Restrict)
+  drawdowns    ProjectCostEntry[] @relation("CommitmentDrawdown")
+  // A commitment with nothing more to come: what wasn't billed is released.
+  closedAt     DateTime?
+  voidedAt     DateTime?
+  voidReason   String?
+  createdById  String             @db.Uuid
+  createdBy    User               @relation("ProjectCostCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt    DateTime           @default(now())
+
+  @@index([projectId])
+  @@index([budgetLineId])
+  @@map("project_cost_entries")
 }
 
 // A billing milestone from the quote's payment schedule.

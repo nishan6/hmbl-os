@@ -63,8 +63,12 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.getByRole("link", { name: /^P-/ }).first().click();
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
         await expectNoViolations(page);
+        const projectUrl = page.url();
         await page.getByRole("link", { name: "Edit details" }).click();
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goto(`${projectUrl}/budget`);
+        await expect(page.getByRole("heading", { level: 2, name: "Budget lines" })).toBeVisible();
         await expectNoViolations(page);
       });
       await test.step("a quote and its editor", async () => {

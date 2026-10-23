@@ -14,6 +14,7 @@ import { ensureDefaultRoles } from "@/server/permissions/roles";
 import { ensureMasterDataDefaults } from "@/server/master-data/defaults";
 import { ensurePipelineDefaults } from "@/server/crm/defaults";
 import { ensureProjectTypeDefaults } from "@/server/projects/types";
+import { ensureCostCodeDefaults } from "@/server/projects/cost-codes";
 import { createUser } from "@/server/users/service";
 
 async function main() {
@@ -35,6 +36,7 @@ async function main() {
   await ensureMasterDataDefaults(db);
   await ensurePipelineDefaults(db);
   await ensureProjectTypeDefaults(db);
+  await ensureCostCodeDefaults(db);
   const user = await createUser("system", {
     name: values.name,
     email: values.email,
