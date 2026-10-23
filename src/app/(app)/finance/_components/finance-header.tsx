@@ -8,6 +8,8 @@ import type { FinanceEntity } from "@/server/finance/context";
 
 export const FINANCE_TABS = [
   { path: "/finance", label: "Overview" },
+  { path: "/finance/invoices", label: "Invoices" },
+  { path: "/finance/credit-notes", label: "Credit notes" },
   { path: "/finance/journals", label: "Journals" },
   { path: "/finance/accounts", label: "Chart of accounts" },
   { path: "/finance/trial-balance", label: "Trial balance" },
