@@ -222,6 +222,8 @@ model LegalEntity {
   ledgerAccounts   LedgerAccount[]
   periods          AccountingPeriod[]
   journals         Journal[]
+  salesInvoices    SalesInvoice[]
+  creditNotes      CreditNote[]
 
   @@map("legal_entities")
 }
@@ -558,6 +560,7 @@ model Client {
   activities    CrmActivity[]
   quotes        Quote[]
   projects      Project[]
+  salesInvoices SalesInvoice[]
 
   @@unique([taxIdType, taxId], map: "clients_tax_id_key", where: raw("\"taxId\" IS NOT NULL AND status = 'ACTIVE'"))
   @@index([normalizedName])
@@ -1049,6 +1052,7 @@ model Project {
   documents      ProjectDocument[]
   closeoutItems  ProjectCloseoutItem[]
   journalLines   JournalLine[]
+  salesInvoices  SalesInvoice[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1178,6 +1182,8 @@ model ProjectMilestone {
   // Set by hand: kept when the event dates move. The note says why.
   dueDateManual Boolean        @default(false)
   dueDateNote   String?
+
+  invoices SalesInvoice[]
 
   @@unique([projectId, position])
   @@map("project_milestones")
@@ -1604,4 +1610,172 @@ model JournalLine {
   @@index([projectId])
   @@index([partyType, partyId])
   @@map("journal_lines")
+}
+
+// ─── Finance: sales invoices and credit notes ────────────────────────────────
+// Tax invoices to clients (docs/invoicing.md). Issuing numbers the invoice and
+// posts it to the ledger; from then on it never changes, and corrections are
+// credit notes.
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  // A draft thrown away before it was issued. Issued invoices are never cancelled.
+  DISCARDED
+}
+
+enum SupplyType {
+  INTRA_STATE
+  INTER_STATE
+  EXPORT
+  NON_GST
+}
+
+model SalesInvoice {
+  id                   String            @id @default(uuid()) @db.Uuid
+  legalEntityId        String            @db.Uuid
+  legalEntity          LegalEntity       @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  // Given when the invoice is issued; drafts have none.
+  number               String?
+  status               InvoiceStatus     @default(DRAFT)
+  clientId             String            @db.Uuid
+  client               Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  projectId            String?           @db.Uuid
+  project              Project?          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  // The billing milestone this invoice bills, if any.
+  milestoneId          String?           @db.Uuid
+  milestone            ProjectMilestone? @relation(fields: [milestoneId], references: [id], onDelete: Restrict)
+  invoiceDate          DateTime          @db.Date
+  dueDate              DateTime          @db.Date
+  currency             String            @db.Char(3)
+  // Units of the entity's base currency per unit of `currency`; null when they match.
+  fxRate               Decimal?          @db.Decimal(18, 8)
+  fxNote               String?
+  supplyType           SupplyType
+  // GST state code of the place of supply ("18" for Assam); null outside India.
+  placeOfSupplyCode    String?
+  placeOfSupplyCountry String            @db.Char(2)
+  // Copied from the client and the entity when issued, so the invoice reads
+  // the same however those records change later.
+  clientName           String
+  clientGstin          String?
+  clientAddress        String?
+  entityGstin          String?
+  clientPoNumber       String?
+  notes                String?
+  // Totals in the invoice currency, recalculated from the lines on every save.
+  subtotalMinor        BigInt            @default(0)
+  cgstMinor            BigInt            @default(0)
+  sgstMinor            BigInt            @default(0)
+  igstMinor            BigInt            @default(0)
+  otherTaxMinor        BigInt            @default(0)
+  taxMinor             BigInt            @default(0)
+  totalMinor           BigInt            @default(0)
+  // What the client owes in the base currency, as posted to receivables.
+  baseTotalMinor       BigInt            @default(0)
+  // Revenue held as client advances until the project completes
+  // (revenue recognition "on completion"), then moved to revenue.
+  revenueDeferred      Boolean           @default(false)
+  revenueRecognisedAt  DateTime?
+  journalId            String?           @unique @db.Uuid
+  recognitionJournalId String?           @unique @db.Uuid
+  issuedAt             DateTime?
+  issuedById           String?           @db.Uuid
+  createdById          String            @db.Uuid
+  isDemo               Boolean           @default(false)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  lines       SalesInvoiceLine[]
+  creditNotes CreditNote[]
+
+  @@unique([legalEntityId, number])
+  @@index([clientId])
+  @@index([projectId])
+  @@index([legalEntityId, status, dueDate])
+  @@map("sales_invoices")
+}
+
+model SalesInvoiceLine {
+  id               String           @id @default(uuid()) @db.Uuid
+  invoiceId        String           @db.Uuid
+  invoice          SalesInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position         Int
+  description      String
+  // Services Accounting Code (or HSN for goods).
+  sacCode          String?
+  quantity         Decimal          @db.Decimal(12, 3)
+  unitPriceMinor   BigInt
+  // Taxable value: quantity × unit price, rounded.
+  amountMinor      BigInt
+  taxRateId        String?          @db.Uuid
+  taxCode          String?
+  taxRateBps       Int              @default(0)
+  cgstMinor        BigInt           @default(0)
+  sgstMinor        BigInt           @default(0)
+  igstMinor        BigInt           @default(0)
+  otherTaxMinor    BigInt           @default(0)
+  taxMinor         BigInt           @default(0)
+  totalMinor       BigInt
+  revenueAccountId String           @db.Uuid
+  creditLines      CreditNoteLine[]
+
+  @@unique([invoiceId, position])
+  @@map("sales_invoice_lines")
+}
+
+/// Reduces an issued invoice: a price correction, a cancelled service, a
+/// goodwill discount. Always against one invoice, never more than it billed.
+model CreditNote {
+  id             String        @id @default(uuid()) @db.Uuid
+  legalEntityId  String        @db.Uuid
+  legalEntity    LegalEntity   @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  number         String?
+  status         InvoiceStatus @default(DRAFT)
+  invoiceId      String        @db.Uuid
+  invoice        SalesInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  date           DateTime      @db.Date
+  reason         String
+  subtotalMinor  BigInt        @default(0)
+  cgstMinor      BigInt        @default(0)
+  sgstMinor      BigInt        @default(0)
+  igstMinor      BigInt        @default(0)
+  otherTaxMinor  BigInt        @default(0)
+  taxMinor       BigInt        @default(0)
+  totalMinor     BigInt        @default(0)
+  baseTotalMinor BigInt        @default(0)
+  journalId      String?       @unique @db.Uuid
+  issuedAt       DateTime?
+  issuedById     String?       @db.Uuid
+  createdById    String        @db.Uuid
+  isDemo         Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  lines CreditNoteLine[]
+
+  @@unique([legalEntityId, number])
+  @@index([invoiceId])
+  @@map("credit_notes")
+}
+
+model CreditNoteLine {
+  id            String           @id @default(uuid()) @db.Uuid
+  creditNoteId  String           @db.Uuid
+  creditNote    CreditNote       @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  invoiceLineId String           @db.Uuid
+  invoiceLine   SalesInvoiceLine @relation(fields: [invoiceLineId], references: [id], onDelete: Restrict)
+  position      Int
+  // Taxable value credited, in the invoice currency.
+  amountMinor   BigInt
+  cgstMinor     BigInt           @default(0)
+  sgstMinor     BigInt           @default(0)
+  igstMinor     BigInt           @default(0)
+  otherTaxMinor BigInt           @default(0)
+  taxMinor      BigInt           @default(0)
+  totalMinor    BigInt
+
+  @@unique([creditNoteId, position])
+  @@index([invoiceLineId])
+  @@map("credit_note_lines")
 }

@@ -52,6 +52,9 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/finance/accounts",
         "/finance/journals",
         "/finance/journals/new",
+        "/finance/invoices",
+        "/finance/invoices/new",
+        "/finance/credit-notes",
         "/finance/trial-balance",
         "/finance/settings",
         "/admin/master-data",
@@ -104,6 +107,21 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.getByRole("link", { name: "Change orders", exact: true }).click();
         await page.getByRole("link", { name: /^CO-01/ }).click();
         await expect(page.getByRole("heading", { level: 2, name: "Budget changes" })).toBeVisible();
+        await expectNoViolations(page);
+      });
+      await test.step("an invoice, its editor and its print view", async () => {
+        await page.goto("/finance/invoices");
+        await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+        await page.getByRole("button", { name: "Show" }).click();
+        await page.getByRole("link", { name: "Draft" }).first().click();
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expectNoViolations(page);
+        const invoiceUrl = page.url();
+        await page.goto(`${invoiceUrl}/edit`);
+        await expect(page.getByRole("heading", { level: 1, name: /^Draft invoice/ })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goto(invoiceUrl.replace("/finance/invoices/", "/print/invoices/"));
+        await expect(page.getByRole("heading", { level: 1, name: "Tax invoice" })).toBeVisible();
         await expectNoViolations(page);
       });
       await test.step("a quote and its editor", async () => {

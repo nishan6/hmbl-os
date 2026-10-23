@@ -8,7 +8,7 @@ import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatMoney } from "@/lib/format";
 import { formatBps } from "@/lib/percent";
 import { splitByPercent } from "@/lib/pricing";
-import { PrintButton } from "./print-button";
+import { PrintButton } from "../../_components/print-button";
 
 export const metadata = { title: "Quote" };
 

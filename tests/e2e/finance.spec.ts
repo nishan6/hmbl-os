@@ -33,3 +33,52 @@ test("finance posts a manual journal and sees it in the trial balance", async ({
   await expect(page.getByRole("link", { name: "Professional fees" })).toBeVisible();
   await expect(page.getByRole("row", { name: /Totals/ })).toBeVisible();
 });
+
+test("finance issues a GST invoice, credits part of it and prints both", async ({ page }) => {
+  const line = `E2E LED wall ${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/finance/invoices");
+  await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await page.getByRole("button", { name: "Show" }).click();
+  await page.getByRole("link", { name: "New invoice" }).click();
+  await page
+    .getByRole("combobox", { name: "Client" })
+    .selectOption({ label: "Demo Arena Live (DEMO)" });
+  await page.getByRole("button", { name: "Start invoice" }).click();
+
+  // DEMO-IN and the client are both in Maharashtra: CGST and SGST.
+  await expect(page.getByRole("heading", { level: 1, name: /^Draft invoice to/ })).toBeVisible();
+  await expect(page.getByText("Within the state (CGST + SGST)")).toBeVisible();
+  await page.getByLabel("Line 1 description").fill(line);
+  await page.getByLabel("Line 1 rate").fill("50,000");
+  await expect(page.getByText("₹59,000.00")).toBeVisible();
+  await page.getByRole("button", { name: "Save draft" }).click();
+
+  await expect(page.getByRole("cell", { name: line })).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Issue" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Invoice INV\// })).toBeVisible();
+  const invoiceUrl = page.url();
+
+  await page.getByRole("link", { name: "Tax invoice" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Tax invoice" })).toBeVisible();
+  await expect(page.getByText("Rupees Fifty Nine Thousand Only")).toBeVisible();
+  await expect(page.getByText("Maharashtra (27)")).toBeVisible();
+
+  await page.goto(invoiceUrl);
+  await page.getByRole("link", { name: "Credit note" }).click();
+  await page.getByRole("textbox", { name: "Reason" }).fill("Half a day cancelled");
+  await page.getByLabel(`Credit on ${line}`).fill("10000");
+  await expect(page.getByText("₹11,800.00")).toBeVisible();
+  await page.getByRole("button", { name: "Save draft credit note" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Draft credit note" })).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Issue" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Credit note CN\// })).toBeVisible();
+  await page.getByRole("link", { name: "Credit note document" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Credit note" })).toBeVisible();
+  await expect(page.getByText("Rupees Eleven Thousand Eight Hundred Only")).toBeVisible();
+
+  await page.goto(invoiceUrl);
+  await expect(page.getByRole("definition").filter({ hasText: "₹47,200.00" })).toBeVisible();
+});

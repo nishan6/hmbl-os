@@ -15,7 +15,7 @@ import { seedDemoOrganisation } from "./seed/organisation";
 import { seedDemoCrm, seedDemoPipeline } from "./seed/crm";
 import { seedDemoTwoFactor } from "./seed/two-factor";
 import { seedDemoProject, seedDemoQuotes } from "./seed/commercial";
-import { seedDemoFinance } from "./seed/finance";
+import { seedDemoFinance, seedDemoInvoice } from "./seed/finance";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
 export const DEMO_USERS = [
@@ -66,6 +66,8 @@ async function main() {
   const pm = await db.user.findUniqueOrThrow({ where: { email: "pm@demo.hmbl.test" } });
   await seedDemoProject(db, sales.id, pm.id);
   console.log("Demo project");
+  await seedDemoInvoice(db, financeIndia.id);
+  console.log("Demo draft invoice");
   await seedDemoTwoFactor(
     db,
     DEMO_USERS.map((u) => u.email).filter((email) => !email.startsWith("new.")),
