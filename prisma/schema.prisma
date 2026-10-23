@@ -35,17 +35,18 @@ model User {
   accounts         Account[]
   ownedClients     Client[]
   twoFactors       TwoFactor[]
-  roles            UserRole[]          @relation("UserRoles")
-  grants           UserRole[]          @relation("UserRoleGrantedBy")
+  roles            UserRole[]           @relation("UserRoles")
+  grants           UserRole[]           @relation("UserRoleGrantedBy")
   opportunities    Opportunity[]
   crmActivities    CrmActivity[]
-  quotes           Quote[]             @relation("QuoteOwner")
-  quotesCreated    Quote[]             @relation("QuoteCreatedBy")
+  quotes           Quote[]              @relation("QuoteOwner")
+  quotesCreated    Quote[]              @relation("QuoteCreatedBy")
   quoteSteps       QuoteApprovalStep[]
-  projectsCreated  Project[]           @relation("ProjectCreatedBy")
-  projectsManaged  Project[]           @relation("ProjectManager")
-  projectsProduced Project[]           @relation("ProjectProducer")
-  projectCosts     ProjectCostEntry[]  @relation("ProjectCostCreatedBy")
+  projectsCreated  Project[]            @relation("ProjectCreatedBy")
+  projectsManaged  Project[]            @relation("ProjectManager")
+  projectsProduced Project[]            @relation("ProjectProducer")
+  projectCosts     ProjectCostEntry[]   @relation("ProjectCostCreatedBy")
+  changeOrders     ProjectChangeOrder[] @relation("ChangeOrderCreatedBy")
 
   @@map("users")
 }
@@ -1028,10 +1029,12 @@ model Project {
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
-  budgetLines   ProjectBudgetLine[]
-  milestones    ProjectMilestone[]
-  statusChanges ProjectStatusChange[]
-  costEntries   ProjectCostEntry[]
+  budgetLines    ProjectBudgetLine[]
+  milestones     ProjectMilestone[]
+  statusChanges  ProjectStatusChange[]
+  costEntries    ProjectCostEntry[]
+  changeOrders   ProjectChangeOrder[]
+  budgetVersions ProjectBudgetVersion[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1082,6 +1085,7 @@ model ProjectBudgetLine {
   forecastNote      String?
 
   costEntries ProjectCostEntry[]
+  changeLines ProjectChangeOrderLine[]
 
   @@unique([projectId, position])
   @@map("project_budget_lines")
@@ -1159,4 +1163,98 @@ model ProjectMilestone {
 
   @@unique([projectId, position])
   @@map("project_milestones")
+}
+
+enum ChangeOrderStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  WITHDRAWN
+}
+
+/// A controlled change to an approved project's budget, scope or schedule
+/// (spec §10, "Change control"). Approved change orders are the only way the
+/// revised budget moves away from the original.
+model ProjectChangeOrder {
+  id                      String            @id @default(uuid()) @db.Uuid
+  projectId               String            @db.Uuid
+  project                 Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // CO-01, CO-02… within the project.
+  number                  Int
+  title                   String
+  reason                  String
+  description             String?
+  scopeImpact             String?
+  scheduleImpact          String?
+  // Positive delays the end date, negative brings it forward.
+  scheduleImpactDays      Int?
+  status                  ChangeOrderStatus @default(DRAFT)
+  // Totals of the lines, kept in step on every save.
+  costDeltaMinor          BigInt            @default(0)
+  revenueDeltaMinor       BigInt            @default(0)
+  // The client's agreement, required when the change alters revenue.
+  clientApprovedOn        DateTime?         @db.Date
+  clientApprovedByName    String?
+  clientApprovalMethod    AcceptanceMethod?
+  clientApprovalReference String?
+  // Why it was sent back or withdrawn; the Director's comment on approval.
+  statusComment           String?
+  submittedAt             DateTime?
+  submittedById           String?           @db.Uuid
+  decidedAt               DateTime?
+  decidedById             String?           @db.Uuid
+  // Approved by the person who submitted it: allowed, but recorded.
+  selfApproval            Boolean           @default(false)
+  createdById             String            @db.Uuid
+  createdBy               User              @relation("ChangeOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  lines         ProjectChangeOrderLine[]
+  budgetVersion ProjectBudgetVersion?
+
+  @@unique([projectId, number])
+  @@index([status])
+  @@map("project_change_orders")
+}
+
+/// One budget movement in a change order: an existing line up or down, or a new line.
+model ProjectChangeOrderLine {
+  id                String             @id @default(uuid()) @db.Uuid
+  changeOrderId     String             @db.Uuid
+  changeOrder       ProjectChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+  position          Int
+  // The line it changes. For a new line it is null until approval creates it.
+  budgetLineId      String?            @db.Uuid
+  budgetLine        ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: Restrict)
+  // For a new line.
+  newCategory       LineCategory?
+  newDescription    String?
+  newCostCodeId     String?            @db.Uuid
+  costDeltaMinor    BigInt
+  revenueDeltaMinor BigInt
+  note              String?
+
+  @@unique([changeOrderId, position])
+  @@index([budgetLineId])
+  @@map("project_change_order_lines")
+}
+
+/// The budget's history: version 1 is the original, each approved change order adds one.
+model ProjectBudgetVersion {
+  id             String              @id @default(uuid()) @db.Uuid
+  projectId      String              @db.Uuid
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version        Int
+  changeOrderId  String?             @unique @db.Uuid
+  changeOrder    ProjectChangeOrder? @relation(fields: [changeOrderId], references: [id], onDelete: Restrict)
+  // The revised budget cost and expected revenue (before tax) after this version.
+  costMinor      BigInt
+  revenueMinor   BigInt
+  createdById    String?             @db.Uuid
+  createdByLabel String
+  createdAt      DateTime            @default(now())
+
+  @@unique([projectId, version])
+  @@map("project_budget_versions")
 }

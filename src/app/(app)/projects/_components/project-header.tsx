@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { PageHeader } from "@/components/ui/page";
+import { PageHeader, type Crumb } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 import type { ProjectStatus } from "@/server/projects/lifecycle";
 import { PROJECT_STATUS } from "./status";
@@ -8,6 +8,7 @@ import { PROJECT_STATUS } from "./status";
 const TABS = [
   { path: "", label: "Overview" },
   { path: "/budget", label: "Budget", costs: true },
+  { path: "/changes", label: "Change orders" },
 ] as const;
 
 export type ProjectTab = (typeof TABS)[number]["path"];
@@ -31,8 +32,8 @@ export function ProjectHeader({
   };
   current: ProjectTab;
   actions?: React.ReactNode;
-  /** A last breadcrumb below the project, e.g. "Edit". */
-  crumb?: string;
+  /** Breadcrumbs below the project, e.g. "Edit"; a sub-page hides the tabs. */
+  crumb?: string | Crumb[];
   /** Show the tabs about costs (see canSeeProjectCosts). */
   showCosts?: boolean;
 }) {
@@ -57,7 +58,12 @@ export function ProjectHeader({
         }
         breadcrumbs={[
           { label: "Projects", href: "/projects" },
-          ...(crumb ? [{ label: p.number, href: base }, { label: crumb }] : [{ label: p.number }]),
+          ...(crumb
+            ? [
+                { label: p.number, href: base },
+                ...(typeof crumb === "string" ? [{ label: crumb }] : crumb),
+              ]
+            : [{ label: p.number }]),
         ]}
         actions={actions}
       />

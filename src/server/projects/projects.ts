@@ -14,6 +14,7 @@ import {
   PROJECT_STATUSES,
   type ProjectStatus,
 } from "./lifecycle";
+import { recordBudgetVersion } from "./versions";
 import {
   newProjectInput,
   projectDetailsInput,
@@ -344,7 +345,7 @@ async function lockBaseline(
   });
   const cost = totals._sum.costMinor ?? 0n;
   const revenue = totals._sum.revenueMinor ?? 0n;
-  await tx.project.update({
+  const locked = await tx.project.update({
     where: { id: project.id },
     data: {
       baselineLockedAt: new Date(),
@@ -357,6 +358,7 @@ async function lockBaseline(
           }),
     },
   });
+  await recordBudgetVersion(tx, actor, locked, null);
   await recordAudit(tx, actor, {
     action: "project.baseline_locked",
     targetType: "project",

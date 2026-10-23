@@ -29,6 +29,7 @@
   --hm-text-muted: #66666d;
   --hm-text-disabled: #a1a1a8;
   --hm-text-on-accent: #ffffff;
+  --hm-text-on-danger: #ffffff;
 
   /* Lines */
   --hm-border: #d9d9de;
@@ -81,6 +82,7 @@
   --hm-text-muted: #94949b;
   --hm-text-disabled: #5f5f66;
   --hm-text-on-accent: #0b1020;
+  --hm-text-on-danger: #0b1020;
 
   --hm-border: #34343a;
   --hm-separator: #26262b;
@@ -123,6 +125,7 @@
   --color-muted: var(--hm-text-muted);
   --color-disabled: var(--hm-text-disabled);
   --color-on-accent: var(--hm-text-on-accent);
+  --color-on-danger: var(--hm-text-on-danger);
   --color-border: var(--hm-border);
   --color-separator: var(--hm-separator);
   --color-border-strong: var(--hm-border-strong);
@@ -205,6 +208,7 @@
     --hm-text-muted: #94949b;
     --hm-text-disabled: #5f5f66;
     --hm-text-on-accent: #0b1020;
+    --hm-text-on-danger: #0b1020;
     --hm-border: #34343a;
     --hm-separator: #26262b;
     --hm-border-strong: #4a4a52;

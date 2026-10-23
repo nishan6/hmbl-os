@@ -14,3 +14,13 @@ export const PROJECT_STATUS: Record<ProjectStatus, StatusKey> = {
   ON_HOLD: "on_hold",
   CANCELLED: "cancelled",
 };
+
+export const CHANGE_ORDER_STATUS: Record<
+  "DRAFT" | "SUBMITTED" | "APPROVED" | "WITHDRAWN",
+  StatusKey
+> = {
+  DRAFT: "draft",
+  SUBMITTED: "pending_approval",
+  APPROVED: "approved",
+  WITHDRAWN: "withdrawn",
+};
