@@ -66,7 +66,8 @@ Hiding a navigation item is never the access control. Each page and service chec
 | `/admin/organisation/entities/[id]` | Entity details, tax registrations, number formats               | `organisation.view` for that entity                      |
 | `/crm/clients` and below            | Clients and contacts (see [crm.md](crm.md))                     | `crm.view`                                               |
 | `/quotes` and below                 | Quotes and the line editor (see [commercial.md](commercial.md)) | `commercial.view`; editing needs `commercial.edit`       |
-| `/admin/master-data`                | Tax rates, payment terms and units                              | `commercial.view`, `finance.view` or `organisation.view` |
+| `/print/quotes/[id]`                | The client-facing quote, outside the app shell, always light    | `commercial.view` for that entity                        |
+| `/admin/master-data`                | Tax rates, payment terms, units and quote rules                 | `commercial.view`, `finance.view` or `organisation.view` |
 | `/admin/numbering`                  | Number formats with an example of the next number               | `organisation.view`                                      |
 | `/admin/users`                      | Users, their roles and entity scope                             | `users.view`                                             |
 | `/admin/audit`                      | Audit events, filterable by action, newest first                | `audit.view`                                             |

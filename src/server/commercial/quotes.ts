@@ -8,6 +8,7 @@ import { allocateNumber } from "@/server/numbering/service";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { parseInput, parseNestedInput } from "@/lib/parse";
 import { MILLI, priceLine, quoteTotals, validateLine, type LineInput } from "@/lib/pricing";
+import { commercialSettingsFor } from "./settings";
 import { createQuoteInput, draftInput, type CreateQuoteInput, type DraftInput } from "./schemas";
 
 /*
@@ -16,9 +17,6 @@ import { createQuoteInput, draftInput, type CreateQuoteInput, type DraftInput } 
  * found. Prices are always recalculated here from the lines: the editor's
  * live totals are a preview and are never trusted.
  */
-
-/** LABELLED DEFAULT: days a new quote stays valid. Becomes a setting with approvals. */
-export const DEFAULT_VALIDITY_DAYS = 30;
 
 const invalid = (field: string, message: string) =>
   new ValidationError("Check the highlighted fields.", { [field]: [message] });
@@ -262,9 +260,12 @@ export async function createQuote(actor: Actor, raw: CreateQuoteInput) {
     contactId = contact.id;
   }
   const currency = opportunity?.currency ?? client.currency;
-  const tax = await db.taxRate.findFirst({
-    where: { countryCode: entity.countryCode, isDefault: true, status: "ACTIVE" },
-  });
+  const [tax, settings] = await Promise.all([
+    db.taxRate.findFirst({
+      where: { countryCode: entity.countryCode, isDefault: true, status: "ACTIVE" },
+    }),
+    commercialSettingsFor(db, entity.id),
+  ]);
 
   return db.$transaction(async (tx) => {
     const { number } = await allocateNumber(tx, {
@@ -288,7 +289,7 @@ export async function createQuote(actor: Actor, raw: CreateQuoteInput) {
         version: 1,
         contactId,
         currency,
-        validUntil: addDays(localToday(entity.timezone), DEFAULT_VALIDITY_DAYS),
+        validUntil: addDays(localToday(entity.timezone), settings.quoteValidityDays),
         ...((await paymentSnapshot(tx, { isDefault: true })) ?? {}),
         taxRateId: tax?.id ?? null,
         taxRateBps: tax?.rateBps ?? 0,
@@ -580,4 +581,59 @@ async function sameLines<L extends Record<(typeof LINE_COMPARE)[number], unknown
   const key = (l: L) => JSON.stringify(LINE_COMPARE.map((f) => String(l[f])));
   const sorted = [...before].sort((a, b) => Number(a.position) - Number(b.position));
   return sorted.every((l, i) => key(l) === key(after[i]!));
+}
+
+/**
+ * Everything the client-facing quote document shows, and nothing internal:
+ * cost, margin, markup and internal notes are always removed here.
+ */
+export async function getQuoteDocument(
+  actor: Actor,
+  id: string,
+  options: { version?: number } = {},
+) {
+  const quote = await getQuote(actor, id, options);
+  const [entity, client] = await Promise.all([
+    db.legalEntity.findUniqueOrThrow({
+      where: { id: quote.legalEntityId },
+      include: { taxRegistrations: { where: { status: "ACTIVE" }, orderBy: { type: "asc" } } },
+    }),
+    db.client.findUniqueOrThrow({ where: { id: quote.clientId } }),
+  ]);
+  return {
+    number: quote.number,
+    title: quote.title,
+    isDemo: quote.isDemo,
+    isLatest: quote.isLatest,
+    entity: {
+      legalName: entity.legalName,
+      tradingName: entity.tradingName,
+      address: [
+        entity.addressLine1,
+        entity.addressLine2,
+        entity.city,
+        entity.region,
+        entity.postalCode,
+      ]
+        .filter(Boolean)
+        .join(", "),
+      countryCode: entity.countryCode,
+      taxRegistrations: entity.taxRegistrations.map((t) => ({ type: t.type, value: t.value })),
+      timezone: entity.timezone,
+    },
+    client: {
+      name: client.legalName ?? client.name,
+      address: [
+        client.addressLine1,
+        client.addressLine2,
+        client.city,
+        client.region,
+        client.postalCode,
+      ]
+        .filter(Boolean)
+        .join(", "),
+      taxId: client.taxId ? `${client.taxIdType ?? "Tax ID"} ${client.taxId}` : null,
+    },
+    version: hideCosts(quote.version),
+  };
 }

@@ -35,12 +35,13 @@ model User {
   accounts      Account[]
   ownedClients  Client[]
   twoFactors    TwoFactor[]
-  roles         UserRole[]    @relation("UserRoles")
-  grants        UserRole[]    @relation("UserRoleGrantedBy")
+  roles         UserRole[]          @relation("UserRoles")
+  grants        UserRole[]          @relation("UserRoleGrantedBy")
   opportunities Opportunity[]
   crmActivities CrmActivity[]
-  quotes        Quote[]       @relation("QuoteOwner")
-  quotesCreated Quote[]       @relation("QuoteCreatedBy")
+  quotes        Quote[]             @relation("QuoteOwner")
+  quotesCreated Quote[]             @relation("QuoteCreatedBy")
+  quoteSteps    QuoteApprovalStep[]
 
   @@map("users")
 }
@@ -205,6 +206,7 @@ model LegalEntity {
   userRoles        UserRole[]
   opportunities    Opportunity[]
   quotes           Quote[]
+  commercial       CommercialSettings?
 
   @@map("legal_entities")
 }
@@ -804,8 +806,18 @@ model QuoteVersion {
   createdById      String      @db.Uuid
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
+  // Workflow: who moved it and when. The only fields that change after draft.
+  submittedAt      DateTime?
+  approvedAt       DateTime?
+  approvedById     String?     @db.Uuid
+  issuedAt         DateTime?
+  issuedById       String?     @db.Uuid
+  withdrawnAt      DateTime?
+  // Why it was withdrawn, declined or superseded.
+  statusReason     String?
 
   lines QuoteLine[]
+  steps QuoteApprovalStep[]
 
   @@unique([quoteId, version])
   @@index([status])
@@ -843,4 +855,46 @@ model QuoteLine {
 
   @@unique([versionId, position])
   @@map("quote_lines")
+}
+
+// Per-entity rules for quotes. A missing row means the defaults below.
+model CommercialSettings {
+  legalEntityId          String      @id @db.Uuid
+  legalEntity            LegalEntity @relation(fields: [legalEntityId], references: [id], onDelete: Cascade)
+  // Off by default (decided 2026-10-23): when on, quotes need the Director's
+  // approval before they can be issued.
+  requireQuoteApproval   Boolean     @default(false)
+  // Quotes whose total (in the entity's base currency) is below this skip
+  // approval. Null: every quote needs it.
+  approvalThresholdMinor BigInt?
+  quoteValidityDays      Int         @default(30)
+  updatedAt              DateTime    @updatedAt
+
+  @@map("commercial_settings")
+}
+
+enum QuoteApprovalAction {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+// The approval trail of a quote version, with the figures the approver saw.
+model QuoteApprovalStep {
+  id           String              @id @default(uuid()) @db.Uuid
+  versionId    String              @db.Uuid
+  version      QuoteVersion        @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  action       QuoteApprovalAction
+  actorId      String?             @db.Uuid
+  actor        User?               @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorLabel   String
+  comment      String?
+  // Approved by the same person who submitted it.
+  selfApproval Boolean             @default(false)
+  totalMinor   BigInt
+  marginBps    Int?
+  at           DateTime            @default(now())
+
+  @@index([versionId, at])
+  @@map("quote_approval_steps")
 }

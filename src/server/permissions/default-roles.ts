@@ -63,7 +63,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
       description: "Manages clients, opportunities and quotations.",
       permissions: [
         ...all("crm", ["configure"]),
-        ...only("commercial", ["view", "create", "edit", "submit", "export"]),
+        ...only("commercial", ["view", "create", "edit", "submit", "issue", "export"]),
         ...only("projects", ["view"]),
         ...only("documents", ["view", "create", "edit"]),
         ...only("reports", ["view"]),

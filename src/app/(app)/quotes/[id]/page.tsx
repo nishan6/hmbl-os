@@ -1,21 +1,24 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Pencil, Printer } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { getQuote } from "@/server/commercial/quotes";
+import { availableActions, listApprovalSteps } from "@/server/commercial/workflow";
 import { LINE_CATEGORIES } from "@/server/commercial/schemas";
 import { PAYMENT_TRIGGERS } from "@/server/master-data/schemas";
 import { NotFoundError } from "@/lib/errors";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { formatBps } from "@/lib/percent";
 import { PRICING_METHODS } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Alert, DetailList, EmptyState, PageHeader, Panel, Section } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { QUOTE_STATUS } from "../_components/status";
+import { QUOTE_DONE, QUOTE_STATUS } from "../_components/status";
 import { Totals } from "../_components/totals";
+import { quoteCommandAction } from "../actions";
+import { QuoteActions } from "./quote-actions";
 
 export const metadata = { title: "Quote" };
 
@@ -48,6 +51,14 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
       ? `${date(v.eventStartDate)} – ${date(v.eventEndDate)}`
       : date(v.eventStartDate ?? v.eventEndDate);
   const schedule = v.paymentSchedule as Schedule;
+  const [allowed, steps] = await Promise.all([
+    quote.isLatest ? availableActions(actor, id) : null,
+    listApprovalSteps(actor, id),
+  ]);
+  const anyAction =
+    allowed && Object.entries(allowed).some(([k, on]) => k !== "needsApproval" && on === true);
+  const lastStep = steps[0];
+  const tz = quote.legalEntity.timezone;
   const texts = [
     ["Scope of work", v.scope],
     ["Deliverables", v.deliverables],
@@ -75,19 +86,54 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
           { label: quote.number },
         ]}
         actions={
-          canEdit ? (
-            <Button asChild variant="primary">
-              <Link href={`/quotes/${id}/edit`}>
-                <Pencil aria-hidden />
-                Edit draft
+          <>
+            <Button asChild>
+              <Link href={`/print/quotes/${id}?version=${v.version}`} target="_blank">
+                <Printer aria-hidden />
+                Print or PDF
               </Link>
             </Button>
-          ) : null
+            {canEdit ? (
+              <Button asChild variant="primary">
+                <Link href={`/quotes/${id}/edit`}>
+                  <Pencil aria-hidden />
+                  Edit draft
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
-      {query.saved ? (
+      {query.saved || (typeof query.done === "string" && QUOTE_DONE[query.done]) ? (
         <div className="mb-6">
-          <Alert tone="success" title="Draft saved" />
+          <Alert
+            tone="success"
+            title={query.saved ? "Draft saved" : QUOTE_DONE[query.done as string]!}
+          />
+        </div>
+      ) : null}
+      {v.status === "PENDING_APPROVAL" ? (
+        <div className="mb-6">
+          <Alert tone="warning" title="Waiting for the Director's approval">
+            {v.submittedAt ? `Submitted ${formatDateTime(v.submittedAt, tz)}. ` : null}
+            {"It can't be edited or issued until it's approved or sent back."}
+          </Alert>
+        </div>
+      ) : null}
+      {v.status === "DRAFT" &&
+      lastStep?.action === "REJECTED" &&
+      lastStep.version.version === v.version ? (
+        <div className="mb-6">
+          <Alert tone="danger" title={`Sent back by ${lastStep.actorLabel}`}>
+            {lastStep.comment}
+          </Alert>
+        </div>
+      ) : null}
+      {v.statusReason && (v.status === "WITHDRAWN" || v.status === "SUPERSEDED") ? (
+        <div className="mb-6">
+          <Alert tone="info" title={v.status === "WITHDRAWN" ? "Withdrawn" : "Superseded"}>
+            {v.statusReason}
+          </Alert>
         </div>
       ) : null}
       {!quote.isLatest ? (
@@ -232,6 +278,28 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
         </div>
 
         <aside className="min-w-0">
+          {allowed && anyAction ? (
+            <Section title="Next step">
+              <Panel>
+                {allowed.issues.length && (allowed.issue || allowed.submit) ? (
+                  <div className="mb-4">
+                    <Alert tone="warning" title="Not ready to send">
+                      <ul className="list-disc pl-4">
+                        {allowed.issues.map((issue) => (
+                          <li key={issue}>{issue}</li>
+                        ))}
+                      </ul>
+                    </Alert>
+                  </div>
+                ) : null}
+                <QuoteActions
+                  action={quoteCommandAction.bind(null, id)}
+                  allowed={allowed}
+                  ready={!allowed.issues.length}
+                />
+              </Panel>
+            </Section>
+          ) : null}
           <Section title="Totals">
             <Panel>
               <Totals
@@ -264,6 +332,29 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
             )}
           </Section>
 
+          {steps.length ? (
+            <Section title="Approval history">
+              <ol className="flex flex-col gap-3">
+                {steps.map((st) => (
+                  <li key={st.id} className="text-sm">
+                    <p className="text-text">
+                      {STEP_LABEL[st.action]} · version {st.version.version}
+                      {st.selfApproval ? <Tag className="ml-2">Own quote</Tag> : null}
+                    </p>
+                    <p className="text-muted text-xs">
+                      {st.actorLabel} · {formatDateTime(st.at, tz)} ·{" "}
+                      <span className="tabular">{formatMoney(st.totalMinor, v.currency)}</span>
+                      {quote.showCosts && st.marginBps !== null
+                        ? ` at ${formatBps(st.marginBps)} margin`
+                        : ""}
+                    </p>
+                    {st.comment ? <p className="text-secondary text-xs">{st.comment}</p> : null}
+                  </li>
+                ))}
+              </ol>
+            </Section>
+          ) : null}
+
           <Section title="Versions">
             <ol className="flex flex-col gap-2">
               {quote.versions.map((ver) => (
@@ -290,6 +381,8 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
     </>
   );
 }
+
+const STEP_LABEL = { SUBMITTED: "Submitted", APPROVED: "Approved", REJECTED: "Sent back" } as const;
 
 function LineRows({
   heading,
