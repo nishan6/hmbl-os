@@ -45,6 +45,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/quotes",
         "/quotes/new",
         "/projects",
+        "/projects/new",
         "/admin/master-data",
         "/admin/numbering",
         "/admin/users",
@@ -60,6 +61,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       await test.step("a project", async () => {
         await page.goto("/projects");
         await page.getByRole("link", { name: /^P-/ }).first().click();
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expectNoViolations(page);
+        await page.getByRole("link", { name: "Edit details" }).click();
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
         await expectNoViolations(page);
       });

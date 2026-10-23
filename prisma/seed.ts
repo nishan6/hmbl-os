@@ -8,6 +8,7 @@ import { env } from "@/lib/env";
 import { ensureDefaultRoles } from "@/server/permissions/roles";
 import { ensureMasterDataDefaults } from "@/server/master-data/defaults";
 import { ensurePipelineDefaults } from "@/server/crm/defaults";
+import { ensureProjectTypeDefaults } from "@/server/projects/types";
 import { assignRole, createUser } from "@/server/users/service";
 import { seedDemoOrganisation } from "./seed/organisation";
 import { seedDemoCrm, seedDemoPipeline } from "./seed/crm";
@@ -37,6 +38,7 @@ async function main() {
   const masterData = await ensureMasterDataDefaults(db);
   console.log(`Master data defaults created: ${masterData.length}`);
   await ensurePipelineDefaults(db);
+  await ensureProjectTypeDefaults(db);
 
   const { india, uae } = await seedDemoOrganisation(db);
   console.log("Demo organisation: DEMO-IN, DEMO-AE");
@@ -56,7 +58,8 @@ async function main() {
   console.log("Demo clients and contacts");
   await seedDemoQuotes(db, sales.id);
   console.log("Demo quote");
-  await seedDemoProject(db, sales.id);
+  const pm = await db.user.findUniqueOrThrow({ where: { email: "pm@demo.hmbl.test" } });
+  await seedDemoProject(db, sales.id, pm.id);
   console.log("Demo project");
   await seedDemoTwoFactor(
     db,

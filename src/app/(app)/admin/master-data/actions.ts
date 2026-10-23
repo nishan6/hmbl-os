@@ -15,6 +15,7 @@ import {
 } from "@/server/master-data/service";
 import { createStage, moveStage, setStageArchived } from "@/server/crm/pipeline";
 import { updateCommercialSettings } from "@/server/commercial/settings";
+import { createProjectType, setProjectTypeArchived } from "@/server/projects/types";
 
 async function run(formData: FormData, fn: (values: Record<string, string>) => Promise<unknown>) {
   const state = await attempt(formData, async (values) => fn(values));
@@ -119,5 +120,22 @@ export async function updateQuoteSettingsAction(
       approvalThreshold: v.approvalThreshold,
       quoteValidityDays: v.quoteValidityDays ?? "",
     }),
+  );
+}
+
+export async function createProjectTypeAction(_: FormState, formData: FormData) {
+  return run(formData, async (v) =>
+    createProjectType(await requireActor(), {
+      code: v.code ?? "",
+      name: v.name ?? "",
+      description: v.description,
+      defaultRevenueModel: (v.defaultRevenueModel ?? "") as "ITEMISED",
+    }),
+  );
+}
+
+export async function projectTypeCommandAction(_: FormState, formData: FormData) {
+  return run(formData, async ({ id = "", command }) =>
+    setProjectTypeArchived(await requireActor(), id, command === "archive"),
   );
 }

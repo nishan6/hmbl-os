@@ -39,7 +39,7 @@ export async function ProjectsSection({
               </TD>
               <TD className="text-secondary">{p.legalEntity.code}</TD>
               <TD>
-                <StatusBadge status={PROJECT_STATUS[p.status]!} />
+                <StatusBadge status={PROJECT_STATUS[p.status]} />
               </TD>
               <TD align="right">{formatMoney(p.contractValueMinor, p.currency)}</TD>
             </TR>

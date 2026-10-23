@@ -11,6 +11,8 @@ import {
 } from "@/server/master-data/service";
 import { TAX_TREATMENTS } from "@/server/master-data/schemas";
 import { listCommercialSettings } from "@/server/commercial/settings";
+import { listProjectTypes } from "@/server/projects/types";
+import { REVENUE_MODELS } from "@/server/projects/schemas";
 import { formatMoney } from "@/lib/format";
 import { minorToInput } from "@/lib/money";
 import { formatBps } from "@/lib/percent";
@@ -20,6 +22,7 @@ import { StatusBadge, Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import {
   paymentTermCommandAction,
+  projectTypeCommandAction,
   stageCommandAction,
   taxRateCommandAction,
   unitCommandAction,
@@ -28,6 +31,7 @@ import {
 import { QuoteSettingsForm } from "./quote-settings-form";
 import { PaymentTermForm, TaxRateForm, UnitForm } from "./forms";
 import { StageForm } from "./stage-form";
+import { ProjectTypeForm } from "./project-forms";
 
 export const metadata = { title: "Master data" };
 
@@ -53,7 +57,11 @@ export default async function MasterDataPage() {
   ]);
   const quoteRules = can(actor, "commercial.view") ? await listCommercialSettings(actor) : [];
   const stages = can(actor, "crm.view") ? await listStages(actor, { includeArchived: true }) : [];
+  const projectTypes = can(actor, "projects.view")
+    ? await listProjectTypes(actor, { includeArchived: true })
+    : [];
   const canStages = canEverywhere(actor, "crm.configure");
+  const canProjects = canEverywhere(actor, "projects.configure");
   const canTax = canEverywhere(actor, "finance.configure");
   const canCommercial = canEverywhere(actor, "commercial.configure");
 
@@ -61,7 +69,7 @@ export default async function MasterDataPage() {
     <>
       <PageHeader
         title="Master data"
-        description="Tax rates, payment terms, units and pipeline stages used across the CRM, quotes and invoices. Documents keep a copy of what they used, so changes here never alter an issued document."
+        description="Tax rates, payment terms, units, pipeline stages and project settings used across the CRM, quotes, projects and invoices. Documents keep a copy of what they used, so changes here never alter an issued document."
         breadcrumbs={[{ label: "Administration" }, { label: "Master data" }]}
       />
 
@@ -342,6 +350,58 @@ export default async function MasterDataPage() {
           {canStages ? (
             <Panel className="mt-4">
               <StageForm />
+            </Panel>
+          ) : null}
+        </Section>
+      ) : null}
+      {projectTypes.length || canProjects ? (
+        <Section
+          title="Project types"
+          description="The kinds of work HMBL delivers. A project's type suggests its revenue model."
+        >
+          <Table dense>
+            <THead>
+              <tr>
+                <TH>Code</TH>
+                <TH>Name</TH>
+                <TH>Usual revenue model</TH>
+                <TH>Status</TH>
+                {canProjects ? <TH>Actions</TH> : null}
+              </tr>
+            </THead>
+            <TBody>
+              {projectTypes.map((t) => (
+                <TR key={t.id}>
+                  <TD className="font-medium">{t.code}</TD>
+                  <TD>
+                    {t.name}
+                    {t.description ? <p className="text-muted text-xs">{t.description}</p> : null}
+                  </TD>
+                  <TD className="text-secondary">{REVENUE_MODELS[t.defaultRevenueModel]}</TD>
+                  <TD>
+                    <StatusBadge status={t.status === "ACTIVE" ? "active" : "archived"} />
+                  </TD>
+                  {canProjects ? (
+                    <TD>
+                      <ActionButton
+                        action={projectTypeCommandAction}
+                        fields={{
+                          id: t.id,
+                          command: t.status === "ACTIVE" ? "archive" : "restore",
+                        }}
+                      >
+                        {t.status === "ACTIVE" ? "Archive" : "Restore"}
+                        <span className="sr-only"> {t.name}</span>
+                      </ActionButton>
+                    </TD>
+                  ) : null}
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+          {canProjects ? (
+            <Panel className="mt-4">
+              <ProjectTypeForm />
             </Panel>
           ) : null}
         </Section>

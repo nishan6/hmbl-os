@@ -1,10 +1,47 @@
 # Projects
 
-A project is a job HMBL is delivering (spec §10). In this stage a project only exists as the result of an accepted quote; planning, crew, equipment and actuals come in the next stage. Domain code is in `src/server/projects/`.
+A project is a job HMBL is delivering (spec §10). Most projects come from an accepted quote; internal work and retainers can be created directly. Domain code is in `src/server/projects/`.
+
+## Lifecycle
+
+The spec's suggested default, in `src/server/projects/lifecycle.ts` (pure rules, unit-tested):
+
+```
+Draft → Commercial review → Approved → Planning → Ready for execution → In progress
+      → Completed → Financial close → Closed
+```
+
+plus **On hold** and **Cancelled** from any status up to Completed.
+
+| Move                                                       | Who                                  | Reason needed |
+| ---------------------------------------------------------- | ------------------------------------ | ------------- |
+| Draft → Commercial review                                  | `projects.submit` (project manager)  | No            |
+| Draft or Commercial review → Approved                      | `projects.approve` (Director)        | No            |
+| Commercial review → Draft (sent back)                      | `projects.reject`                    | Yes           |
+| Forward from Approved up to Completed, skipping is allowed | `projects.edit`                      | No            |
+| Completed → Financial close                                | `projects.edit`                      | No            |
+| Financial close → Closed                                   | `projects.approve`                   | No            |
+| Back one or more steps after approval                      | `projects.edit`                      | Yes           |
+| Closed → Financial close (reopen)                          | `projects.approve`                   | Yes           |
+| On hold, and resume                                        | `projects.edit`                      | To hold       |
+| Cancel a draft / an approved project                       | `projects.edit` / `projects.approve` | Yes           |
+| Reopen a cancelled project                                 | `projects.approve`                   | Yes           |
+
+An approved project never goes back to draft: changes to an approved budget go through change control. A project on hold or cancelled remembers where it was (`resumeStatus`) and returns there. Every move is kept in `project_status_changes` (who, when, from, to, reason) and audited as `project.status_changed`. Closed and cancelled projects can't be edited.
+
+## Project details
+
+Name, project type, revenue model, business line, project manager, producer, client PO, start and end dates, venue, other locations (for tours), description, scope and deliverables. Editing needs `projects.edit` for the project's entity and is audited field by field (`project.updated`).
+
+**Project types** are group-wide master data (Administration → Master data), each with a usual revenue model: Live event, Broadcast production, Equipment rental, Touring, Retainer and Internal project by default. `projects.configure` for every entity adds or archives them.
+
+## Created directly
+
+`/projects/new` (`projects.create`) starts a **Draft** project without a quote, for internal work, retainers or jobs agreed outside the quote workflow. It has a number from the entity's `project` scheme, a currency, and a client unless the revenue model is Internal. It needs the Director's approval like any other draft.
 
 ## Created from an accepted quote
 
-`createProjectFromVersion` runs inside the acceptance transaction (see [commercial.md](commercial.md)) and keeps the accepted version's figures as the project's baseline:
+`createProjectFromVersion` runs inside the acceptance transaction (see [commercial.md](commercial.md)) and keeps the accepted version's figures as the project's baseline. The client has accepted the price, so the project starts at **Approved**, with the quote's scope and deliverables:
 
 | Project              | From the quote version                                                                                     |
 | -------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -26,6 +63,8 @@ Projects are entity-scoped (`projects.view` with `{ legalEntityId }`). Budget co
 
 ## Screens
 
-- `/projects`: every project you can see, searchable by number, name or client, filtered by the entity picker.
-- `/projects/[id]`: details and acceptance, budget, billing milestones and figures.
+- `/projects`: open projects you can see, searchable by number, name or client, filtered by status and the entity picker.
+- `/projects/new`: create a project directly.
+- `/projects/[id]`: details, scope, budget, billing milestones, figures, the lifecycle and the status history.
+- `/projects/[id]/edit`: project details.
 - Client and opportunity pages list their projects.
