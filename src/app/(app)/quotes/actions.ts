@@ -13,6 +13,7 @@ import {
   withdrawQuote,
 } from "@/server/commercial/workflow";
 import type { DraftLineInput } from "@/server/commercial/schemas";
+import { acceptQuote, declineQuote } from "@/server/commercial/acceptance";
 import { ValidationError } from "@/lib/errors";
 
 export async function createQuoteAction(_: FormState, formData: FormData) {
@@ -94,4 +95,26 @@ export async function quoteCommandAction(id: string, _: FormState, formData: For
   });
   if (state.status !== "success") return state;
   redirect(command === "revise" ? `/quotes/${id}/edit` : `/quotes/${id}?done=${String(command)}`);
+}
+
+/** Records the client's acceptance; opens the project it created. */
+export async function acceptQuoteAction(id: string, _: FormState, formData: FormData) {
+  const values = formValues(formData);
+  let projectId: string;
+  try {
+    const actor = await requireActor();
+    projectId = (await acceptQuote(actor, id, values)).id;
+  } catch (error) {
+    return toFormState(error, values);
+  }
+  redirect(`/projects/${projectId}?created=1`);
+}
+
+export async function declineQuoteAction(id: string, _: FormState, formData: FormData) {
+  const state = await attempt(formData, async (values) => {
+    const actor = await requireActor();
+    return declineQuote(actor, id, values);
+  });
+  if (state.status !== "success") return state;
+  redirect(`/quotes/${id}?done=decline`);
 }

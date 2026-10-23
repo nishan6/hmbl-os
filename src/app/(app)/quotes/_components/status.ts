@@ -18,4 +18,5 @@ export const QUOTE_DONE: Record<string, string> = {
   reject: "Sent back to draft",
   issue: "Issued. This version is now locked",
   withdraw: "Withdrawn",
+  decline: "Marked as declined",
 };

@@ -272,6 +272,8 @@ const CLIENT_REFERENCES: Record<string, Move> = {
     tx.crmActivity.updateMany({ where: { clientId: from }, data: { clientId: to } }),
   quote: (tx, from, to) =>
     tx.quote.updateMany({ where: { clientId: from }, data: { clientId: to } }),
+  project: (tx, from, to) =>
+    tx.project.updateMany({ where: { clientId: from }, data: { clientId: to } }),
 };
 
 /**

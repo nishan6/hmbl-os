@@ -21,8 +21,10 @@ import { localToday } from "./quotes";
  *   DRAFT ──issue──▶ ISSUED     (when the entity doesn't require approval)
  *   PENDING_APPROVAL / APPROVED / ISSUED ──withdraw──▶ WITHDRAWN
  *
- * Acceptance and decline come with conversion into projects. Every step
- * locks the version row, checks the status it expects, and is audited.
+ *   ISSUED ──accept──▶ ACCEPTED (and a project)    ISSUED ──decline──▶ DECLINED
+ *
+ * Acceptance and decline are in acceptance.ts. Every step locks the version
+ * row, checks the status it expects, and is audited.
  */
 
 type Tx = Prisma.TransactionClient;
@@ -88,7 +90,7 @@ export function readinessIssues(
   return issues;
 }
 
-async function load(actor: Actor, quoteId: string) {
+export async function loadQuote(actor: Actor, quoteId: string) {
   const quote = await db.quote.findUnique({
     where: { id: quoteId },
     include: { legalEntity: true },
@@ -100,7 +102,11 @@ async function load(actor: Actor, quoteId: string) {
 }
 
 /** Locks the latest version and checks it is in one of `from`. */
-async function lockLatest(tx: Tx, quote: { id: string; currentVersion: number }, from: Status[]) {
+export async function lockLatest(
+  tx: Tx,
+  quote: { id: string; currentVersion: number },
+  from: Status[],
+) {
   const [row] = await tx.$queryRaw<{ id: string }[]>`
     SELECT id FROM quote_versions
     WHERE "quoteId" = ${quote.id}::uuid AND version = ${quote.currentVersion}
@@ -155,7 +161,7 @@ async function step(
   });
 }
 
-async function audit(
+export async function auditStatus(
   tx: Tx,
   actor: Actor,
   quote: { id: string; legalEntityId: string },
@@ -182,7 +188,7 @@ function guard(actor: Actor, permission: Permission, legalEntityId: string) {
 
 /** Sends a draft to the Director. Only for entities that require approval. */
 export async function submitQuote(actor: Actor, quoteId: string, raw: unknown = {}) {
-  const quote = await load(actor, quoteId);
+  const quote = await loadQuote(actor, quoteId);
   guard(actor, "commercial.submit", quote.legalEntityId);
   const { comment } = parseInput(commentInput, raw);
   const settings = await commercialSettingsFor(db, quote.legalEntityId);
@@ -197,13 +203,13 @@ export async function submitQuote(actor: Actor, quoteId: string, raw: unknown = 
       data: { status: "PENDING_APPROVAL", submittedAt: new Date() },
     });
     await step(tx, actor, version, "SUBMITTED", comment);
-    await audit(tx, actor, quote, "quote.submitted", version, "PENDING_APPROVAL");
+    await auditStatus(tx, actor, quote, "quote.submitted", version, "PENDING_APPROVAL");
     return after;
   });
 }
 
 export async function approveQuote(actor: Actor, quoteId: string, raw: unknown = {}) {
-  const quote = await load(actor, quoteId);
+  const quote = await loadQuote(actor, quoteId);
   guard(actor, "commercial.approve", quote.legalEntityId);
   const { comment } = parseInput(commentInput, raw);
   return db.$transaction(async (tx) => {
@@ -219,7 +225,7 @@ export async function approveQuote(actor: Actor, quoteId: string, raw: unknown =
       data: { status: "APPROVED", approvedAt: new Date(), approvedById: actor.id },
     });
     await step(tx, actor, version, "APPROVED", comment, selfApproval);
-    await audit(tx, actor, quote, "quote.approved", version, "APPROVED", {
+    await auditStatus(tx, actor, quote, "quote.approved", version, "APPROVED", {
       selfApproval,
       totalMinor: version.totalMinor.toString(),
       marginBps: version.marginBps,
@@ -230,7 +236,7 @@ export async function approveQuote(actor: Actor, quoteId: string, raw: unknown =
 
 /** Sends it back to draft with the reason, for the salesperson to change. */
 export async function rejectQuote(actor: Actor, quoteId: string, raw: unknown) {
-  const quote = await load(actor, quoteId);
+  const quote = await loadQuote(actor, quoteId);
   guard(actor, "commercial.reject", quote.legalEntityId);
   const { comment } = parseInput(reasonInput, raw);
   return db.$transaction(async (tx) => {
@@ -240,14 +246,14 @@ export async function rejectQuote(actor: Actor, quoteId: string, raw: unknown) {
       data: { status: "DRAFT", submittedAt: null },
     });
     await step(tx, actor, version, "REJECTED", comment);
-    await audit(tx, actor, quote, "quote.rejected", version, "DRAFT", { reason: comment });
+    await auditStatus(tx, actor, quote, "quote.rejected", version, "DRAFT", { reason: comment });
     return after;
   });
 }
 
 /** Marks the version as sent to the client. Its content is frozen from now on. */
 export async function issueQuote(actor: Actor, quoteId: string) {
-  const quote = await load(actor, quoteId);
+  const quote = await loadQuote(actor, quoteId);
   guard(actor, "commercial.issue", quote.legalEntityId);
   const settings = await commercialSettingsFor(db, quote.legalEntityId);
   return db.$transaction(async (tx) => {
@@ -265,14 +271,14 @@ export async function issueQuote(actor: Actor, quoteId: string) {
       where: { id: version.id },
       data: { status: "ISSUED", issuedAt: new Date(), issuedById: actor.id },
     });
-    await audit(tx, actor, quote, "quote.issued", version, "ISSUED");
+    await auditStatus(tx, actor, quote, "quote.issued", version, "ISSUED");
     return after;
   });
 }
 
 /** Withdraws a quote that's waiting, approved or with the client. */
 export async function withdrawQuote(actor: Actor, quoteId: string, raw: unknown) {
-  const quote = await load(actor, quoteId);
+  const quote = await loadQuote(actor, quoteId);
   guard(actor, "commercial.edit", quote.legalEntityId);
   const { comment } = parseInput(reasonInput, raw);
   return db.$transaction(async (tx) => {
@@ -281,7 +287,9 @@ export async function withdrawQuote(actor: Actor, quoteId: string, raw: unknown)
       where: { id: version.id },
       data: { status: "WITHDRAWN", withdrawnAt: new Date(), statusReason: comment },
     });
-    await audit(tx, actor, quote, "quote.withdrawn", version, "WITHDRAWN", { reason: comment });
+    await auditStatus(tx, actor, quote, "quote.withdrawn", version, "WITHDRAWN", {
+      reason: comment,
+    });
     return after;
   });
 }
@@ -320,7 +328,7 @@ const COPIED = [
  * the history keeps every version as it was.
  */
 export async function reviseQuote(actor: Actor, quoteId: string) {
-  const quote = await load(actor, quoteId);
+  const quote = await loadQuote(actor, quoteId);
   guard(actor, "commercial.edit", quote.legalEntityId);
   const settings = await commercialSettingsFor(db, quote.legalEntityId);
   return db.$transaction(async (tx) => {
@@ -378,7 +386,7 @@ export async function reviseQuote(actor: Actor, quoteId: string) {
 
 /** What the actor may do with the latest version now, for the quote page. */
 export async function availableActions(actor: Actor, quoteId: string) {
-  const quote = await load(actor, quoteId);
+  const quote = await loadQuote(actor, quoteId);
   const scope = { legalEntityId: quote.legalEntityId };
   const [version, settings] = await Promise.all([
     db.quoteVersion.findUniqueOrThrow({
@@ -404,11 +412,13 @@ export async function availableActions(actor: Actor, quoteId: string) {
     withdraw:
       ["PENDING_APPROVAL", "APPROVED", "ISSUED"].includes(status) &&
       can(actor, "commercial.edit", scope),
+    answer: status === "ISSUED" && can(actor, "commercial.edit", scope),
+    poRequired: version.poRequired,
   };
 }
 
 export async function listApprovalSteps(actor: Actor, quoteId: string) {
-  const quote = await load(actor, quoteId);
+  const quote = await loadQuote(actor, quoteId);
   return db.quoteApprovalStep.findMany({
     where: { version: { quoteId: quote.id } },
     include: { version: { select: { version: true } } },

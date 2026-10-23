@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { Pencil, Printer } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
-import { getQuote } from "@/server/commercial/quotes";
 import { availableActions, listApprovalSteps } from "@/server/commercial/workflow";
+import { ACCEPTANCE_METHODS } from "@/server/commercial/acceptance";
+import { getQuote, localToday } from "@/server/commercial/quotes";
+import { projectForQuote } from "@/server/projects/projects";
 import { LINE_CATEGORIES } from "@/server/commercial/schemas";
 import { PAYMENT_TRIGGERS } from "@/server/master-data/schemas";
 import { NotFoundError } from "@/lib/errors";
@@ -17,10 +19,17 @@ import { StatusBadge, Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { QUOTE_DONE, QUOTE_STATUS } from "../_components/status";
 import { Totals } from "../_components/totals";
-import { quoteCommandAction } from "../actions";
+import { acceptQuoteAction, declineQuoteAction, quoteCommandAction } from "../actions";
 import { QuoteActions } from "./quote-actions";
+import { ClientAnswer } from "./client-answer";
 
 export const metadata = { title: "Quote" };
+
+const QUOTE_REASON_TITLE: Record<string, string> = {
+  WITHDRAWN: "Withdrawn",
+  SUPERSEDED: "Superseded",
+  DECLINED: "Declined by the client",
+};
 
 type Schedule = {
   label: string;
@@ -51,12 +60,16 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
       ? `${date(v.eventStartDate)} – ${date(v.eventEndDate)}`
       : date(v.eventStartDate ?? v.eventEndDate);
   const schedule = v.paymentSchedule as Schedule;
-  const [allowed, steps] = await Promise.all([
+  const [allowed, steps, project] = await Promise.all([
     quote.isLatest ? availableActions(actor, id) : null,
     listApprovalSteps(actor, id),
+    projectForQuote(actor, id),
   ]);
   const anyAction =
-    allowed && Object.entries(allowed).some(([k, on]) => k !== "needsApproval" && on === true);
+    allowed &&
+    Object.entries(allowed).some(
+      ([k, on]) => k !== "needsApproval" && k !== "poRequired" && on === true,
+    );
   const lastStep = steps[0];
   const tz = quote.legalEntity.timezone;
   const texts = [
@@ -129,10 +142,23 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
           </Alert>
         </div>
       ) : null}
-      {v.statusReason && (v.status === "WITHDRAWN" || v.status === "SUPERSEDED") ? (
+      {v.statusReason && ["WITHDRAWN", "SUPERSEDED", "DECLINED"].includes(v.status) ? (
         <div className="mb-6">
-          <Alert tone="info" title={v.status === "WITHDRAWN" ? "Withdrawn" : "Superseded"}>
+          <Alert tone="info" title={QUOTE_REASON_TITLE[v.status]!}>
             {v.statusReason}
+          </Alert>
+        </div>
+      ) : null}
+      {v.status === "ACCEPTED" ? (
+        <div className="mb-6">
+          <Alert tone="success" title={`Accepted by ${v.acceptedByName} on ${date(v.acceptedOn)}`}>
+            {v.acceptanceMethod ? `${ACCEPTANCE_METHODS[v.acceptanceMethod]}. ` : null}
+            {v.acceptanceNotes ? `${v.acceptanceNotes} ` : null}
+            {project && project.sourceQuoteVersionId === v.id ? (
+              <Link href={`/projects/${project.id}`} className="text-accent hover:underline">
+                Open project {project.number}
+              </Link>
+            ) : null}
           </Alert>
         </div>
       ) : null}
@@ -176,7 +202,9 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
                 },
                 {
                   label: "Client PO",
-                  value: v.poRequired ? "Required before work starts" : "Not required",
+                  value:
+                    v.clientPoNumber ??
+                    (v.poRequired ? "Required before work starts" : "Not required"),
                 },
                 { label: "Owner", value: quote.owner?.name },
                 { label: "HMBL entity", value: quote.legalEntity.legalName },
@@ -290,6 +318,17 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
                         ))}
                       </ul>
                     </Alert>
+                  </div>
+                ) : null}
+                {allowed.answer ? (
+                  <div className="border-separator mb-4 border-b pb-4">
+                    <ClientAnswer
+                      accept={acceptQuoteAction.bind(null, id)}
+                      decline={declineQuoteAction.bind(null, id)}
+                      methods={ACCEPTANCE_METHODS}
+                      poRequired={allowed.poRequired}
+                      today={localToday(tz).toISOString().slice(0, 10)}
+                    />
                   </div>
                 ) : null}
                 <QuoteActions

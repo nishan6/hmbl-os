@@ -34,4 +34,6 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 | Master data: tax rates, payment terms, units | Built — see [master-data.md](master-data.md)                   |
 | CRM: clients, contacts, pipeline             | Built — see [crm.md](crm.md)                                   |
 | Estimates and pricing                        | Built — see [commercial.md](commercial.md)                     |
-| Other business modules (projects, finance…)  | Not started; listed in the navigation as "Planned"             |
+| Quote approvals, issuing and acceptance      | Built — see [commercial.md](commercial.md)                     |
+| Projects (created from accepted quotes)      | Minimal — see [projects.md](projects.md)                       |
+| Other business modules (finance…)            | Not started; listed in the navigation as "Planned"             |

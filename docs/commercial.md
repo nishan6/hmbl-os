@@ -68,14 +68,14 @@ Once a version leaves draft, a database trigger refuses any change to it other t
 
 Each version moves through these statuses. The steps live in `src/server/commercial/workflow.ts`; each one locks the version row, checks the permission for the quote's entity, records an approval step and writes an audit event in the same transaction.
 
-| From                          | Step                | To               | Who (permission)                        | Notes                                                                                   |
-| ----------------------------- | ------------------- | ---------------- | --------------------------------------- | --------------------------------------------------------------------------------------- |
-| Draft                         | Submit for approval | Pending approval | Sales, Owner (`commercial.submit`)      | Only when approval is needed; optional note for the approver                            |
-| Pending approval              | Approve             | Approved         | Owner / Director (`commercial.approve`) | Optional comment; approving your own submission is flagged                              |
-| Pending approval              | Send back to draft  | Draft            | Owner / Director (`commercial.reject`)  | A comment is required and shown on the draft                                            |
-| Draft / Approved              | Mark as issued      | Issued           | Sales, Owner (`commercial.issue`)       | From draft only when approval isn't needed                                              |
-| Any but closed                | Withdraw            | Withdrawn        | Sales, Owner (`commercial.edit`)        | A reason is required                                                                    |
-| Approved / Issued / Withdrawn | Create a revision   | new Draft        | Sales, Owner (`commercial.edit`)        | Copies the version and its lines; the old approved or issued version becomes Superseded |
+| From                                     | Step                | To               | Who (permission)                        | Notes                                                                                   |
+| ---------------------------------------- | ------------------- | ---------------- | --------------------------------------- | --------------------------------------------------------------------------------------- |
+| Draft                                    | Submit for approval | Pending approval | Sales, Owner (`commercial.submit`)      | Only when approval is needed; optional note for the approver                            |
+| Pending approval                         | Approve             | Approved         | Owner / Director (`commercial.approve`) | Optional comment; approving your own submission is flagged                              |
+| Pending approval                         | Send back to draft  | Draft            | Owner / Director (`commercial.reject`)  | A comment is required and shown on the draft                                            |
+| Draft / Approved                         | Mark as issued      | Issued           | Sales, Owner (`commercial.issue`)       | From draft only when approval isn't needed                                              |
+| Any but closed                           | Withdraw            | Withdrawn        | Sales, Owner (`commercial.edit`)        | A reason is required                                                                    |
+| Approved / Issued / Declined / Withdrawn | Create a revision   | new Draft        | Sales, Owner (`commercial.edit`)        | Copies the version and its lines; the old approved or issued version becomes Superseded |
 
 A version can't be submitted or issued until it is ready: it has lines, a total above zero, an exchange rate when the currency differs from the entity's, and a validity date that hasn't passed. The quote page lists what is missing under "Next step".
 
@@ -92,4 +92,11 @@ Administration → Master data → Quote rules, stored in `CommercialSettings` a
 
 `/print/quotes/[id]` is a plain document outside the app shell: entity letterhead and tax IDs, client, lines with tax, totals, payment schedule, deliverables, exclusions and terms. It never shows cost, margin, markup or internal notes, whoever opens it. It is always light, and "Print or save as PDF" uses the browser's print dialog, so no PDF service is needed. Drafts are marked "Draft: not yet issued to the client".
 
-Acceptance and conversion into a project come in the next stage of this work.
+## The client's answer
+
+On an issued version, "Next step" asks for the client's answer (`src/server/commercial/acceptance.ts`, `commercial.edit`):
+
+- **Accepted**: the evidence is required: the date (not in the future, not before the quote was issued), who accepted, how (signed quote, email, purchase order, other) and the client's PO number when the quote requires one or it was accepted by PO. Optional notes. A late acceptance (after the validity date) is allowed and flagged in the audit event.
+- **Declined**: a reason is required. The opportunity stays as it is, and the quote can be revised and issued again.
+
+Accepting is one transaction: the version becomes **Accepted** (final: it can't be revised or withdrawn), its project is created (see [projects.md](projects.md)), the opportunity moves to Won with the reason "Quote … accepted", and a prospect client becomes a client. A database CHECK makes an accepted version carry its evidence, and the freeze trigger lets only the answer's columns change on an issued version.
