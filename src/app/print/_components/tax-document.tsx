@@ -42,6 +42,17 @@ export type TaxDocumentProps = {
   lines: TaxDocumentLine[];
   totals: Amounts & { subtotalMinor: bigint };
   notes?: string | null;
+  /** Where to pay, on invoices. */
+  bankAccounts?: {
+    id: string;
+    bankName: string;
+    branch: string | null;
+    accountName: string;
+    accountNumber: string;
+    ifsc: string | null;
+    swift: string | null;
+    iban: string | null;
+  }[];
   footer: string;
 };
 
@@ -212,6 +223,45 @@ export function TaxDocument(d: TaxDocumentProps) {
         ) : null}
         {d.supplyType === "EXPORT" ? (
           <p className="text-secondary">Supply meant for export.</p>
+        ) : null}
+
+        {d.bankAccounts?.length ? (
+          <section className="break-inside-avoid">
+            <h2 className="mb-1 font-semibold">Payment details</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {d.bankAccounts.map((b) => (
+                <dl key={b.id} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                  <dt className="text-secondary">Account name</dt>
+                  <dd>{b.accountName}</dd>
+                  <dt className="text-secondary">Bank</dt>
+                  <dd>
+                    {b.bankName}
+                    {b.branch ? `, ${b.branch}` : ""}
+                  </dd>
+                  <dt className="text-secondary">Account number</dt>
+                  <dd className="tabular">{b.accountNumber}</dd>
+                  {b.ifsc ? (
+                    <>
+                      <dt className="text-secondary">IFSC</dt>
+                      <dd className="tabular">{b.ifsc}</dd>
+                    </>
+                  ) : null}
+                  {b.swift ? (
+                    <>
+                      <dt className="text-secondary">SWIFT</dt>
+                      <dd className="tabular">{b.swift}</dd>
+                    </>
+                  ) : null}
+                  {b.iban ? (
+                    <>
+                      <dt className="text-secondary">IBAN</dt>
+                      <dd className="tabular">{b.iban}</dd>
+                    </>
+                  ) : null}
+                </dl>
+              ))}
+            </div>
+          </section>
         ) : null}
 
         {d.notes ? (

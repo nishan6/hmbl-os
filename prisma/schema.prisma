@@ -224,6 +224,8 @@ model LegalEntity {
   journals         Journal[]
   salesInvoices    SalesInvoice[]
   creditNotes      CreditNote[]
+  bankAccounts     BankAccount[]
+  receipts         Receipt[]
 
   @@map("legal_entities")
 }
@@ -561,6 +563,7 @@ model Client {
   quotes        Quote[]
   projects      Project[]
   salesInvoices SalesInvoice[]
+  receipts      Receipt[]
 
   @@unique([taxIdType, taxId], map: "clients_tax_id_key", where: raw("\"taxId\" IS NOT NULL AND status = 'ACTIVE'"))
   @@index([normalizedName])
@@ -1480,7 +1483,9 @@ model LedgerAccount {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  lines JournalLine[]
+  lines       JournalLine[]
+  bankAccount BankAccount?
+  receipts    Receipt[]
 
   @@unique([legalEntityId, code])
   @@unique([legalEntityId, systemKey])
@@ -1688,6 +1693,7 @@ model SalesInvoice {
 
   lines       SalesInvoiceLine[]
   creditNotes CreditNote[]
+  allocations ReceiptAllocation[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1778,4 +1784,118 @@ model CreditNoteLine {
   @@unique([creditNoteId, position])
   @@index([invoiceLineId])
   @@map("credit_note_lines")
+}
+
+/// A bank account of an entity, with its own ledger account (heading Bank).
+/// Its details print on invoices so clients know where to pay.
+model BankAccount {
+  id              String        @id @default(uuid()) @db.Uuid
+  legalEntityId   String        @db.Uuid
+  legalEntity     LegalEntity   @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  ledgerAccountId String        @unique @db.Uuid
+  ledgerAccount   LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+  bankName        String
+  branch          String?
+  accountName     String
+  accountNumber   String
+  // IFSC for Indian accounts; SWIFT/BIC and IBAN for others.
+  ifsc            String?
+  swift           String?
+  iban            String?
+  currency        String        @db.Char(3)
+  // Printed on invoices in this currency.
+  showOnInvoices  Boolean       @default(false)
+  status          RecordStatus  @default(ACTIVE)
+  isDemo          Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([legalEntityId])
+  @@map("bank_accounts")
+}
+
+enum ReceiptStatus {
+  POSTED
+  VOIDED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  UPI
+  CHEQUE
+  CASH
+  CARD
+  OTHER
+}
+
+/// Money received from a client into a bank or cash account. Posted when
+/// recorded; corrected by voiding, which reverses its journals.
+model Receipt {
+  id               String        @id @default(uuid()) @db.Uuid
+  legalEntityId    String        @db.Uuid
+  legalEntity      LegalEntity   @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  number           String
+  status           ReceiptStatus @default(POSTED)
+  clientId         String        @db.Uuid
+  client           Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  // The bank or cash ledger account the money went into.
+  depositAccountId String        @db.Uuid
+  depositAccount   LedgerAccount @relation(fields: [depositAccountId], references: [id], onDelete: Restrict)
+  date             DateTime      @db.Date
+  method           PaymentMethod
+  reference        String?
+  currency         String        @db.Char(3)
+  // Units of base currency per unit of `currency`; null when they match.
+  fxRate           Decimal?      @db.Decimal(18, 8)
+  // What arrived in the account.
+  amountMinor      BigInt
+  // Income tax the client deducted at source and paid to the government on
+  // HMBL's behalf. Settles invoices like money received.
+  tdsMinor         BigInt        @default(0)
+  tdsSection       String?
+  notes            String?
+  // amount + TDS in the base currency, as posted.
+  grossBaseMinor   BigInt
+  journalId        String        @unique @db.Uuid
+  // The accounting date of the void, when its journals were reversed.
+  voidDate         DateTime?     @db.Date
+  voidedAt         DateTime?
+  voidedById       String?       @db.Uuid
+  voidReason       String?
+  createdById      String        @db.Uuid
+  isDemo           Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  allocations ReceiptAllocation[]
+
+  @@unique([legalEntityId, number])
+  @@index([clientId])
+  @@map("receipts")
+}
+
+/// Part of a receipt applied to an invoice. Amounts are in the shared
+/// currency of both; the base amounts keep receivables exact to the paisa.
+model ReceiptAllocation {
+  id               String       @id @default(uuid()) @db.Uuid
+  receiptId        String       @db.Uuid
+  receipt          Receipt      @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  invoiceId        String       @db.Uuid
+  invoice          SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  date             DateTime     @db.Date
+  amountMinor      BigInt
+  // Receivable cleared on the invoice, at the invoice's rate.
+  invoiceBaseMinor BigInt
+  // The same amount at the receipt's rate. The difference is exchange gain or loss.
+  receiptBaseMinor BigInt
+  // The journal that posted an exchange difference, for allocations made
+  // after the receipt was recorded.
+  journalId        String?      @unique @db.Uuid
+  voidedAt         DateTime?
+  createdById      String       @db.Uuid
+  createdAt        DateTime     @default(now())
+
+  @@index([receiptId])
+  @@index([invoiceId])
+  @@map("receipt_allocations")
 }

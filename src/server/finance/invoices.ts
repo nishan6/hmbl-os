@@ -80,19 +80,41 @@ export function clientAddress(c: {
 // ─── Reading ─────────────────────────────────────────────────────────────────
 
 /**
- * Credited and paid amounts of issued invoices, in each invoice's currency.
- * Paid amounts come from receipt allocations once receipts exist.
+ * Credited and paid amounts of issued invoices, in each invoice's currency
+ * and in the base currency as posted. Paid is what live receipt allocations
+ * (TDS included) have settled.
  */
 export async function invoiceSettlements(client: Tx | typeof db, invoiceIds: string[]) {
-  const credits = invoiceIds.length
-    ? await client.creditNote.groupBy({
-        by: ["invoiceId"],
-        where: { invoiceId: { in: invoiceIds }, status: "ISSUED" },
-        _sum: { totalMinor: true },
-      })
-    : [];
-  const map = new Map(invoiceIds.map((id) => [id, { creditedMinor: 0n, paidMinor: 0n }]));
-  for (const c of credits) map.get(c.invoiceId)!.creditedMinor = c._sum.totalMinor ?? 0n;
+  const [credits, allocations] = invoiceIds.length
+    ? await Promise.all([
+        client.creditNote.groupBy({
+          by: ["invoiceId"],
+          where: { invoiceId: { in: invoiceIds }, status: "ISSUED" },
+          _sum: { totalMinor: true, baseTotalMinor: true },
+        }),
+        client.receiptAllocation.groupBy({
+          by: ["invoiceId"],
+          where: { invoiceId: { in: invoiceIds }, voidedAt: null },
+          _sum: { amountMinor: true, invoiceBaseMinor: true },
+        }),
+      ])
+    : [[], []];
+  const map = new Map(
+    invoiceIds.map((id) => [
+      id,
+      { creditedMinor: 0n, paidMinor: 0n, creditedBaseMinor: 0n, paidBaseMinor: 0n },
+    ]),
+  );
+  for (const c of credits) {
+    const s = map.get(c.invoiceId)!;
+    s.creditedMinor = c._sum.totalMinor ?? 0n;
+    s.creditedBaseMinor = c._sum.baseTotalMinor ?? 0n;
+  }
+  for (const a of allocations) {
+    const s = map.get(a.invoiceId)!;
+    s.paidMinor = a._sum.amountMinor ?? 0n;
+    s.paidBaseMinor = a._sum.invoiceBaseMinor ?? 0n;
+  }
   return map;
 }
 
@@ -181,6 +203,11 @@ export async function getInvoice(actor: Actor, id: string) {
       milestone: { select: { id: true, label: true, amountMinor: true } },
       lines: { orderBy: { position: "asc" } },
       creditNotes: { where: { status: { not: "DISCARDED" } }, orderBy: { createdAt: "asc" } },
+      allocations: {
+        where: { voidedAt: null },
+        orderBy: { createdAt: "asc" },
+        include: { receipt: { select: { id: true, number: true, date: true, tdsMinor: true } } },
+      },
     },
   });
   const settled = (await invoiceSettlements(db, [id])).get(id)!;
@@ -206,6 +233,7 @@ export async function getInvoice(actor: Actor, id: string) {
       issue: draft && can(actor, "finance.issue", scope),
       discard: draft && can(actor, "finance.edit", scope),
       credit: issued && outstandingMinor > 0n && can(actor, "finance.create", scope),
+      receive: issued && outstandingMinor > 0n && can(actor, "finance.post", scope),
       recognise:
         issued &&
         invoice.revenueDeferred &&

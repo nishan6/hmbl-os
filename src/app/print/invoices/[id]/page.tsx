@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { requireActorOrRedirect } from "@/server/auth/session";
+import { invoiceBankAccounts } from "@/server/finance/bank-accounts";
 import { getInvoice } from "@/server/finance/invoices";
 import { AppError } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
@@ -16,6 +17,7 @@ export default async function InvoiceDocumentPage({ params }: PageProps<"/print/
     throw error;
   });
   const e = inv.legalEntity;
+  const bankAccounts = await invoiceBankAccounts(actor, e.id, inv.currency);
   const notice = [
     inv.status === "DRAFT" ? "Draft: not a tax invoice until issued" : null,
     inv.status === "DISCARDED" ? "Discarded" : null,
@@ -48,6 +50,7 @@ export default async function InvoiceDocumentPage({ params }: PageProps<"/print/
       lines={inv.lines.map((l) => ({ ...l, quantity: l.quantity.toString() }))}
       totals={inv}
       notes={inv.notes}
+      bankAccounts={bankAccounts}
       footer={`${e.legalName} · ${inv.number ?? "Draft invoice"}`}
     />
   );

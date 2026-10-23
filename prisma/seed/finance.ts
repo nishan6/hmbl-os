@@ -23,6 +23,32 @@ export async function seedDemoFinance(db: PrismaClient, entities: { id: string }
     account("3000"),
     account("3900"),
   ]);
+  if (!(await db.bankAccount.findFirst({ where: { legalEntityId: india.id } }))) {
+    const ledger = await db.ledgerAccount.create({
+      data: {
+        legalEntityId: india.id,
+        code: "1100",
+        name: "DEMO Bank ···4321",
+        type: "ASSET",
+        subtype: "BANK",
+        isDemo: true,
+      },
+    });
+    await db.bankAccount.create({
+      data: {
+        legalEntityId: india.id,
+        ledgerAccountId: ledger.id,
+        bankName: "DEMO Bank",
+        branch: "Fort, Mumbai",
+        accountName: "HMBL Demo India (DEMO)",
+        accountNumber: "000000004321",
+        ifsc: "DEMO0000001",
+        currency: "INR",
+        showOnInvoices: true,
+        isDemo: true,
+      },
+    });
+  }
   await db.$transaction((tx) =>
     postJournal(tx, "system", {
       legalEntityId: india.id,
