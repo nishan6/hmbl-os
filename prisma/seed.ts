@@ -7,9 +7,10 @@ import { db } from "@/server/db";
 import { env } from "@/lib/env";
 import { ensureDefaultRoles } from "@/server/permissions/roles";
 import { ensureMasterDataDefaults } from "@/server/master-data/defaults";
+import { ensurePipelineDefaults } from "@/server/crm/defaults";
 import { assignRole, createUser } from "@/server/users/service";
 import { seedDemoOrganisation } from "./seed/organisation";
-import { seedDemoCrm } from "./seed/crm";
+import { seedDemoCrm, seedDemoPipeline } from "./seed/crm";
 import { seedDemoTwoFactor } from "./seed/two-factor";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
@@ -34,8 +35,9 @@ async function main() {
   console.log(`Roles created: ${createdRoles.join(", ") || "none (already present)"}`);
   const masterData = await ensureMasterDataDefaults(db);
   console.log(`Master data defaults created: ${masterData.length}`);
+  await ensurePipelineDefaults(db);
 
-  const { india } = await seedDemoOrganisation(db);
+  const { india, uae } = await seedDemoOrganisation(db);
   console.log("Demo organisation: DEMO-IN, DEMO-AE");
 
   for (const user of DEMO_USERS) {
@@ -49,6 +51,7 @@ async function main() {
   await assignRole("system", financeIndia.id, "finance", india.id);
   const sales = await db.user.findUniqueOrThrow({ where: { email: "sales@demo.hmbl.test" } });
   await seedDemoCrm(db, sales.id);
+  await seedDemoPipeline(db, { ownerId: sales.id, indiaId: india.id, uaeId: uae.id });
   console.log("Demo clients and contacts");
   await seedDemoTwoFactor(
     db,

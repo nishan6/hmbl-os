@@ -12,6 +12,7 @@ import { parseArgs } from "node:util";
 import { db } from "@/server/db";
 import { ensureDefaultRoles } from "@/server/permissions/roles";
 import { ensureMasterDataDefaults } from "@/server/master-data/defaults";
+import { ensurePipelineDefaults } from "@/server/crm/defaults";
 import { createUser } from "@/server/users/service";
 
 async function main() {
@@ -31,6 +32,7 @@ async function main() {
   }
   await ensureDefaultRoles(db);
   await ensureMasterDataDefaults(db);
+  await ensurePipelineDefaults(db);
   const user = await createUser("system", {
     name: values.name,
     email: values.email,

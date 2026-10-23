@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { requireActorOrRedirect } from "@/server/auth/session";
-import { canEverywhere } from "@/server/permissions/authorize";
+import { can, canEverywhere } from "@/server/permissions/authorize";
+import { listStages } from "@/server/crm/pipeline";
+import { STAGE_KINDS } from "@/server/crm/pipeline-schemas";
 import {
   canViewMasterData,
   listPaymentTerms,
@@ -13,8 +15,14 @@ import { ActionButton } from "@/components/ui/action-button";
 import { PageHeader, Panel, Section } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { paymentTermCommandAction, taxRateCommandAction, unitCommandAction } from "./actions";
+import {
+  paymentTermCommandAction,
+  stageCommandAction,
+  taxRateCommandAction,
+  unitCommandAction,
+} from "./actions";
 import { PaymentTermForm, TaxRateForm, UnitForm } from "./forms";
+import { StageForm } from "./stage-form";
 
 export const metadata = { title: "Master data" };
 
@@ -38,6 +46,8 @@ export default async function MasterDataPage() {
     listPaymentTerms(actor, { includeArchived: true }),
     listUnits(actor, { includeArchived: true }),
   ]);
+  const stages = can(actor, "crm.view") ? await listStages(actor, { includeArchived: true }) : [];
+  const canStages = canEverywhere(actor, "crm.configure");
   const canTax = canEverywhere(actor, "finance.configure");
   const canCommercial = canEverywhere(actor, "commercial.configure");
 
@@ -45,7 +55,7 @@ export default async function MasterDataPage() {
     <>
       <PageHeader
         title="Master data"
-        description="Tax rates, payment terms and units used across quotes and invoices. Documents keep a copy of what they used, so changes here never alter an issued document."
+        description="Tax rates, payment terms, units and pipeline stages used across the CRM, quotes and invoices. Documents keep a copy of what they used, so changes here never alter an issued document."
         breadcrumbs={[{ label: "Administration" }, { label: "Master data" }]}
       />
 
@@ -219,6 +229,75 @@ export default async function MasterDataPage() {
           </Panel>
         ) : null}
       </Section>
+      {stages.length ? (
+        <Section
+          title="Pipeline stages"
+          description="The CRM board shows open stages in this order. A stage's kind never changes; probabilities are defaults each opportunity can override."
+        >
+          <Table dense>
+            <THead>
+              <tr>
+                <TH>Stage</TH>
+                <TH>Kind</TH>
+                <TH align="right">Probability</TH>
+                <TH>Status</TH>
+                {canStages ? <TH>Actions</TH> : null}
+              </tr>
+            </THead>
+            <TBody>
+              {stages.map((s, i) => (
+                <TR key={s.id}>
+                  <TD className="font-medium">{s.name}</TD>
+                  <TD className="text-secondary">{STAGE_KINDS[s.kind]}</TD>
+                  <TD align="right">
+                    {s.probabilityBps === null ? "—" : formatBps(s.probabilityBps)}
+                  </TD>
+                  <TD>
+                    <StatusBadge status={s.status === "ACTIVE" ? "active" : "archived"} />
+                  </TD>
+                  {canStages ? (
+                    <TD>
+                      <span className="flex gap-1">
+                        {s.status === "ACTIVE" && i > 0 ? (
+                          <ActionButton
+                            action={stageCommandAction}
+                            fields={{ id: s.id, command: "up" }}
+                          >
+                            Move up<span className="sr-only"> {s.name}</span>
+                          </ActionButton>
+                        ) : null}
+                        {s.status === "ACTIVE" && i < stages.length - 1 ? (
+                          <ActionButton
+                            action={stageCommandAction}
+                            fields={{ id: s.id, command: "down" }}
+                          >
+                            Move down<span className="sr-only"> {s.name}</span>
+                          </ActionButton>
+                        ) : null}
+                        <ActionButton
+                          action={stageCommandAction}
+                          fields={{
+                            id: s.id,
+                            command: s.status === "ACTIVE" ? "archive" : "restore",
+                          }}
+                        >
+                          {s.status === "ACTIVE" ? "Archive" : "Restore"}
+                          <span className="sr-only"> {s.name}</span>
+                        </ActionButton>
+                      </span>
+                    </TD>
+                  ) : null}
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+          {canStages ? (
+            <Panel className="mt-4">
+              <StageForm />
+            </Panel>
+          ) : null}
+        </Section>
+      ) : null}
     </>
   );
 }

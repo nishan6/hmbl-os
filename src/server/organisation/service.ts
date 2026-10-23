@@ -10,6 +10,7 @@ import {
   entityFilter,
   type Actor,
 } from "@/server/permissions/authorize";
+import type { Permission } from "@/server/permissions/catalog";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { parseInput } from "@/lib/parse";
 import {
@@ -297,4 +298,16 @@ export async function createLocation(actor: Actor, input: LocationInput) {
       return location;
     }),
   );
+}
+
+/**
+ * Active legal entities where the actor holds `permission`, for choosing which
+ * entity a new record belongs to. Names only.
+ */
+export async function listEntityOptions(actor: Actor, permission: Permission) {
+  return db.legalEntity.findMany({
+    where: { status: "ACTIVE", ...entityFilter(actor, permission, "id") },
+    select: { id: true, code: true, legalName: true, baseCurrency: true, countryCode: true },
+    orderBy: { code: "asc" },
+  });
 }

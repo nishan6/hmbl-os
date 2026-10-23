@@ -38,6 +38,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/",
         "/admin/organisation",
         "/admin/organisation/entities/new",
+        "/crm",
+        "/crm/opportunities/new",
         "/crm/clients",
         "/crm/clients/new",
         "/admin/master-data",

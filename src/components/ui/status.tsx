@@ -11,6 +11,7 @@ import {
   PauseCircle,
   Send,
   TriangleAlert,
+  Trophy,
   Archive,
   RefreshCw,
   type LucideIcon,
@@ -45,6 +46,10 @@ export const STATUSES = {
   active: { label: "Active", icon: CircleDot, tone: "success" },
   archived: { label: "Archived", icon: Archive, tone: "neutral" },
   disabled: { label: "Disabled", icon: Ban, tone: "neutral" },
+  open: { label: "Open", icon: CircleDot, tone: "info" },
+  due: { label: "Due", icon: Clock, tone: "info" },
+  won: { label: "Won", icon: Trophy, tone: "success" },
+  lost: { label: "Lost", icon: CircleX, tone: "danger" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon; tone: Tone }>;
 
 export type StatusKey = keyof typeof STATUSES;

@@ -10,6 +10,7 @@ import { Input, Select } from "@/components/ui/field";
 import { EmptyState, PageHeader } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { CrmTabs } from "../_components/crm-tabs";
 
 export const metadata = { title: "Clients" };
 
@@ -35,7 +36,7 @@ export default async function ClientsPage({ searchParams }: PageProps<"/crm/clie
       <PageHeader
         title="Clients"
         description="Organisations and people HMBL works with or is talking to. Shared by every legal entity."
-        breadcrumbs={[{ label: "CRM" }, { label: "Clients" }]}
+        breadcrumbs={[{ label: "CRM", href: "/crm" }, { label: "Clients" }]}
         actions={
           can(actor, "crm.create") ? (
             <Button asChild variant="primary">
@@ -47,6 +48,8 @@ export default async function ClientsPage({ searchParams }: PageProps<"/crm/clie
           ) : null
         }
       />
+
+      <CrmTabs current="/crm/clients" />
 
       <form role="search" className="mb-4 flex flex-wrap items-end gap-2" action="/crm/clients">
         <label className="sr-only" htmlFor="client-search">
