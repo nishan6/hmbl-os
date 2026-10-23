@@ -5,7 +5,7 @@
 
 const LOCALE = "en-IN";
 
-function minorUnitDigits(currency: string): number {
+export function minorUnitDigits(currency: string): number {
   return (
     new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions()
       .maximumFractionDigits ?? 2

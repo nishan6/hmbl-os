@@ -28,7 +28,7 @@ export default async function EditClientPage({ params }: PageProps<"/crm/clients
       <PageHeader
         title={`Edit ${client.name}`}
         breadcrumbs={[
-          { label: "CRM" },
+          { label: "CRM", href: "/crm" },
           { label: "Clients", href: "/crm/clients" },
           { label: client.name, href: `/crm/clients/${id}` },
           { label: "Edit" },

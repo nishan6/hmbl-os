@@ -18,7 +18,7 @@ export default async function NewClientPage() {
         title="New client"
         description="New clients start as prospects and become clients when they accept a quote."
         breadcrumbs={[
-          { label: "CRM" },
+          { label: "CRM", href: "/crm" },
           { label: "Clients", href: "/crm/clients" },
           { label: "New client" },
         ]}

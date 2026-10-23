@@ -3,8 +3,11 @@ import { Building2, Hash, ScrollText, UserCog } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { getEntityContext } from "@/server/shell/entity-context";
+import { listMyFollowUps } from "@/server/crm/activities";
+import { listPendingApprovals } from "@/server/commercial/workflow";
+import { formatDateTime, formatMoney } from "@/lib/format";
 import { PageHeader, Section } from "@/components/ui/page";
-import { Tag } from "@/components/ui/status";
+import { StatusBadge, Tag } from "@/components/ui/status";
 
 const SHORTCUTS = [
   {
@@ -43,6 +46,9 @@ export default async function HomePage() {
   const selected = entities.find((e) => e.id === selectedId);
   const shortcuts = SHORTCUTS.filter((s) => can(actor, s.permission));
   const roles = [...new Set(actor.grants.map((g) => g.roleKey))];
+  const followUps = can(actor, "crm.view") ? await listMyFollowUps(actor) : [];
+  const approvals = await listPendingApprovals(actor);
+  const now = new Date();
 
   return (
     <>
@@ -58,7 +64,7 @@ export default async function HomePage() {
       />
       <Section
         title="Your access"
-        description="Business modules arrive in later stages; nothing here is sample data."
+        description="Your roles decide which modules and legal entities you can open."
       >
         <div className="flex flex-wrap gap-1.5">
           {roles.length ? (
@@ -70,6 +76,54 @@ export default async function HomePage() {
           )}
         </div>
       </Section>
+      {followUps.length ? (
+        <Section
+          title="Your follow-ups"
+          description="Open follow-ups assigned to you, soonest first."
+        >
+          <ul className="flex flex-col gap-2">
+            {followUps.map((f) => (
+              <li key={f.id} className="flex flex-wrap items-center gap-2 text-base">
+                <StatusBadge status={f.dueAt && f.dueAt < now ? "overdue" : "due"} />
+                <Link
+                  href={
+                    f.opportunity
+                      ? `/crm/opportunities/${f.opportunity.id}`
+                      : `/crm/clients/${f.client.id}`
+                  }
+                  className="text-accent hover:underline"
+                >
+                  {f.subject}
+                </Link>
+                <span className="text-secondary text-sm">
+                  {f.client.name}
+                  {f.dueAt ? ` · ${formatDateTime(f.dueAt)}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
+      {approvals.length ? (
+        <Section
+          title="Quotes waiting for your approval"
+          description="Oldest first. Approve them or send them back with a comment."
+        >
+          <ul className="flex flex-col gap-2">
+            {approvals.map((v) => (
+              <li key={v.id} className="flex flex-wrap items-center gap-2 text-base">
+                <StatusBadge status="pending_approval" />
+                <Link href={`/quotes/${v.quoteId}`} className="text-accent hover:underline">
+                  <span className="tabular">{v.quote.number}</span> · {v.quote.title}
+                </Link>
+                <span className="text-secondary tabular text-sm">
+                  {v.quote.client.name} · {formatMoney(v.totalMinor, v.currency)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
       {shortcuts.length ? (
         <Section title="Administration">
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

@@ -31,12 +31,18 @@ model User {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
-  sessions     Session[]
-  accounts     Account[]
-  ownedClients Client[]
-  twoFactors   TwoFactor[]
-  roles        UserRole[]  @relation("UserRoles")
-  grants       UserRole[]  @relation("UserRoleGrantedBy")
+  sessions        Session[]
+  accounts        Account[]
+  ownedClients    Client[]
+  twoFactors      TwoFactor[]
+  roles           UserRole[]          @relation("UserRoles")
+  grants          UserRole[]          @relation("UserRoleGrantedBy")
+  opportunities   Opportunity[]
+  crmActivities   CrmActivity[]
+  quotes          Quote[]             @relation("QuoteOwner")
+  quotesCreated   Quote[]             @relation("QuoteCreatedBy")
+  quoteSteps      QuoteApprovalStep[]
+  projectsCreated Project[]           @relation("ProjectCreatedBy")
 
   @@map("users")
 }
@@ -199,6 +205,10 @@ model LegalEntity {
   costCentres      CostCentre[]
   locations        Location[]
   userRoles        UserRole[]
+  opportunities    Opportunity[]
+  quotes           Quote[]
+  commercial       CommercialSettings?
+  projects         Project[]
 
   @@map("legal_entities")
 }
@@ -234,7 +244,8 @@ model BusinessUnit {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  costCentres CostCentre[]
+  costCentres   CostCentre[]
+  opportunities Opportunity[]
 
   @@map("business_units")
 }
@@ -528,7 +539,11 @@ model Client {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  contacts Contact[]
+  contacts      Contact[]
+  opportunities Opportunity[]
+  activities    CrmActivity[]
+  quotes        Quote[]
+  projects      Project[]
 
   @@unique([taxIdType, taxId], map: "clients_tax_id_key", where: raw("\"taxId\" IS NOT NULL AND status = 'ACTIVE'"))
   @@index([normalizedName])
@@ -552,7 +567,450 @@ model Contact {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
+  opportunities Opportunity[]
+  quoteVersions QuoteVersion[]
+
   @@unique([clientId], map: "contacts_one_primary_key", where: raw("\"isPrimary\" AND status = 'ACTIVE'"))
   @@index([clientId])
   @@map("contacts")
+}
+
+// ─── CRM: pipeline ────────────────────────────────────────────────────────────
+
+enum StageKind {
+  OPEN
+  WON
+  LOST
+  ON_HOLD // deferred
+  CANCELLED
+}
+
+// A configurable pipeline stage. Defaults follow the spec:
+// New → Qualified → Discovery → Estimation → Proposal sent → Negotiation → Won / Lost / On hold.
+model PipelineStage {
+  id             String       @id @default(uuid()) @db.Uuid
+  key            String       @unique
+  name           String
+  kind           StageKind
+  position       Int
+  // Default win probability for opportunities in this stage.
+  probabilityBps Int?
+  status         RecordStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  opportunities Opportunity[]
+
+  @@map("pipeline_stages")
+}
+
+// Commercial work HMBL is pursuing, from first enquiry to won or lost.
+// Belongs to the legal entity that would contract the work.
+model Opportunity {
+  id                 String        @id @default(uuid()) @db.Uuid
+  legalEntityId      String        @db.Uuid
+  legalEntity        LegalEntity   @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  clientId           String        @db.Uuid
+  client             Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  contactId          String?       @db.Uuid
+  contact            Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  title              String
+  description        String?
+  stageId            String        @db.Uuid
+  stage              PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  ownerId            String?       @db.Uuid
+  owner              User?         @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  // Business line.
+  businessUnitId     String?       @db.Uuid
+  businessUnit       BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  // Where the enquiry came from: referral, website, repeat client…
+  source             String?
+  // Opportunity value: the salesperson's estimate. Not a quoted or contract value.
+  expectedValueMinor BigInt?
+  currency           String        @db.Char(3)
+  // Overrides the stage's default probability when set.
+  probabilityBps     Int?
+  expectedCloseDate  DateTime?     @db.Date
+  eventStartDate     DateTime?     @db.Date
+  eventEndDate       DateTime?     @db.Date
+  venue              String?
+  competitors        String?
+  // Why it was won, lost, put on hold or cancelled.
+  outcomeReason      String?
+  closedAt           DateTime?
+  isDemo             Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  stageChanges OpportunityStageChange[]
+  activities   CrmActivity[]
+  quotes       Quote[]
+  projects     Project[]
+
+  @@index([legalEntityId, stageId])
+  @@index([clientId])
+  @@map("opportunities")
+}
+
+// Every stage move, for the opportunity's history and pipeline reporting.
+model OpportunityStageChange {
+  id            String      @id @default(uuid()) @db.Uuid
+  opportunityId String      @db.Uuid
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  fromStageId   String?     @db.Uuid
+  toStageId     String      @db.Uuid
+  reason        String?
+  actorId       String?     @db.Uuid
+  actorLabel    String
+  changedAt     DateTime    @default(now())
+
+  @@index([opportunityId, changedAt])
+  @@map("opportunity_stage_changes")
+}
+
+enum ActivityType {
+  NOTE
+  CALL
+  MEETING
+  EMAIL
+  FOLLOW_UP
+}
+
+// A note, call, meeting or follow-up with a client, optionally about one opportunity.
+model CrmActivity {
+  id            String       @id @default(uuid()) @db.Uuid
+  clientId      String       @db.Uuid
+  client        Client       @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  opportunityId String?      @db.Uuid
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  type          ActivityType
+  subject       String
+  body          String?
+  occurredAt    DateTime
+  // Follow-ups: when it's due and when it was done.
+  dueAt         DateTime?
+  completedAt   DateTime?
+  ownerId       String?      @db.Uuid
+  owner         User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  createdById   String       @db.Uuid
+  isDemo        Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+
+  @@index([clientId, occurredAt])
+  @@index([opportunityId, occurredAt])
+  @@index([ownerId, dueAt])
+  @@map("crm_activities")
+}
+
+// ─── Estimates and quotations ────────────────────────────────────────────────
+
+enum QuoteStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ISSUED
+  ACCEPTED
+  DECLINED
+  SUPERSEDED
+  WITHDRAWN
+}
+
+enum PricingMethod {
+  UNIT_RATE
+  FIXED
+  COST_PLUS_MARKUP
+  COST_PLUS_MARGIN
+}
+
+enum LineCategory {
+  CREW
+  EQUIPMENT
+  RENTAL
+  SERVICES
+  PRODUCTION
+  TRAVEL
+  LOGISTICS
+  FEES
+  OTHER
+}
+
+// A quotation: one number, one or more versions. Only the latest version is
+// worked on; earlier ones are kept as revision history.
+model Quote {
+  id             String       @id @default(uuid()) @db.Uuid
+  legalEntityId  String       @db.Uuid
+  legalEntity    LegalEntity  @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  number         String
+  clientId       String       @db.Uuid
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  opportunityId  String?      @db.Uuid
+  opportunity    Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  title          String
+  ownerId        String?      @db.Uuid
+  owner          User?        @relation("QuoteOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  // Version number of the latest version.
+  currentVersion Int          @default(1)
+  createdById    String       @db.Uuid
+  createdBy      User         @relation("QuoteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  isDemo         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  versions QuoteVersion[]
+  projects Project[]
+
+  @@unique([legalEntityId, number])
+  @@index([clientId])
+  @@index([opportunityId])
+  @@map("quotes")
+}
+
+// Everything the client is offered. Editable only while DRAFT; the database
+// refuses changes to a version (or its lines) once it has left draft.
+model QuoteVersion {
+  id                 String            @id @default(uuid()) @db.Uuid
+  quoteId            String            @db.Uuid
+  quote              Quote             @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  version            Int
+  status             QuoteStatus       @default(DRAFT)
+  contactId          String?           @db.Uuid
+  contact            Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  currency           String            @db.Char(3)
+  // Units of the entity's base currency per unit of `currency`; null when they match.
+  fxRateToBase       Decimal?          @db.Decimal(18, 8)
+  fxNote             String?
+  validUntil         DateTime          @db.Date
+  // Copied from the payment term when chosen, so later edits to the term don't
+  // change a quote: [{ label, percentBps, trigger, days }].
+  paymentTermId      String?           @db.Uuid
+  paymentTermName    String?
+  paymentSchedule    Json              @default("[]")
+  // The default tax for new lines and the rate contingency is taxed at.
+  taxRateId          String?           @db.Uuid
+  taxRateBps         Int               @default(0)
+  // A client-visible allowance, as a share of the subtotal.
+  contingencyBps     Int               @default(0)
+  poRequired         Boolean           @default(false)
+  eventStartDate     DateTime?         @db.Date
+  eventEndDate       DateTime?         @db.Date
+  venue              String?
+  scope              String?
+  deliverables       String?
+  exclusions         String?
+  terms              String?
+  // Never shown to the client.
+  internalNotes      String?
+  // Stored totals, recalculated on every save from the lines.
+  subtotalMinor      BigInt            @default(0)
+  discountMinor      BigInt            @default(0)
+  contingencyMinor   BigInt            @default(0)
+  taxMinor           BigInt            @default(0)
+  totalMinor         BigInt            @default(0)
+  costMinor          BigInt            @default(0)
+  marginBps          Int?
+  createdById        String            @db.Uuid
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  // Workflow: who moved it and when. The only fields that change after draft.
+  submittedAt        DateTime?
+  approvedAt         DateTime?
+  approvedById       String?           @db.Uuid
+  issuedAt           DateTime?
+  issuedById         String?           @db.Uuid
+  withdrawnAt        DateTime?
+  // Why it was withdrawn, declined or superseded.
+  statusReason       String?
+  // The client's answer, recorded on an issued version.
+  declinedAt         DateTime?
+  acceptedOn         DateTime?         @db.Date
+  acceptedByName     String?
+  acceptanceMethod   AcceptanceMethod?
+  clientPoNumber     String?
+  acceptanceNotes    String?
+  // Who recorded the answer (accepted or declined), and when.
+  answerRecordedAt   DateTime?
+  answerRecordedById String?           @db.Uuid
+
+  lines   QuoteLine[]
+  steps   QuoteApprovalStep[]
+  project Project?
+
+  @@unique([quoteId, version])
+  @@index([status])
+  @@map("quote_versions")
+}
+
+model QuoteLine {
+  id             String        @id @default(uuid()) @db.Uuid
+  versionId      String        @db.Uuid
+  version        QuoteVersion  @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  position       Int
+  // Optional heading lines are grouped under, e.g. "Stage and AV".
+  section        String?
+  category       LineCategory  @default(OTHER)
+  description    String
+  method         PricingMethod @default(UNIT_RATE)
+  quantity       Decimal       @db.Decimal(12, 3)
+  days           Decimal       @db.Decimal(12, 3)
+  unitId         String?       @db.Uuid
+  unitCode       String?
+  unitCostMinor  BigInt        @default(0)
+  unitPriceMinor BigInt        @default(0)
+  markupBps      Int?
+  marginBps      Int?
+  discountBps    Int           @default(0)
+  taxRateId      String?       @db.Uuid
+  taxCode        String?
+  taxRateBps     Int           @default(0)
+  costMinor      BigInt
+  grossMinor     BigInt
+  discountMinor  BigInt
+  netMinor       BigInt
+  taxMinor       BigInt
+  totalMinor     BigInt
+
+  @@unique([versionId, position])
+  @@map("quote_lines")
+}
+
+// Per-entity rules for quotes. A missing row means the defaults below.
+model CommercialSettings {
+  legalEntityId          String      @id @db.Uuid
+  legalEntity            LegalEntity @relation(fields: [legalEntityId], references: [id], onDelete: Cascade)
+  // Off by default (decided 2026-10-23): when on, quotes need the Director's
+  // approval before they can be issued.
+  requireQuoteApproval   Boolean     @default(false)
+  // Quotes whose total (in the entity's base currency) is below this skip
+  // approval. Null: every quote needs it.
+  approvalThresholdMinor BigInt?
+  quoteValidityDays      Int         @default(30)
+  updatedAt              DateTime    @updatedAt
+
+  @@map("commercial_settings")
+}
+
+enum QuoteApprovalAction {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+// The approval trail of a quote version, with the figures the approver saw.
+model QuoteApprovalStep {
+  id           String              @id @default(uuid()) @db.Uuid
+  versionId    String              @db.Uuid
+  version      QuoteVersion        @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  action       QuoteApprovalAction
+  actorId      String?             @db.Uuid
+  actor        User?               @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorLabel   String
+  comment      String?
+  // Approved by the same person who submitted it.
+  selfApproval Boolean             @default(false)
+  totalMinor   BigInt
+  marginBps    Int?
+  at           DateTime            @default(now())
+
+  @@index([versionId, at])
+  @@map("quote_approval_steps")
+}
+
+// How the client said yes.
+enum AcceptanceMethod {
+  SIGNED_QUOTE
+  EMAIL
+  PURCHASE_ORDER
+  OTHER
+}
+
+// ─── Projects ────────────────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// A job HMBL is delivering. Created from an accepted quote version, whose
+// commercial terms it keeps as its baseline.
+model Project {
+  id                   String        @id @default(uuid()) @db.Uuid
+  legalEntityId        String        @db.Uuid
+  legalEntity          LegalEntity   @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  number               String
+  name                 String
+  status               ProjectStatus @default(ACTIVE)
+  clientId             String        @db.Uuid
+  client               Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  opportunityId        String?       @db.Uuid
+  opportunity          Opportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  quoteId              String        @db.Uuid
+  quote                Quote         @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  // One project per accepted version.
+  sourceQuoteVersionId String        @unique @db.Uuid
+  sourceQuoteVersion   QuoteVersion  @relation(fields: [sourceQuoteVersionId], references: [id], onDelete: Restrict)
+  currency             String        @db.Char(3)
+  fxRateToBase         Decimal?      @db.Decimal(18, 8)
+  // Baseline from the quote: value before tax (lines and contingency), tax,
+  // total, and the budgeted cost.
+  contractValueMinor   BigInt
+  taxMinor             BigInt
+  totalMinor           BigInt
+  budgetCostMinor      BigInt
+  clientPoNumber       String?
+  eventStartDate       DateTime?     @db.Date
+  eventEndDate         DateTime?     @db.Date
+  venue                String?
+  createdById          String        @db.Uuid
+  createdBy            User          @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  isDemo               Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  budgetLines ProjectBudgetLine[]
+  milestones  ProjectMilestone[]
+
+  @@unique([legalEntityId, number])
+  @@index([clientId])
+  @@index([status])
+  @@map("projects")
+}
+
+// The cost and revenue plan, one line per quote line.
+model ProjectBudgetLine {
+  id           String       @id @default(uuid()) @db.Uuid
+  projectId    String       @db.Uuid
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position     Int
+  section      String?
+  category     LineCategory
+  description  String
+  quantity     Decimal      @db.Decimal(12, 3)
+  days         Decimal      @db.Decimal(12, 3)
+  unitCode     String?
+  costMinor    BigInt
+  // Selling amount after discount, before tax.
+  revenueMinor BigInt
+
+  @@unique([projectId, position])
+  @@map("project_budget_lines")
+}
+
+// A billing milestone from the quote's payment schedule.
+model ProjectMilestone {
+  id          String         @id @default(uuid()) @db.Uuid
+  projectId   String         @db.Uuid
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position    Int
+  label       String
+  percentBps  Int
+  trigger     PaymentTrigger
+  days        Int            @default(0)
+  // Share of the quote total, including tax. Milestones add up to the total.
+  amountMinor BigInt
+  // Known when the trigger's date is: acceptance, or the event dates.
+  dueDate     DateTime?      @db.Date
+
+  @@unique([projectId, position])
+  @@map("project_milestones")
 }

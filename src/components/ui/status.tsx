@@ -11,8 +11,11 @@ import {
   PauseCircle,
   Send,
   TriangleAlert,
+  Trophy,
   Archive,
   RefreshCw,
+  History,
+  Undo2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -45,6 +48,14 @@ export const STATUSES = {
   active: { label: "Active", icon: CircleDot, tone: "success" },
   archived: { label: "Archived", icon: Archive, tone: "neutral" },
   disabled: { label: "Disabled", icon: Ban, tone: "neutral" },
+  open: { label: "Open", icon: CircleDot, tone: "info" },
+  due: { label: "Due", icon: Clock, tone: "info" },
+  won: { label: "Won", icon: Trophy, tone: "success" },
+  lost: { label: "Lost", icon: CircleX, tone: "danger" },
+  accepted: { label: "Accepted", icon: CircleCheck, tone: "success" },
+  declined: { label: "Declined", icon: CircleX, tone: "danger" },
+  superseded: { label: "Superseded", icon: History, tone: "neutral" },
+  withdrawn: { label: "Withdrawn", icon: Undo2, tone: "neutral" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon; tone: Tone }>;
 
 export type StatusKey = keyof typeof STATUSES;

@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { getClient, listClientOptions } from "@/server/crm/clients";
+import { listOpportunities } from "@/server/crm/pipeline";
+import { QuotesSection } from "../../../quotes/_components/quotes-section";
+import { ProjectsSection } from "../../../projects/_components/projects-section";
+import { listActivities } from "@/server/crm/activities";
+import { formatMoney } from "@/lib/format";
 import { CLIENT_KINDS, RELATIONSHIPS } from "@/server/crm/schemas";
 import { NotFoundError } from "@/lib/errors";
 import { ActionButton } from "@/components/ui/action-button";
@@ -19,6 +24,10 @@ import {
 } from "../actions";
 import { ContactForm } from "./contact-form";
 import { MergeForm } from "./merge-form";
+import { addActivityAction } from "../../opportunities/actions";
+import { ActivityFeed } from "../../_components/activity-feed";
+import { ActivityForm } from "../../_components/activity-form";
+import { STAGE_STATUS } from "../../_components/stage";
 
 export const metadata = { title: "Client" };
 
@@ -33,7 +42,13 @@ export default async function ClientPage({ params, searchParams }: PageProps<"/c
   const canEdit = active && can(actor, "crm.edit");
   const canArchive = can(actor, "crm.archive");
   const canMerge = active && canEdit && canArchive;
-  const others = canMerge ? (await listClientOptions(actor)).filter((c) => c.id !== id) : [];
+  const [others, opportunities, activities] = await Promise.all([
+    canMerge
+      ? listClientOptions(actor).then((list) => list.filter((c) => c.id !== id))
+      : Promise.resolve([]),
+    listOpportunities(actor, { clientId: id }),
+    listActivities(actor, { clientId: id }),
+  ]);
   const address = [
     client.addressLine1,
     client.addressLine2,
@@ -57,7 +72,7 @@ export default async function ClientPage({ params, searchParams }: PageProps<"/c
           </span>
         }
         breadcrumbs={[
-          { label: "CRM" },
+          { label: "CRM", href: "/crm" },
           { label: "Clients", href: "/crm/clients" },
           { label: client.name },
         ]}
@@ -218,6 +233,77 @@ export default async function ClientPage({ params, searchParams }: PageProps<"/c
             <ContactForm action={createContactAction.bind(null, id)} />
           </Panel>
         ) : null}
+      </Section>
+
+      <Section
+        title="Opportunities"
+        actions={
+          active && can(actor, "crm.create") ? (
+            <Button asChild size="sm">
+              <Link href={`/crm/opportunities/new?clientId=${id}`}>
+                <Plus aria-hidden />
+                New opportunity
+              </Link>
+            </Button>
+          ) : null
+        }
+      >
+        {opportunities.length ? (
+          <Table dense>
+            <THead>
+              <tr>
+                <TH>Opportunity</TH>
+                <TH>Entity</TH>
+                <TH>Stage</TH>
+                <TH align="right">Expected value</TH>
+              </tr>
+            </THead>
+            <TBody>
+              {opportunities.map((o) => (
+                <TR key={o.id}>
+                  <TD className="font-medium">
+                    <Link
+                      href={`/crm/opportunities/${o.id}`}
+                      className="text-accent hover:underline"
+                    >
+                      {o.title}
+                    </Link>
+                  </TD>
+                  <TD className="text-secondary">{o.legalEntity.code}</TD>
+                  <TD>
+                    <span className="flex items-center gap-2">
+                      <StatusBadge status={STAGE_STATUS[o.stage.kind]!} />
+                      <span className="text-secondary">{o.stage.name}</span>
+                    </span>
+                  </TD>
+                  <TD align="right">
+                    {o.expectedValueMinor === null
+                      ? "—"
+                      : formatMoney(o.expectedValueMinor, o.currency)}
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        ) : (
+          <p className="text-secondary text-base">No opportunities you can see.</p>
+        )}
+      </Section>
+
+      <QuotesSection
+        actor={actor}
+        filter={{ clientId: id }}
+        newHref={active ? `/quotes/new?clientId=${id}` : undefined}
+      />
+      <ProjectsSection actor={actor} filter={{ clientId: id }} />
+
+      <Section title="Activity">
+        {active && can(actor, "crm.create") ? (
+          <Panel className="mb-4">
+            <ActivityForm action={addActivityAction.bind(null, { clientId: id })} />
+          </Panel>
+        ) : null}
+        <ActivityFeed activities={activities} canComplete={canEdit} showOpportunity />
       </Section>
 
       {canMerge && others.length ? (

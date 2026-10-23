@@ -38,8 +38,13 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/",
         "/admin/organisation",
         "/admin/organisation/entities/new",
+        "/crm",
+        "/crm/opportunities/new",
         "/crm/clients",
         "/crm/clients/new",
+        "/quotes",
+        "/quotes/new",
+        "/projects",
         "/admin/master-data",
         "/admin/numbering",
         "/admin/users",
@@ -52,6 +57,30 @@ for (const colorScheme of ["light", "dark"] as const) {
           await expectNoViolations(page);
         });
       }
+      await test.step("a project", async () => {
+        await page.goto("/projects");
+        await page.getByRole("link", { name: /^P-/ }).first().click();
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expectNoViolations(page);
+      });
+      await test.step("a quote and its editor", async () => {
+        await page.goto("/quotes");
+        await page
+          .getByRole("row", { name: /Draft/ })
+          .getByRole("link", { name: /^Q-/ })
+          .first()
+          .click();
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expectNoViolations(page);
+        const quoteUrl = page.url();
+        await page.goto(quoteUrl.replace("/quotes/", "/print/quotes/"));
+        await expect(page.getByRole("heading", { level: 1, name: "Quotation" })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goto(quoteUrl);
+        await page.getByRole("link", { name: "Edit draft" }).click();
+        await expect(page.getByRole("heading", { level: 1, name: /^Edit/ })).toBeVisible();
+        await expectNoViolations(page);
+      });
     });
   });
 }
