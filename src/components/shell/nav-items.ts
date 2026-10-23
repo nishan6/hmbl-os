@@ -15,6 +15,7 @@ import {
   Theater,
   UserCog,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/server/permissions/catalog";
@@ -58,6 +59,7 @@ export const NAV: NavGroup[] = [
     label: "Finance",
     items: [
       { label: "Finance", icon: Landmark, permission: "finance.view", href: "/finance" },
+      { label: "Expenses", icon: Wallet, permission: "expenses.view", href: "/expenses" },
       { label: "Documents", icon: FileText, permission: "documents.view" },
       { label: "Reports", icon: LineChart, permission: "reports.view" },
     ],

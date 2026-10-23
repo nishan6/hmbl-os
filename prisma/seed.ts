@@ -15,7 +15,12 @@ import { seedDemoOrganisation } from "./seed/organisation";
 import { seedDemoCrm, seedDemoPipeline } from "./seed/crm";
 import { seedDemoTwoFactor } from "./seed/two-factor";
 import { seedDemoProject, seedDemoQuotes } from "./seed/commercial";
-import { seedDemoFinance, seedDemoInvoice, seedDemoPayables } from "./seed/finance";
+import {
+  seedDemoExpenses,
+  seedDemoFinance,
+  seedDemoInvoice,
+  seedDemoPayables,
+} from "./seed/finance";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
 export const DEMO_USERS = [
@@ -70,6 +75,8 @@ async function main() {
   console.log("Demo draft invoice");
   await seedDemoPayables(db, financeIndia.id);
   console.log("Demo vendors and a bill awaiting approval");
+  await seedDemoExpenses(db, financeIndia.id, sales.id);
+  console.log("Demo advance and an expense claim awaiting approval");
   await seedDemoTwoFactor(
     db,
     DEMO_USERS.map((u) => u.email).filter((email) => !email.startsWith("new.")),

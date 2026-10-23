@@ -46,6 +46,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
       description: "Runs invoicing, payables, journals and period close.",
       permissions: [
         ...all("finance"),
+        ...all("expenses"),
         ...all("reports"),
         ...only("commercial", ["view", "view_sensitive"]),
         ...only("projects", ["view", "view_sensitive"]),
@@ -63,6 +64,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
       description: "Manages clients, opportunities and quotations.",
       permissions: [
         ...all("crm", ["configure"]),
+        ...all("expenses"),
         ...only("commercial", ["view", "create", "edit", "submit", "issue", "export"]),
         ...only("projects", ["view"]),
         ...only("documents", ["view", "create", "edit"]),
@@ -79,6 +81,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
         ...only("commercial", ["view"]),
         ...only("projects", ["view", "create", "edit", "submit", "export"]),
         ...all("production"),
+        ...all("expenses"),
         ...only("crew", ["view", "create", "edit", "submit"]),
         ...only("equipment", ["view", "create", "edit", "submit"]),
         ...only("procurement", ["view", "create", "edit", "submit"]),

@@ -47,6 +47,8 @@ export const MODULES = {
     label: "Finance",
     actions: [...approvable, "issue", "post", "void", "configure", "view_sensitive"],
   },
+  // Claiming your own expenses; Finance reviews and settles them under finance.*.
+  expenses: { label: "Expense claims", actions: ["view", "create", "submit"] },
   documents: { label: "Documents", actions: [...standard, "view_sensitive"] },
   reports: { label: "Reports", actions: ["view", "export", "view_sensitive"] },
   organisation: {

@@ -1,5 +1,8 @@
 import type { PrismaClient } from "@/generated/prisma/client";
+import { createClaim, saveClaimDraft, submitClaim } from "@/server/expenses/claims";
+import { ensureExpenseCategoryDefaults } from "@/server/expenses/categories";
 import { addDefaultChart } from "@/server/finance/accounts";
+import { recordAdvance } from "@/server/finance/advances";
 import { createBill, saveBillDraft, submitBill } from "@/server/finance/bills";
 import { postJournal } from "@/server/finance/ledger";
 import { loadGrants } from "@/server/permissions/grants";
@@ -208,4 +211,66 @@ export async function seedDemoPayables(db: PrismaClient, financeId: string) {
     ],
   });
   await submitBill(actor, bill.id);
+}
+
+/** A demo advance to the sales user and their claim for the demo project, awaiting the PM. */
+export async function seedDemoExpenses(db: PrismaClient, financeId: string, claimantId: string) {
+  if (await db.expenseClaim.findFirst({ where: { isDemo: true } })) return;
+  const india = await db.legalEntity.findUniqueOrThrow({ where: { code: "DEMO-IN" } });
+  const asActor = async (id: string) => {
+    const user = await db.user.findUniqueOrThrow({ where: { id } });
+    return { id, name: user.name, email: user.email, grants: await loadGrants(db, id) };
+  };
+  const [finance, claimant] = await Promise.all([asActor(financeId), asActor(claimantId)]);
+  const pettyCash = await db.ledgerAccount.findUniqueOrThrow({
+    where: { legalEntityId_code: { legalEntityId: india.id, code: "1010" } },
+  });
+  const today = new Date().toISOString().slice(0, 10);
+  await recordAdvance(finance, india.id, {
+    personId: claimant.id,
+    purpose: "DEMO float for the site recce",
+    date: today,
+    paidFromId: pettyCash.id,
+    method: "CASH",
+    amount: "5000",
+  });
+
+  const project = await db.project.findFirst({
+    where: { isDemo: true, legalEntityId: india.id, baselineLockedAt: { not: null } },
+    include: { budgetLines: { orderBy: { position: "asc" }, take: 1 } },
+  });
+  const categories = await listExpenseCategoriesFor(db);
+  const claim = await createClaim(claimant, { legalEntityId: india.id, title: "DEMO site recce" });
+  await db.expenseClaim.update({ where: { id: claim.id }, data: { isDemo: true } });
+  const onProject = project?.budgetLines[0]
+    ? { projectId: project.id, budgetLineId: project.budgetLines[0].id }
+    : {};
+  await saveClaimDraft(claimant, claim.id, {
+    title: "DEMO site recce",
+    lines: [
+      {
+        date: today,
+        categoryId: categories.local_conveyance!,
+        description: "DEMO taxi to the venue and back",
+        merchant: "City Cabs",
+        amount: "1450",
+        ...onProject,
+      },
+      {
+        date: today,
+        categoryId: categories.meals!,
+        description: "DEMO lunch with the venue manager",
+        amount: "1800",
+        policyNote: "DEMO: two people; receipt lost",
+        ...onProject,
+      },
+    ],
+  });
+  await submitClaim(claimant, claim.id);
+}
+
+async function listExpenseCategoriesFor(db: PrismaClient) {
+  await ensureExpenseCategoryDefaults(db);
+  const rows = await db.expenseCategory.findMany();
+  return Object.fromEntries(rows.map((c) => [c.key, c.id])) as Record<string, string>;
 }

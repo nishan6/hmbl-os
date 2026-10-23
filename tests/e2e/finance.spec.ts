@@ -163,3 +163,65 @@ test("finance enters a bill with TDS, approves it and pays it", async ({ page })
   await page.getByRole("button", { name: "Show" }).first().click();
   await expect(page.getByText(/Agrees with trade payables/)).toBeVisible();
 });
+
+test("staff claim an expense with a receipt, and Finance approves and reimburses it", async ({
+  browser,
+}) => {
+  const title = `E2E recce ${Date.now().toString(36)}`;
+  const sales = await browser.newPage();
+  await signIn(sales, DEMO.sales);
+  await sales
+    .getByRole("navigation", { name: "Main" })
+    .getByRole("link", { name: "Expenses" })
+    .click();
+  await sales.getByRole("link", { name: "New claim" }).click();
+  await sales.getByRole("textbox", { name: "What it was for" }).fill(title);
+  const company = sales.getByRole("combobox", { name: "Company" });
+  const india = await company.locator("option", { hasText: "DEMO-IN" }).getAttribute("value");
+  await company.selectOption(india!);
+  await sales.getByRole("button", { name: "Start claim" }).click();
+
+  await sales.getByLabel("Expense 1 category").selectOption({ label: "Meals" });
+  await sales.getByLabel("Expense 1 description").fill("E2E crew lunch");
+  await sales.getByLabel("Expense 1 amount in INR").fill("1600");
+  await expect(sales.getByText(/Over the ₹1,500.00 limit for Meals/)).toBeVisible();
+  await sales.getByLabel("Expense 1 reason for the exception").fill("Lunch for four crew");
+  await expect(sales.getByRole("definition").filter({ hasText: "₹1,600.00" })).toBeVisible();
+  await sales.getByRole("button", { name: "Save draft" }).click();
+
+  await expect(sales.getByRole("heading", { level: 1, name: "Draft claim" })).toBeVisible();
+  const upload = sales.getByRole("region", { name: "Attach a receipt" });
+  await upload.getByLabel("Receipt").setInputFiles({
+    name: "lunch.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4 receipt"),
+  });
+  await upload.getByRole("button", { name: "Attach receipt" }).click();
+  await expect(upload.getByText("Attached lunch.pdf")).toBeVisible();
+  await expect(sales.getByRole("link", { name: "lunch.pdf" })).toBeVisible();
+  await sales.getByRole("button", { name: "Submit for approval" }).click();
+  await expect(sales.getByRole("heading", { level: 1, name: /^Claim EXP\// })).toBeVisible();
+  // Nobody approves their own claim.
+  await expect(sales.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  const claimUrl = sales.url();
+
+  const owner = await browser.newPage();
+  await signIn(owner, DEMO.owner);
+  await owner.goto(claimUrl);
+  owner.once("dialog", (d) => d.accept());
+  await owner.getByRole("button", { name: "Approve" }).click();
+  await expect(owner.getByText("Claim journal")).toBeVisible();
+  const settle = owner.getByRole("region", { name: "Settle" });
+  await settle
+    .getByRole("combobox", { name: "Settle from" })
+    .selectOption({ label: "1010 · Petty cash" });
+  await expect(settle.getByRole("textbox", { name: /Amount/ })).toHaveValue("1600.00");
+  await settle.getByRole("button", { name: "Settle" }).click();
+  await expect(owner.getByText("Paid from 1010 · Petty cash")).toBeVisible();
+
+  await owner.goto("/finance/staff-balances");
+  await owner.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await owner.getByRole("button", { name: "Show" }).first().click();
+  await expect(owner.getByText(/Agrees with advances to staff/)).toBeVisible();
+  await expect(owner.getByText(/Agrees with reimbursements payable/)).toBeVisible();
+});
