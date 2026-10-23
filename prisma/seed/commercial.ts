@@ -104,7 +104,7 @@ export async function seedDemoQuotes(db: PrismaClient, salesId: string) {
  * One demo project: a won opportunity whose quote was issued and accepted,
  * converted the normal way so the budget and milestones are real.
  */
-export async function seedDemoProject(db: PrismaClient, salesId: string) {
+export async function seedDemoProject(db: PrismaClient, salesId: string, managerId: string) {
   if (await db.project.findFirst({ where: { isDemo: true } })) return;
   const actor = await actorFor(db, salesId);
   const client = await db.client.findFirstOrThrow({ where: { name: "Demo Arena Live (DEMO)" } });
@@ -170,10 +170,15 @@ export async function seedDemoProject(db: PrismaClient, salesId: string) {
     ],
   });
   await issueQuote(actor, quote.id);
-  await acceptQuote(actor, quote.id, {
+  const project = await acceptQuote(actor, quote.id, {
     acceptedOn: localToday(entity.timezone).toISOString().slice(0, 10),
     acceptedByName: "Demo Priya Shah",
     acceptanceMethod: "EMAIL",
     acceptanceNotes: "Demo record.",
+  });
+  const live = await db.projectType.findUniqueOrThrow({ where: { code: "LIVE" } });
+  await db.project.update({
+    where: { id: project.id },
+    data: { projectTypeId: live.id, projectManagerId: managerId },
   });
 }

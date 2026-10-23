@@ -16,6 +16,10 @@ import {
   RefreshCw,
   History,
   Undo2,
+  CalendarRange,
+  Flag,
+  Calculator,
+  Lock,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -56,6 +60,10 @@ export const STATUSES = {
   declined: { label: "Declined", icon: CircleX, tone: "danger" },
   superseded: { label: "Superseded", icon: History, tone: "neutral" },
   withdrawn: { label: "Withdrawn", icon: Undo2, tone: "neutral" },
+  planning: { label: "Planning", icon: CalendarRange, tone: "info" },
+  ready: { label: "Ready", icon: Flag, tone: "accent" },
+  financial_close: { label: "Financial close", icon: Calculator, tone: "warning" },
+  closed: { label: "Closed", icon: Lock, tone: "neutral" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon; tone: Tone }>;
 
 export type StatusKey = keyof typeof STATUSES;

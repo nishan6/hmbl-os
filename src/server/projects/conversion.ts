@@ -4,6 +4,7 @@ import { recordAudit } from "@/server/audit/record";
 import type { Actor } from "@/server/permissions/authorize";
 import { allocateNumber } from "@/server/numbering/service";
 import { planMilestones, readSchedule } from "./milestones";
+import { recordStatusChange } from "./projects";
 
 type Tx = Prisma.TransactionClient;
 
@@ -39,6 +40,8 @@ export async function createProjectFromVersion(
     eventStartDate: Date | null;
     eventEndDate: Date | null;
     venue: string | null;
+    scope: string | null;
+    deliverables: string | null;
   },
   acceptance: { acceptedOn: Date; clientPoNumber: string | null },
 ) {
@@ -55,6 +58,8 @@ export async function createProjectFromVersion(
       legalEntityId: quote.legalEntityId,
       number,
       name: quote.title,
+      // The client has accepted the price, so the commercial steps are done.
+      status: "APPROVED",
       clientId: quote.clientId,
       opportunityId: quote.opportunityId,
       quoteId: quote.id,
@@ -69,6 +74,8 @@ export async function createProjectFromVersion(
       eventStartDate: version.eventStartDate,
       eventEndDate: version.eventEndDate,
       venue: version.venue,
+      scope: version.scope,
+      deliverables: version.deliverables,
       createdById: actor.id,
       isDemo: quote.isDemo,
     },
@@ -95,6 +102,7 @@ export async function createProjectFromVersion(
   await tx.projectMilestone.createMany({
     data: milestones.map((m) => ({ projectId: project.id, ...m })),
   });
+  await recordStatusChange(tx, actor, project, null, "APPROVED", "Created from an accepted quote");
   await recordAudit(tx, actor, {
     action: "project.created",
     targetType: "project",
