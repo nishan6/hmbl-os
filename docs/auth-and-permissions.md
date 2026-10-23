@@ -43,7 +43,7 @@ Created once if missing by `pnpm db:seed` or `pnpm user:create`, then editable. 
 | Owner / Director | Every permission                                                                             |
 | Administrator    | Users, roles, organisation and audit; view-only elsewhere, no approvals or posting           |
 | Finance          | Finance and reports in full, sensitive commercial/project/crew figures, procurement approval |
-| Sales            | CRM, quotations up to submit, project view                                                   |
+| Sales            | CRM, quotations up to submit and issue (not approve), project view                           |
 | Project manager  | Projects up to submit, production, crew, equipment, procurement and logistics requests       |
 | Viewer           | View-only, no sensitive data, no users or audit                                              |
 

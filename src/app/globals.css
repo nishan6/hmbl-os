@@ -266,3 +266,40 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Client documents (the printable quote) are paper: always the light values,
+ * whatever the app theme, so screen, print and PDF look the same.
+ */
+.paper {
+  color-scheme: light;
+  --hm-surface: #ffffff;
+  --hm-surface-2: #fafafb;
+  --hm-surface-sunken: #efeff2;
+  --hm-text: #1d1d1f;
+  --hm-text-secondary: #55555c;
+  --hm-text-muted: #66666d;
+  --hm-border: #d9d9de;
+  --hm-separator: #e6e6ea;
+  --hm-warning: #9a5b00;
+  --hm-warning-soft: #fdf1dc;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  body {
+    background: #ffffff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .paper {
+    box-shadow: none !important;
+    border: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+}

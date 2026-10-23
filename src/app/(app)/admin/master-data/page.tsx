@@ -10,6 +10,9 @@ import {
   listUnits,
 } from "@/server/master-data/service";
 import { TAX_TREATMENTS } from "@/server/master-data/schemas";
+import { listCommercialSettings } from "@/server/commercial/settings";
+import { formatMoney } from "@/lib/format";
+import { minorToInput } from "@/lib/money";
 import { formatBps } from "@/lib/percent";
 import { ActionButton } from "@/components/ui/action-button";
 import { PageHeader, Panel, Section } from "@/components/ui/page";
@@ -20,7 +23,9 @@ import {
   stageCommandAction,
   taxRateCommandAction,
   unitCommandAction,
+  updateQuoteSettingsAction,
 } from "./actions";
+import { QuoteSettingsForm } from "./quote-settings-form";
 import { PaymentTermForm, TaxRateForm, UnitForm } from "./forms";
 import { StageForm } from "./stage-form";
 
@@ -46,6 +51,7 @@ export default async function MasterDataPage() {
     listPaymentTerms(actor, { includeArchived: true }),
     listUnits(actor, { includeArchived: true }),
   ]);
+  const quoteRules = can(actor, "commercial.view") ? await listCommercialSettings(actor) : [];
   const stages = can(actor, "crm.view") ? await listStages(actor, { includeArchived: true }) : [];
   const canStages = canEverywhere(actor, "crm.configure");
   const canTax = canEverywhere(actor, "finance.configure");
@@ -58,6 +64,48 @@ export default async function MasterDataPage() {
         description="Tax rates, payment terms, units and pipeline stages used across the CRM, quotes and invoices. Documents keep a copy of what they used, so changes here never alter an issued document."
         breadcrumbs={[{ label: "Administration" }, { label: "Master data" }]}
       />
+
+      {quoteRules.length ? (
+        <Section
+          title="Quote rules"
+          description="Per legal entity. Approval is off by default: whoever prepares a quote can issue it."
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            {quoteRules.map(({ entity, canConfigure, settings }) => (
+              <Panel key={entity.id}>
+                <h3 className="text-text mb-3 text-sm font-semibold">
+                  {entity.code} · {entity.legalName}
+                </h3>
+                {canConfigure ? (
+                  <QuoteSettingsForm
+                    action={updateQuoteSettingsAction.bind(null, entity.id)}
+                    baseCurrency={entity.baseCurrency}
+                    defaults={{
+                      requireQuoteApproval: settings.requireQuoteApproval ? "on" : "",
+                      approvalThreshold:
+                        settings.approvalThresholdMinor === null
+                          ? ""
+                          : minorToInput(settings.approvalThresholdMinor, entity.baseCurrency),
+                      quoteValidityDays: String(settings.quoteValidityDays),
+                    }}
+                  />
+                ) : (
+                  <p className="text-secondary text-sm">
+                    {settings.requireQuoteApproval
+                      ? `Director approval required${
+                          settings.approvalThresholdMinor === null
+                            ? ""
+                            : ` above ${formatMoney(settings.approvalThresholdMinor, entity.baseCurrency)}`
+                        }.`
+                      : "No approval needed."}{" "}
+                    Quotes are valid for {settings.quoteValidityDays} days.
+                  </p>
+                )}
+              </Panel>
+            ))}
+          </div>
+        </Section>
+      ) : null}
 
       <Section
         title="Tax rates"

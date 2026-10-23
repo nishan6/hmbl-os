@@ -10,3 +10,12 @@ export const QUOTE_STATUS: Record<string, StatusKey> = {
   SUPERSEDED: "superseded",
   WITHDRAWN: "withdrawn",
 };
+
+/** What the quote page says after a workflow step (`?done=`). */
+export const QUOTE_DONE: Record<string, string> = {
+  submit: "Submitted for approval",
+  approve: "Approved. It can be issued now",
+  reject: "Sent back to draft",
+  issue: "Issued. This version is now locked",
+  withdraw: "Withdrawn",
+};

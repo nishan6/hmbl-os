@@ -4,7 +4,8 @@ import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { getEntityContext } from "@/server/shell/entity-context";
 import { listMyFollowUps } from "@/server/crm/activities";
-import { formatDateTime } from "@/lib/format";
+import { listPendingApprovals } from "@/server/commercial/workflow";
+import { formatDateTime, formatMoney } from "@/lib/format";
 import { PageHeader, Section } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 
@@ -46,6 +47,7 @@ export default async function HomePage() {
   const shortcuts = SHORTCUTS.filter((s) => can(actor, s.permission));
   const roles = [...new Set(actor.grants.map((g) => g.roleKey))];
   const followUps = can(actor, "crm.view") ? await listMyFollowUps(actor) : [];
+  const approvals = await listPendingApprovals(actor);
   const now = new Date();
 
   return (
@@ -96,6 +98,26 @@ export default async function HomePage() {
                 <span className="text-secondary text-sm">
                   {f.client.name}
                   {f.dueAt ? ` · ${formatDateTime(f.dueAt)}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
+      {approvals.length ? (
+        <Section
+          title="Quotes waiting for your approval"
+          description="Oldest first. Approve them or send them back with a comment."
+        >
+          <ul className="flex flex-col gap-2">
+            {approvals.map((v) => (
+              <li key={v.id} className="flex flex-wrap items-center gap-2 text-base">
+                <StatusBadge status="pending_approval" />
+                <Link href={`/quotes/${v.quoteId}`} className="text-accent hover:underline">
+                  <span className="tabular">{v.quote.number}</span> · {v.quote.title}
+                </Link>
+                <span className="text-secondary tabular text-sm">
+                  {v.quote.client.name} · {formatMoney(v.totalMinor, v.currency)}
                 </span>
               </li>
             ))}

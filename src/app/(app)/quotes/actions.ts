@@ -2,8 +2,16 @@
 
 import { redirect } from "next/navigation";
 import { requireActor } from "@/server/auth/session";
-import { formValues, toFormState, type FormState } from "@/server/http/action-result";
+import { attempt, formValues, toFormState, type FormState } from "@/server/http/action-result";
 import { createQuote, saveDraft } from "@/server/commercial/quotes";
+import {
+  approveQuote,
+  issueQuote,
+  rejectQuote,
+  reviseQuote,
+  submitQuote,
+  withdrawQuote,
+} from "@/server/commercial/workflow";
 import type { DraftLineInput } from "@/server/commercial/schemas";
 import { ValidationError } from "@/lib/errors";
 
@@ -59,4 +67,31 @@ export async function saveDraftAction(id: string, _: FormState, formData: FormDa
     return toFormState(error, values);
   }
   redirect(`/quotes/${id}?saved=1`);
+}
+
+/** One action for every workflow step; `command` says which. */
+export async function quoteCommandAction(id: string, _: FormState, formData: FormData) {
+  const command = formData.get("command");
+  const state = await attempt(formData, async ({ comment }) => {
+    const actor = await requireActor();
+    const input = { comment };
+    switch (command) {
+      case "submit":
+        return submitQuote(actor, id, input);
+      case "approve":
+        return approveQuote(actor, id, input);
+      case "reject":
+        return rejectQuote(actor, id, input);
+      case "issue":
+        return issueQuote(actor, id);
+      case "revise":
+        return reviseQuote(actor, id);
+      case "withdraw":
+        return withdrawQuote(actor, id, input);
+      default:
+        throw new ValidationError("Unknown action.");
+    }
+  });
+  if (state.status !== "success") return state;
+  redirect(command === "revise" ? `/quotes/${id}/edit` : `/quotes/${id}?done=${String(command)}`);
 }

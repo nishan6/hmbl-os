@@ -14,6 +14,7 @@ import {
   setUnitArchived,
 } from "@/server/master-data/service";
 import { createStage, moveStage, setStageArchived } from "@/server/crm/pipeline";
+import { updateCommercialSettings } from "@/server/commercial/settings";
 
 async function run(formData: FormData, fn: (values: Record<string, string>) => Promise<unknown>) {
   const state = await attempt(formData, async (values) => fn(values));
@@ -105,4 +106,18 @@ export async function stageCommandAction(_: FormState, formData: FormData) {
     if (command === "up" || command === "down") return moveStage(actor, id, command);
     return setStageArchived(actor, id, command === "archive");
   });
+}
+
+export async function updateQuoteSettingsAction(
+  legalEntityId: string,
+  _: FormState,
+  formData: FormData,
+) {
+  return run(formData, async (v) =>
+    updateCommercialSettings(await requireActor(), legalEntityId, {
+      requireQuoteApproval: v.requireQuoteApproval,
+      approvalThreshold: v.approvalThreshold,
+      quoteValidityDays: v.quoteValidityDays ?? "",
+    }),
+  );
 }
