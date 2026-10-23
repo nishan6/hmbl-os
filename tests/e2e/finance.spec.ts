@@ -225,3 +225,94 @@ test("staff claim an expense with a receipt, and Finance approves and reimburses
   await expect(owner.getByText(/Agrees with advances to staff/)).toBeVisible();
   await expect(owner.getByText(/Agrees with reimbursements payable/)).toBeVisible();
 });
+
+test("finance imports a bank statement, matches it to the books and reconciles", async ({
+  page,
+}) => {
+  const id = Date.now().toString(36);
+  const bankName = `E2E Bank ${id}`;
+  const today = new Date().toISOString().slice(0, 10);
+  const [y, m, d] = today.split("-");
+  await signIn(page, DEMO.owner);
+
+  // A fresh account each run, so its reconciliation starts clean.
+  await page.goto("/finance/bank-accounts");
+  await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await page.getByRole("button", { name: "Show" }).click();
+  await page.getByRole("textbox", { name: "Bank" }).fill(bankName);
+  await page.getByRole("textbox", { name: "Account name" }).fill("HMBL Demo");
+  await page.getByRole("textbox", { name: "Account number" }).fill(`77${Date.now()}`);
+  await page.getByRole("textbox", { name: "IFSC" }).fill("HDFC0001234");
+  await page.getByRole("button", { name: "Add bank account" }).click();
+  await expect(page.getByRole("link", { name: bankName, exact: true })).toBeVisible();
+
+  // ₹15,000 deposited in the books.
+  await page.goto("/finance/journals");
+  await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await page.getByRole("button", { name: "Show" }).click();
+  await page.getByRole("link", { name: "New journal" }).click();
+  await page.getByRole("textbox", { name: "Narration" }).fill(`E2E cheque deposit ${id}`);
+  const first = page.getByLabel("Line 1 account");
+  await first.selectOption(
+    (await first.locator("option", { hasText: bankName }).getAttribute("value"))!,
+  );
+  await page.getByLabel("Line 1 debit").fill("15000");
+  await page.getByLabel("Line 2 account").selectOption({ label: "2900 · Suspense" });
+  await page.getByLabel("Line 2 credit").fill("15000");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Draft journal" })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Post" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Journal JV\// })).toBeVisible();
+
+  await page.goto("/finance/bank-accounts");
+  await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await page.getByRole("button", { name: "Show" }).click();
+  await page.getByRole("link", { name: bankName, exact: true }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: new RegExp(`^${bankName}`) }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Reconcile", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Reconcile E2E Bank/ })).toBeVisible();
+
+  // The bank's CSV, with its preamble and footer.
+  await page.getByLabel("Statement file (CSV)").setInputFiles({
+    name: "statement.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      [
+        "E2E BANK LTD",
+        "Txn Date,Narration,Chq/Ref No,Withdrawal Amt,Deposit Amt,Closing Balance",
+        `${d}/${m}/${y},CHQ DEP 000451,451,,"15,000.00","15,000.00"`,
+        `${d}/${m}/${y},SMS AND SERVICE CHARGES,,59.00,,"14,941.00"`,
+        "*** End of statement ***",
+      ].join("\n"),
+    ),
+  });
+  await expect(page.getByText("2 transactions: ₹15,000.00 in, ₹59.00 out")).toBeVisible();
+  await page.getByRole("button", { name: "Import statement" }).click();
+  await expect(page.getByText("2 lines imported")).toBeVisible();
+
+  // The deposit has a likely match, ticked for confirmation.
+  await page.getByRole("link", { name: "Match CHQ DEP 000451 ₹15,000.00" }).click();
+  await expect(page.getByText("Ticked ₹15,000.00 of ₹15,000.00 · adds up")).toBeVisible();
+  await page.getByRole("button", { name: "Match", exact: true }).click();
+  await expect(page.getByRole("link", { name: /^Match CHQ DEP/ })).toHaveCount(0);
+
+  // The charges aren't in the books yet: post them from the line.
+  await page.getByRole("link", { name: "Match SMS AND SERVICE CHARGES −₹59.00" }).click();
+  await page.getByRole("combobox", { name: "Other account" }).selectOption({
+    label: "6050 Bank charges",
+  });
+  await page.getByRole("button", { name: "Post and match" }).click();
+  await expect(page.getByText("Every statement line is matched")).toBeVisible();
+
+  await page.getByRole("textbox", { name: "Statement date" }).fill(today);
+  await page.getByRole("textbox", { name: /Closing balance/ }).fill("14,941.00");
+  await page.getByRole("button", { name: "Check" }).click();
+  await expect(page.getByRole("row", { name: /Difference\s+None/ })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: /^Complete reconciliation/ }).click();
+  await expect(page.getByRole("row", { name: /₹14,941.00\s+Completed/ })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: "at ₹14,941.00" })).toBeVisible();
+});

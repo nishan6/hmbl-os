@@ -37,6 +37,9 @@ export default async function BankAccountsPage({
               <TH>Ledger account</TH>
               <TH>Currency</TH>
               <TH align="right">Balance in the books</TH>
+              <TH>
+                <span className="sr-only">Actions</span>
+              </TH>
             </tr>
           </THead>
           <TBody>
@@ -68,6 +71,15 @@ export default async function BankAccountsPage({
                 </TD>
                 <TD>{a.currency}</TD>
                 <TD align="right">{formatMoney(a.balanceMinor, entity.baseCurrency)}</TD>
+                <TD>
+                  <Link
+                    href={`/finance/bank-accounts/${a.id}/reconcile`}
+                    className="text-accent text-sm hover:underline"
+                    aria-label={`Reconcile ${a.bankName} ${a.accountNumber.slice(-4)}`}
+                  >
+                    Reconcile
+                  </Link>
+                </TD>
               </TR>
             ))}
           </TBody>

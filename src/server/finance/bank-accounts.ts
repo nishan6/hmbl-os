@@ -99,7 +99,7 @@ export async function listBankAccounts(actor: Actor, legalEntityId: string) {
   });
 }
 
-async function loadBankAccount(actor: Actor, id: string) {
+export async function loadBankAccount(actor: Actor, id: string) {
   const account = await db.bankAccount.findUnique({ where: { id } });
   if (!account) throw new NotFoundError();
   await getLegalEntity(actor, account.legalEntityId);

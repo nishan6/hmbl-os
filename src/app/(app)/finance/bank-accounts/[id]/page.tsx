@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { getBankAccount } from "@/server/finance/bank-accounts";
 import { financeEntity } from "@/server/finance/context";
 import { can } from "@/server/permissions/authorize";
 import { AppError } from "@/lib/errors";
+import { Button } from "@/components/ui/button";
 import { DetailList, Panel, Section } from "@/components/ui/page";
 import { FinanceHeader, withEntity } from "../../_components/finance-header";
 import { updateBankAccountAction } from "../actions";
@@ -33,6 +35,11 @@ export default async function BankAccountPage({
           { label: "Bank accounts", href: withEntity("/finance/bank-accounts", entity) },
           { label: account.bankName },
         ]}
+        actions={
+          <Button asChild variant="primary">
+            <Link href={`/finance/bank-accounts/${id}/reconcile`}>Reconcile</Link>
+          </Button>
+        }
       />
       {configure ? (
         <Section title="Details">
