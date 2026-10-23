@@ -10,6 +10,7 @@ export const DOCUMENT_TYPES = {
   receipt: { label: "Receipt", scope: "entity" },
   purchase_order: { label: "Purchase order", scope: "entity" },
   vendor_bill: { label: "Vendor bill", scope: "entity" },
+  vendor_payment: { label: "Vendor payment", scope: "entity" },
   expense_claim: { label: "Expense claim", scope: "entity" },
   journal: { label: "Journal", scope: "entity" },
 } as const satisfies Record<string, { label: string; scope: "entity" | "group" }>;
@@ -38,6 +39,7 @@ export const DEFAULT_SCHEMES: Record<
   receipt: { pattern: "RCT/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
   purchase_order: { pattern: "PO/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
   vendor_bill: { pattern: "VB/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
+  vendor_payment: { pattern: "PAY/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
   expense_claim: { pattern: "EXP/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
   journal: { pattern: "JV/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
 };

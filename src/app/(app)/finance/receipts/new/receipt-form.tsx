@@ -12,8 +12,8 @@ import {
   AllocationTable,
   allocationPayload,
   amountOf,
-  type OpenInvoice,
-} from "../allocation-table";
+  type OpenDocument,
+} from "../../_components/allocation-table";
 
 type MoneyAccount = { id: string; code: string; name: string; currency: string };
 
@@ -33,7 +33,7 @@ export function ReceiptForm({
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   clients: { id: string; name: string }[];
   accounts: MoneyAccount[];
-  invoices: (OpenInvoice & { clientId: string })[];
+  invoices: (OpenDocument & { clientId: string })[];
   methods: Record<string, string>;
   tdsSections: Record<string, string>;
   baseCurrency: string;

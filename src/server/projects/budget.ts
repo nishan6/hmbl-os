@@ -4,7 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/server/db";
 import { recordAudit } from "@/server/audit/record";
 import { diffChanges } from "@/server/audit/diff";
-import { authorize, type Actor } from "@/server/permissions/authorize";
+import { authorize, type Actor, type Caller } from "@/server/permissions/authorize";
 import { LINE_CATEGORIES, type LineCategory } from "@/server/commercial/schemas";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { lineFigures, profitFigures, totalFigures, type LineFigures } from "@/lib/budget";
@@ -436,6 +436,9 @@ export async function voidCostEntry(
   const { entry, project } = await loadEntry(actor, entryId);
   const { reason } = parseInput(z.object({ reason: requiredText(500) }), raw);
   if (entry.voidedAt) throw new ConflictError("This entry is already void.");
+  if (entry.sourceType) {
+    throw new ConflictError("This cost came from a finance document. Void the document instead.");
+  }
   return db.$transaction(async (tx) => {
     assertChangeable(await lockProject(tx, project.id));
     const live = await tx.projectCostEntry.count({
@@ -455,4 +458,88 @@ export async function voidCostEntry(
     });
     return after;
   });
+}
+
+// ─── Costs posted by finance documents ───────────────────────────────────────
+
+/**
+ * Records an actual cost from a finance document (a vendor bill line, an
+ * expense claim) inside the document's transaction. The amount is in the
+ * project's currency. Voided only through the document.
+ */
+export async function postDocumentCost(
+  tx: Tx,
+  caller: Caller,
+  input: {
+    projectId: string;
+    budgetLineId: string;
+    amountMinor: bigint;
+    entryDate: Date;
+    description: string;
+    supplier: string;
+    reference: string;
+    sourceType: "vendor_bill_line" | "expense_claim_line";
+    sourceId: string;
+    createdById: string;
+  },
+) {
+  const project = await lockProject(tx, input.projectId);
+  assertChangeable(project);
+  if (!project.baselineLockedAt) {
+    throw new ConflictError(
+      `Project ${project.number}'s budget isn't approved yet, so it can't take costs.`,
+    );
+  }
+  const line = await tx.projectBudgetLine.findUnique({ where: { id: input.budgetLineId } });
+  if (!line || line.projectId !== project.id) {
+    throw new ValidationError(`Choose a budget line of project ${project.number}.`);
+  }
+  const entry = await tx.projectCostEntry.create({
+    data: {
+      projectId: project.id,
+      budgetLineId: line.id,
+      kind: "ACTUAL",
+      amountMinor: input.amountMinor,
+      entryDate: input.entryDate,
+      description: input.description,
+      supplier: input.supplier,
+      reference: input.reference,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      createdById: input.createdById,
+    },
+  });
+  await recordAudit(tx, caller, {
+    action: "project_cost.actual_recorded",
+    targetType: "project",
+    targetId: project.id,
+    legalEntityId: project.legalEntityId,
+    metadata: {
+      entryId: entry.id,
+      lineId: line.id,
+      amountMinor: input.amountMinor.toString(),
+      source: input.sourceType,
+      reference: input.reference,
+    },
+  });
+  return entry;
+}
+
+/** Voids costs a finance document posted, when the document is voided. */
+export async function voidDocumentCost(tx: Tx, caller: Caller, entryId: string, reason: string) {
+  const entry = await tx.projectCostEntry.findUniqueOrThrow({ where: { id: entryId } });
+  if (entry.voidedAt) return entry;
+  const project = await lockProject(tx, entry.projectId);
+  const after = await tx.projectCostEntry.update({
+    where: { id: entryId },
+    data: { voidedAt: new Date(), voidReason: reason },
+  });
+  await recordAudit(tx, caller, {
+    action: "project_cost.voided",
+    targetType: "project",
+    targetId: project.id,
+    legalEntityId: project.legalEntityId,
+    metadata: { entryId, reason, amountMinor: entry.amountMinor.toString(), kind: entry.kind },
+  });
+  return after;
 }

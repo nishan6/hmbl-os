@@ -4,6 +4,7 @@ import { Pencil } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { getProject } from "@/server/projects/projects";
+import { billsAwaitingApproval } from "@/server/finance/bills";
 import {
   checkMove,
   isLocked,
@@ -38,6 +39,9 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
     throw error;
   });
   const scope = { legalEntityId: p.legalEntityId };
+  const bills = (await billsAwaitingApproval(actor)).filter((b) =>
+    b.lines.some((l) => l.project?.id === p.id),
+  );
   const canEdit = can(actor, "projects.edit", scope) && !isLocked(p.status);
   const moves = nextStatuses(p.status, p.resumeStatus).flatMap((to) => {
     const move = checkMove(p.status, to, p.resumeStatus);
@@ -95,6 +99,40 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
 
       <div className="grid gap-x-8 xl:grid-cols-[3fr_1fr]">
         <div className="min-w-0">
+          {bills.length ? (
+            <Section
+              title="Bills awaiting your approval"
+              description="Suppliers' invoices Finance has entered against this project."
+            >
+              <Table dense>
+                <THead>
+                  <tr>
+                    <TH>Vendor</TH>
+                    <TH>Their invoice</TH>
+                    <TH>Date</TH>
+                    <TH align="right">Total</TH>
+                  </tr>
+                </THead>
+                <TBody>
+                  {bills.map((b) => (
+                    <TR key={b.id}>
+                      <TD>
+                        <Link
+                          href={`/finance/bills/${b.id}`}
+                          className="text-accent hover:underline"
+                        >
+                          {b.vendor.name}
+                        </Link>
+                      </TD>
+                      <TD className="tabular">{b.vendorInvoiceNumber}</TD>
+                      <TD className="tabular text-secondary">{formatDate(b.billDate, "UTC")}</TD>
+                      <TD align="right">{formatMoney(b.totalMinor, b.currency)}</TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </Section>
+          ) : null}
           <Section title="Details">
             <DetailList
               items={[

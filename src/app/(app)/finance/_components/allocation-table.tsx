@@ -6,7 +6,8 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { minorToInput, parseMoneyToMinor } from "@/lib/money";
 import { allocateInOrder } from "@/lib/settlement";
 
-export type OpenInvoice = {
+/** An open invoice or bill. */
+export type OpenDocument = {
   id: string;
   number: string | null;
   dueDate: Date;
@@ -17,7 +18,10 @@ export type OpenInvoice = {
 export const amountOf = (value: string | undefined, currency: string) =>
   value?.trim() ? (parseMoneyToMinor(value, currency) ?? 0n) : 0n;
 
-/** Open invoices with an amount to allocate to each, and a button to fill them oldest first. */
+/**
+ * Open invoices (or bills) with an amount to allocate to each, and a button to
+ * fill them oldest first.
+ */
 export function AllocationTable({
   invoices,
   currency,
@@ -25,14 +29,19 @@ export function AllocationTable({
   onChange,
   available,
   errors,
+  noun = "invoice",
+  remainder = "On account",
 }: {
-  invoices: OpenInvoice[];
+  invoices: OpenDocument[];
   currency: string;
   amounts: Record<string, string>;
   onChange: (next: Record<string, string>) => void;
   /** What there is to allocate. */
   available: bigint;
   errors: (field: string) => string[] | undefined;
+  noun?: "invoice" | "bill";
+  /** What is left over is called. */
+  remainder?: string;
 }) {
   const money = (minor: bigint) => formatMoney(minor, currency);
   const allocated = invoices.reduce((s, i) => s + amountOf(amounts[i.id], currency), 0n);
@@ -50,7 +59,7 @@ export function AllocationTable({
   if (!invoices.length) {
     return (
       <p className="text-secondary text-sm">
-        No open invoices in {currency}. The whole amount stays on account.
+        No open {noun}s in {currency}. The whole amount is kept as {remainder.toLowerCase()}.
       </p>
     );
   }
@@ -60,7 +69,7 @@ export function AllocationTable({
         <table className="w-full min-w-[36rem] border-collapse text-sm">
           <thead>
             <tr className="text-secondary text-left text-xs">
-              <th className="py-1 pr-2 font-medium">Invoice</th>
+              <th className="py-1 pr-2 font-medium">{noun === "bill" ? "Bill" : "Invoice"}</th>
               <th className="py-1 pr-2 font-medium">Due</th>
               <th className="w-36 py-1 pr-2 text-right font-medium">Owed</th>
               <th className="w-40 py-1 pr-2 text-right font-medium">Allocate</th>
@@ -98,7 +107,7 @@ export function AllocationTable({
           Allocate oldest first
         </Button>
         <p className="text-sm" role="status">
-          Allocated <span className="tabular">{money(allocated)}</span> · On account{" "}
+          Allocated <span className="tabular">{money(allocated)}</span> · {remainder}{" "}
           <span className={available - allocated < 0n ? "tabular text-danger" : "tabular"}>
             {money(available - allocated)}
           </span>
@@ -108,6 +117,9 @@ export function AllocationTable({
   );
 }
 
-/** The allocations to send: every open invoice, in the order shown, so errors line up. */
-export const allocationPayload = (invoices: OpenInvoice[], amounts: Record<string, string>) =>
-  JSON.stringify(invoices.map((i) => ({ invoiceId: i.id, amount: amounts[i.id] ?? "" })));
+/** The allocations to send: every open document, in the order shown, so errors line up. */
+export const allocationPayload = (
+  documents: OpenDocument[],
+  amounts: Record<string, string>,
+  key: "invoiceId" | "billId" = "invoiceId",
+) => JSON.stringify(documents.map((d) => ({ [key]: d.id, amount: amounts[d.id] ?? "" })));
