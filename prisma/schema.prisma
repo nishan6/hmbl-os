@@ -39,6 +39,8 @@ model User {
   grants        UserRole[]    @relation("UserRoleGrantedBy")
   opportunities Opportunity[]
   crmActivities CrmActivity[]
+  quotes        Quote[]       @relation("QuoteOwner")
+  quotesCreated Quote[]       @relation("QuoteCreatedBy")
 
   @@map("users")
 }
@@ -202,6 +204,7 @@ model LegalEntity {
   locations        Location[]
   userRoles        UserRole[]
   opportunities    Opportunity[]
+  quotes           Quote[]
 
   @@map("legal_entities")
 }
@@ -535,6 +538,7 @@ model Client {
   contacts      Contact[]
   opportunities Opportunity[]
   activities    CrmActivity[]
+  quotes        Quote[]
 
   @@unique([taxIdType, taxId], map: "clients_tax_id_key", where: raw("\"taxId\" IS NOT NULL AND status = 'ACTIVE'"))
   @@index([normalizedName])
@@ -559,6 +563,7 @@ model Contact {
   updatedAt DateTime     @updatedAt
 
   opportunities Opportunity[]
+  quoteVersions QuoteVersion[]
 
   @@unique([clientId], map: "contacts_one_primary_key", where: raw("\"isPrimary\" AND status = 'ACTIVE'"))
   @@index([clientId])
@@ -634,6 +639,7 @@ model Opportunity {
 
   stageChanges OpportunityStageChange[]
   activities   CrmActivity[]
+  quotes       Quote[]
 
   @@index([legalEntityId, stageId])
   @@index([clientId])
@@ -688,4 +694,153 @@ model CrmActivity {
   @@index([opportunityId, occurredAt])
   @@index([ownerId, dueAt])
   @@map("crm_activities")
+}
+
+// ─── Estimates and quotations ────────────────────────────────────────────────
+
+enum QuoteStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ISSUED
+  ACCEPTED
+  DECLINED
+  SUPERSEDED
+  WITHDRAWN
+}
+
+enum PricingMethod {
+  UNIT_RATE
+  FIXED
+  COST_PLUS_MARKUP
+  COST_PLUS_MARGIN
+}
+
+enum LineCategory {
+  CREW
+  EQUIPMENT
+  RENTAL
+  SERVICES
+  PRODUCTION
+  TRAVEL
+  LOGISTICS
+  FEES
+  OTHER
+}
+
+// A quotation: one number, one or more versions. Only the latest version is
+// worked on; earlier ones are kept as revision history.
+model Quote {
+  id             String       @id @default(uuid()) @db.Uuid
+  legalEntityId  String       @db.Uuid
+  legalEntity    LegalEntity  @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  number         String
+  clientId       String       @db.Uuid
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  opportunityId  String?      @db.Uuid
+  opportunity    Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  title          String
+  ownerId        String?      @db.Uuid
+  owner          User?        @relation("QuoteOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  // Version number of the latest version.
+  currentVersion Int          @default(1)
+  createdById    String       @db.Uuid
+  createdBy      User         @relation("QuoteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  isDemo         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  versions QuoteVersion[]
+
+  @@unique([legalEntityId, number])
+  @@index([clientId])
+  @@index([opportunityId])
+  @@map("quotes")
+}
+
+// Everything the client is offered. Editable only while DRAFT; the database
+// refuses changes to a version (or its lines) once it has left draft.
+model QuoteVersion {
+  id               String      @id @default(uuid()) @db.Uuid
+  quoteId          String      @db.Uuid
+  quote            Quote       @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  version          Int
+  status           QuoteStatus @default(DRAFT)
+  contactId        String?     @db.Uuid
+  contact          Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  currency         String      @db.Char(3)
+  // Units of the entity's base currency per unit of `currency`; null when they match.
+  fxRateToBase     Decimal?    @db.Decimal(18, 8)
+  fxNote           String?
+  validUntil       DateTime    @db.Date
+  // Copied from the payment term when chosen, so later edits to the term don't
+  // change a quote: [{ label, percentBps, trigger, days }].
+  paymentTermId    String?     @db.Uuid
+  paymentTermName  String?
+  paymentSchedule  Json        @default("[]")
+  // The default tax for new lines and the rate contingency is taxed at.
+  taxRateId        String?     @db.Uuid
+  taxRateBps       Int         @default(0)
+  // A client-visible allowance, as a share of the subtotal.
+  contingencyBps   Int         @default(0)
+  poRequired       Boolean     @default(false)
+  eventStartDate   DateTime?   @db.Date
+  eventEndDate     DateTime?   @db.Date
+  venue            String?
+  scope            String?
+  deliverables     String?
+  exclusions       String?
+  terms            String?
+  // Never shown to the client.
+  internalNotes    String?
+  // Stored totals, recalculated on every save from the lines.
+  subtotalMinor    BigInt      @default(0)
+  discountMinor    BigInt      @default(0)
+  contingencyMinor BigInt      @default(0)
+  taxMinor         BigInt      @default(0)
+  totalMinor       BigInt      @default(0)
+  costMinor        BigInt      @default(0)
+  marginBps        Int?
+  createdById      String      @db.Uuid
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  lines QuoteLine[]
+
+  @@unique([quoteId, version])
+  @@index([status])
+  @@map("quote_versions")
+}
+
+model QuoteLine {
+  id             String        @id @default(uuid()) @db.Uuid
+  versionId      String        @db.Uuid
+  version        QuoteVersion  @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  position       Int
+  // Optional heading lines are grouped under, e.g. "Stage and AV".
+  section        String?
+  category       LineCategory  @default(OTHER)
+  description    String
+  method         PricingMethod @default(UNIT_RATE)
+  quantity       Decimal       @db.Decimal(12, 3)
+  days           Decimal       @db.Decimal(12, 3)
+  unitId         String?       @db.Uuid
+  unitCode       String?
+  unitCostMinor  BigInt        @default(0)
+  unitPriceMinor BigInt        @default(0)
+  markupBps      Int?
+  marginBps      Int?
+  discountBps    Int           @default(0)
+  taxRateId      String?       @db.Uuid
+  taxCode        String?
+  taxRateBps     Int           @default(0)
+  costMinor      BigInt
+  grossMinor     BigInt
+  discountMinor  BigInt
+  netMinor       BigInt
+  taxMinor       BigInt
+  totalMinor     BigInt
+
+  @@unique([versionId, position])
+  @@map("quote_lines")
 }

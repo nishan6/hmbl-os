@@ -12,6 +12,7 @@ import { assignRole, createUser } from "@/server/users/service";
 import { seedDemoOrganisation } from "./seed/organisation";
 import { seedDemoCrm, seedDemoPipeline } from "./seed/crm";
 import { seedDemoTwoFactor } from "./seed/two-factor";
+import { seedDemoQuotes } from "./seed/commercial";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
 export const DEMO_USERS = [
@@ -53,6 +54,8 @@ async function main() {
   await seedDemoCrm(db, sales.id);
   await seedDemoPipeline(db, { ownerId: sales.id, indiaId: india.id, uaeId: uae.id });
   console.log("Demo clients and contacts");
+  await seedDemoQuotes(db, sales.id);
+  console.log("Demo quote");
   await seedDemoTwoFactor(
     db,
     DEMO_USERS.map((u) => u.email).filter((email) => !email.startsWith("new.")),

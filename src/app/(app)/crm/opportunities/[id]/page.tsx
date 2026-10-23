@@ -16,6 +16,7 @@ import { ActivityFeed } from "../../_components/activity-feed";
 import { ActivityForm } from "../../_components/activity-form";
 import { STAGE_STATUS } from "../../_components/stage";
 import { StageForm } from "./stage-form";
+import { QuotesSection } from "../../../quotes/_components/quotes-section";
 
 export const metadata = { title: "Opportunity" };
 
@@ -143,6 +144,12 @@ export default async function OpportunityPage({
           </Panel>
         </Section>
       ) : null}
+
+      <QuotesSection
+        actor={actor}
+        filter={{ opportunityId: id }}
+        newHref={o.closedAt ? undefined : `/quotes/new?opportunityId=${id}`}
+      />
 
       <div className="grid gap-x-8 xl:grid-cols-[2fr_1fr]">
         <Section title="Activity">

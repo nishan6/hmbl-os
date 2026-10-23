@@ -40,7 +40,12 @@ export const NAV: NavGroup[] = [
     label: "Operations",
     items: [
       { label: "CRM", icon: Users, permission: "crm.view", href: "/crm" },
-      { label: "Commercial", icon: ClipboardList, permission: "commercial.view" },
+      {
+        label: "Commercial",
+        icon: ClipboardList,
+        permission: "commercial.view",
+        href: "/quotes",
+      },
       { label: "Projects", icon: Briefcase, permission: "projects.view" },
       { label: "Production", icon: Theater, permission: "production.view" },
       { label: "Crew", icon: Users, permission: "crew.view" },

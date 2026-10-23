@@ -42,6 +42,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/crm/opportunities/new",
         "/crm/clients",
         "/crm/clients/new",
+        "/quotes",
+        "/quotes/new",
         "/admin/master-data",
         "/admin/numbering",
         "/admin/users",
@@ -54,6 +56,15 @@ for (const colorScheme of ["light", "dark"] as const) {
           await expectNoViolations(page);
         });
       }
+      await test.step("a quote and its editor", async () => {
+        await page.goto("/quotes");
+        await page.getByRole("link", { name: /^Q-/ }).first().click();
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expectNoViolations(page);
+        await page.getByRole("link", { name: "Edit draft" }).click();
+        await expect(page.getByRole("heading", { level: 1, name: /^Edit/ })).toBeVisible();
+        await expectNoViolations(page);
+      });
     });
   });
 }
