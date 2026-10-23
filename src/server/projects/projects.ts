@@ -15,6 +15,7 @@ import {
   type ProjectStatus,
 } from "./lifecycle";
 import { recordBudgetVersion } from "./versions";
+import { followEventDates } from "./billing-dates";
 import {
   newProjectInput,
   projectDetailsInput,
@@ -289,6 +290,7 @@ export async function updateProjectDetails(actor: Actor, id: string, raw: Projec
         changes,
       });
     }
+    if (changes?.eventStartDate || changes?.eventEndDate) await followEventDates(tx, actor, after);
     return after;
   });
 }

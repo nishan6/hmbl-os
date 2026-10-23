@@ -110,3 +110,28 @@ test("a change order is agreed with the client and approved into a new budget ve
   const versions = page.getByRole("region", { name: "Budget versions" });
   await expect(versions.getByRole("link", { name: new RegExp(title) })).toBeVisible();
 });
+
+test("the schedule is planned and a milestone ticked off", async ({ page }) => {
+  const title = `E2E rigging plot ${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/projects");
+  await page
+    .getByRole("row", { name: /New Year gala/ })
+    .getByRole("link", { name: /^P-/ })
+    .click();
+  await page.getByRole("link", { name: "Schedule", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Billing milestones" })).toBeVisible();
+
+  const schedule = page.getByRole("region", { name: "Schedule" });
+  // The add form comes after the edit forms of each row.
+  const form = schedule.locator("form").last();
+  await form.getByLabel("What").selectOption({ label: "Milestone" });
+  await form.getByLabel("Title").fill(title);
+  await form.getByLabel("Due").fill("2026-12-15");
+  await form.getByRole("button", { name: "Add to schedule" }).click();
+  await expect(form.getByText("Schedule saved")).toBeVisible();
+
+  const row = schedule.getByRole("row", { name: new RegExp(title) });
+  await row.getByRole("button", { name: `Mark done ${title}` }).click();
+  await expect(row.getByText("Completed")).toBeVisible();
+});

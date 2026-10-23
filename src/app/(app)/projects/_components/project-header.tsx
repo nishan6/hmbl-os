@@ -7,6 +7,7 @@ import { PROJECT_STATUS } from "./status";
 
 const TABS = [
   { path: "", label: "Overview" },
+  { path: "/schedule", label: "Schedule" },
   { path: "/budget", label: "Budget", costs: true },
   { path: "/changes", label: "Change orders" },
 ] as const;

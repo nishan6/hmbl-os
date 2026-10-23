@@ -106,6 +106,21 @@ export async function createProjectFromVersion(
   await tx.projectMilestone.createMany({
     data: milestones.map((m) => ({ projectId: project.id, ...m })),
   });
+  if (version.eventStartDate) {
+    // The quote's event dates become the first show dates on the schedule.
+    const end = version.eventEndDate;
+    await tx.projectScheduleItem.create({
+      data: {
+        projectId: project.id,
+        kind: "SHOW",
+        title: "Show",
+        startDate: version.eventStartDate,
+        endDate: end && end.getTime() !== version.eventStartDate.getTime() ? end : null,
+        location: version.venue,
+        createdById: actor.id,
+      },
+    });
+  }
   await recordStatusChange(tx, actor, project, null, "APPROVED", "Created from an accepted quote");
   await recordAudit(tx, actor, {
     action: "project.created",

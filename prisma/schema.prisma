@@ -31,22 +31,24 @@ model User {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
-  sessions         Session[]
-  accounts         Account[]
-  ownedClients     Client[]
-  twoFactors       TwoFactor[]
-  roles            UserRole[]           @relation("UserRoles")
-  grants           UserRole[]           @relation("UserRoleGrantedBy")
-  opportunities    Opportunity[]
-  crmActivities    CrmActivity[]
-  quotes           Quote[]              @relation("QuoteOwner")
-  quotesCreated    Quote[]              @relation("QuoteCreatedBy")
-  quoteSteps       QuoteApprovalStep[]
-  projectsCreated  Project[]            @relation("ProjectCreatedBy")
-  projectsManaged  Project[]            @relation("ProjectManager")
-  projectsProduced Project[]            @relation("ProjectProducer")
-  projectCosts     ProjectCostEntry[]   @relation("ProjectCostCreatedBy")
-  changeOrders     ProjectChangeOrder[] @relation("ChangeOrderCreatedBy")
+  sessions               Session[]
+  accounts               Account[]
+  ownedClients           Client[]
+  twoFactors             TwoFactor[]
+  roles                  UserRole[]            @relation("UserRoles")
+  grants                 UserRole[]            @relation("UserRoleGrantedBy")
+  opportunities          Opportunity[]
+  crmActivities          CrmActivity[]
+  quotes                 Quote[]               @relation("QuoteOwner")
+  quotesCreated          Quote[]               @relation("QuoteCreatedBy")
+  quoteSteps             QuoteApprovalStep[]
+  projectsCreated        Project[]             @relation("ProjectCreatedBy")
+  projectsManaged        Project[]             @relation("ProjectManager")
+  projectsProduced       Project[]             @relation("ProjectProducer")
+  projectCosts           ProjectCostEntry[]    @relation("ProjectCostCreatedBy")
+  changeOrders           ProjectChangeOrder[]  @relation("ChangeOrderCreatedBy")
+  scheduleItemsCreated   ProjectScheduleItem[] @relation("ScheduleItemCreatedBy")
+  scheduleItemsCompleted ProjectScheduleItem[] @relation("ScheduleItemCompletedBy")
 
   @@map("users")
 }
@@ -1035,6 +1037,7 @@ model Project {
   costEntries    ProjectCostEntry[]
   changeOrders   ProjectChangeOrder[]
   budgetVersions ProjectBudgetVersion[]
+  scheduleItems  ProjectScheduleItem[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1148,18 +1151,21 @@ model ProjectCostEntry {
 
 // A billing milestone from the quote's payment schedule.
 model ProjectMilestone {
-  id          String         @id @default(uuid()) @db.Uuid
-  projectId   String         @db.Uuid
-  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  position    Int
-  label       String
-  percentBps  Int
-  trigger     PaymentTrigger
-  days        Int            @default(0)
+  id            String         @id @default(uuid()) @db.Uuid
+  projectId     String         @db.Uuid
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position      Int
+  label         String
+  percentBps    Int
+  trigger       PaymentTrigger
+  days          Int            @default(0)
   // Share of the quote total, including tax. Milestones add up to the total.
-  amountMinor BigInt
+  amountMinor   BigInt
   // Known when the trigger's date is: acceptance, or the event dates.
-  dueDate     DateTime?      @db.Date
+  dueDate       DateTime?      @db.Date
+  // Set by hand: kept when the event dates move. The note says why.
+  dueDateManual Boolean        @default(false)
+  dueDateNote   String?
 
   @@unique([projectId, position])
   @@map("project_milestones")
@@ -1252,4 +1258,35 @@ model ProjectBudgetVersion {
 
   @@unique([projectId, version])
   @@map("project_budget_versions")
+}
+
+enum ScheduleItemKind {
+  SHOW
+  PHASE
+  MILESTONE
+}
+
+/// The project's plan in dates: show dates, phases such as build or load-in,
+/// and delivery milestones that are ticked off when done.
+model ProjectScheduleItem {
+  id            String           @id @default(uuid()) @db.Uuid
+  projectId     String           @db.Uuid
+  project       Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind          ScheduleItemKind
+  title         String
+  startDate     DateTime         @db.Date
+  // Shows and phases can span days; milestones are a single date.
+  endDate       DateTime?        @db.Date
+  location      String?
+  notes         String?
+  completedAt   DateTime?
+  completedById String?          @db.Uuid
+  completedBy   User?            @relation("ScheduleItemCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  createdById   String           @db.Uuid
+  createdBy     User             @relation("ScheduleItemCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([projectId, startDate])
+  @@map("project_schedule_items")
 }

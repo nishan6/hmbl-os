@@ -70,6 +70,9 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goto(`${projectUrl}/budget`);
         await expect(page.getByRole("heading", { level: 2, name: "Budget lines" })).toBeVisible();
         await expectNoViolations(page);
+        await page.goto(`${projectUrl}/schedule`);
+        await expect(page.getByRole("heading", { level: 2, name: "Schedule" })).toBeVisible();
+        await expectNoViolations(page);
         await page.goto(`${projectUrl}/changes`);
         await expect(page.getByRole("heading", { level: 2, name: "Change orders" })).toBeVisible();
         await expectNoViolations(page);
