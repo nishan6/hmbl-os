@@ -329,7 +329,7 @@ async function planAllocations(
 }
 
 /** The exchange difference as a ledger line: a gain is credited, a loss debited. */
-async function exchangeLine(
+export async function exchangeLine(
   tx: Tx,
   legalEntityId: string,
   gainMinor: bigint,

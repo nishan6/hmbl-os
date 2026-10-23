@@ -186,3 +186,11 @@ export function rupeesInWords(minor: bigint): string {
   const paise = minor % 100n;
   return `Rupees ${wholeNumberInWords(rupees)}${paise ? ` and ${wholeNumberInWords(paise)} Paise` : ""} Only`;
 }
+
+/** How GST works on a bill, from where the supplier is. */
+export const BILL_SUPPLY_TYPES: Record<SupplyType, string> = {
+  INTRA_STATE: "Supplier in our state (CGST + SGST)",
+  INTER_STATE: "Supplier in another state (IGST)",
+  EXPORT: "Supplier outside India (no GST charged)",
+  NON_GST: "Not under Indian GST",
+};

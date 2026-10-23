@@ -6,7 +6,11 @@ import { Field, Input } from "@/components/ui/field";
 import { FormAlert } from "@/components/ui/form-alert";
 import { useForm } from "@/components/ui/use-form";
 import type { FormState } from "@/server/http/action-result";
-import { AllocationTable, allocationPayload, type OpenInvoice } from "../allocation-table";
+import {
+  AllocationTable,
+  allocationPayload,
+  type OpenDocument,
+} from "../../_components/allocation-table";
 
 type Action = (state: FormState, formData: FormData) => Promise<FormState>;
 
@@ -19,7 +23,7 @@ export function AllocateForm({
   defaultDate,
 }: {
   action: Action;
-  invoices: OpenInvoice[];
+  invoices: OpenDocument[];
   currency: string;
   available: bigint;
   defaultDate: string;

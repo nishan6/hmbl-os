@@ -123,3 +123,43 @@ test("finance records a receipt with TDS that settles an invoice", async ({ page
   await page.getByRole("button", { name: "Show" }).first().click();
   await expect(page.getByText(/Agrees with the receivables account/)).toBeVisible();
 });
+
+test("finance enters a bill with TDS, approves it and pays it", async ({ page }) => {
+  const invoiceNumber = `E2E/${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/finance/bills");
+  await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await page.getByRole("button", { name: "Show" }).click();
+  await page.getByRole("link", { name: "Enter a bill" }).click();
+  await page
+    .getByRole("combobox", { name: "Vendor" })
+    .selectOption({ label: "Demo Lights and Rigging (DEMO) (INR)" });
+  await page.getByRole("button", { name: "Start bill" }).click();
+  await page.getByRole("textbox", { name: "Their invoice number" }).fill(invoiceNumber);
+  await expect(page.getByRole("textbox", { name: "TDS rate (%)" })).toHaveValue("2");
+  await page.getByLabel("Line 1 description").fill("E2E truss hire");
+  await page.getByLabel("Line 1 rate").fill("10000");
+  await page.getByLabel("Line 1 account").selectOption({ label: "5010 · Equipment hire" });
+  await expect(page.getByRole("definition").filter({ hasText: "₹11,600.00" })).toBeVisible();
+  await page.getByRole("button", { name: "Save draft" }).click();
+
+  await expect(page.getByRole("heading", { level: 1, name: /^Draft bill from/ })).toBeVisible();
+  await page.getByRole("button", { name: "Submit for approval" }).click();
+  await expect(page.getByText("Awaiting approval")).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Approve" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Bill VB\// })).toBeVisible();
+  await expect(page.getByText("₹200.00 u/s 194C")).toBeVisible();
+
+  await page.getByRole("link", { name: "Record payment" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Record a payment" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: /Amount paid/ })).toHaveValue("11600.00");
+  await expect(page.getByText("Advance ₹0.00")).toBeVisible();
+  await page.getByRole("button", { name: "Record payment" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Payment PAY\// })).toBeVisible();
+
+  await page.goto("/finance/payables");
+  await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await page.getByRole("button", { name: "Show" }).first().click();
+  await expect(page.getByText(/Agrees with trade payables/)).toBeVisible();
+});

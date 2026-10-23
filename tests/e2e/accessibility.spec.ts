@@ -58,6 +58,13 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/finance/receipts",
         "/finance/receipts/new",
         "/finance/receivables",
+        "/finance/bills",
+        "/finance/bills/new",
+        "/finance/payments",
+        "/finance/payments/new",
+        "/finance/payables",
+        "/finance/vendors",
+        "/finance/vendors/new",
         "/finance/bank-accounts",
         "/finance/trial-balance",
         "/finance/settings",
@@ -126,6 +133,17 @@ for (const colorScheme of ["light", "dark"] as const) {
         await expectNoViolations(page);
         await page.goto(invoiceUrl.replace("/finance/invoices/", "/print/invoices/"));
         await expect(page.getByRole("heading", { level: 1, name: "Tax invoice" })).toBeVisible();
+        await expectNoViolations(page);
+      });
+      await test.step("a bill awaiting approval and a vendor", async () => {
+        await page.goto("/finance/bills");
+        await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+        await page.getByRole("button", { name: "Show" }).click();
+        await page.getByRole("link", { name: "To approve" }).first().click();
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expectNoViolations(page);
+        await page.getByRole("link", { name: "Demo Lights and Rigging (DEMO)" }).click();
+        await expect(page.getByRole("heading", { level: 2, name: "Bills" })).toBeVisible();
         await expectNoViolations(page);
       });
       await test.step("a quote and its editor", async () => {

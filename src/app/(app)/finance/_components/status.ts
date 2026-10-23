@@ -1,5 +1,11 @@
 import type { StatusKey } from "@/components/ui/status";
-import type { InvoiceStatus, JournalStatus, ReceiptStatus } from "@/generated/prisma/enums";
+import type {
+  BillStatus,
+  InvoiceStatus,
+  JournalStatus,
+  PaymentStatus,
+  ReceiptStatus,
+} from "@/generated/prisma/enums";
 import type { PaymentState } from "@/lib/invoice";
 
 export const JOURNAL_STATUS: Record<JournalStatus, StatusKey> = {
@@ -23,6 +29,19 @@ export const PAYMENT_STATUS: Record<PaymentState, StatusKey> = {
 };
 
 export const RECEIPT_STATUS: Record<ReceiptStatus, StatusKey> = {
+  POSTED: "posted",
+  VOIDED: "voided",
+};
+
+export const BILL_STATUS: Record<BillStatus, StatusKey> = {
+  DRAFT: "draft",
+  SUBMITTED: "pending_approval",
+  APPROVED: "approved",
+  VOIDED: "voided",
+  DISCARDED: "voided",
+};
+
+export const VENDOR_PAYMENT_STATUS: Record<PaymentStatus, StatusKey> = {
   POSTED: "posted",
   VOIDED: "voided",
 };

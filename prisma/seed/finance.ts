@@ -1,6 +1,9 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { addDefaultChart } from "@/server/finance/accounts";
+import { createBill, saveBillDraft, submitBill } from "@/server/finance/bills";
 import { postJournal } from "@/server/finance/ledger";
+import { loadGrants } from "@/server/permissions/grants";
+import { normalizeClientName } from "@/server/crm/normalize";
 import { documentTotals, priceInvoiceLine } from "@/lib/invoice";
 
 /**
@@ -124,4 +127,85 @@ export async function seedDemoInvoice(db: PrismaClient, createdById: string) {
       lines: { create: lines },
     },
   });
+}
+
+/**
+ * DEMO vendors, and a DEMO bill against the demo project awaiting its
+ * project manager's approval.
+ */
+export async function seedDemoPayables(db: PrismaClient, financeId: string) {
+  if (await db.vendor.findFirst({ where: { isDemo: true } })) return;
+  const india = await db.legalEntity.findUniqueOrThrow({ where: { code: "DEMO-IN" } });
+  const vendor = (name: string, data: Record<string, unknown>) =>
+    db.vendor.create({
+      data: {
+        name,
+        normalizedName: normalizeClientName(name),
+        countryCode: "IN",
+        currency: "INR",
+        paymentTermsDays: 30,
+        isDemo: true,
+        ...data,
+      },
+    });
+  const rigging = await vendor("Demo Lights and Rigging (DEMO)", {
+    gstin: "27AAACD1234E1Z3",
+    pan: "AAACD1234E",
+    region: "Maharashtra",
+    city: "Mumbai",
+    tdsSection: "194C",
+    tdsRateBps: 200,
+    msmeNumber: "UDYAM-MH-00-0000001",
+  });
+  await vendor("Demo Freelance Crew (DEMO)", {
+    kind: "INDIVIDUAL",
+    pan: "ABCPD1234E",
+    region: "Maharashtra",
+    tdsSection: "194J",
+    tdsRateBps: 1000,
+    paymentTermsDays: 15,
+  });
+
+  const project = await db.project.findFirst({
+    where: { isDemo: true, legalEntityId: india.id, baselineLockedAt: { not: null } },
+    include: { budgetLines: { orderBy: { position: "asc" }, take: 1 } },
+  });
+  const user = await db.user.findUniqueOrThrow({ where: { id: financeId } });
+  const actor = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    grants: await loadGrants(db, user.id),
+  };
+  const [rate, hire] = await Promise.all([
+    db.taxRate.findFirstOrThrow({ where: { countryCode: "IN", isDefault: true } }),
+    db.ledgerAccount.findUniqueOrThrow({
+      where: { legalEntityId_code: { legalEntityId: india.id, code: "5010" } },
+    }),
+  ]);
+  const bill = await createBill(actor, india.id, { vendorId: rigging.id });
+  await db.vendorBill.update({ where: { id: bill.id }, data: { isDemo: true } });
+  const today = new Date().toISOString().slice(0, 10);
+  await saveBillDraft(actor, bill.id, {
+    vendorInvoiceNumber: "DEMO/LR/0042",
+    billDate: today,
+    dueDate: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
+    currency: "INR",
+    supplyType: bill.supplyType,
+    tdsSection: "194C",
+    tdsRate: "2",
+    lines: [
+      {
+        description: "DEMO moving-head lights hire, 2 days",
+        sacCode: "997319",
+        quantity: "1",
+        unitPrice: "85000",
+        taxRateId: rate.id,
+        accountId: hire.id,
+        projectId: project?.budgetLines[0] ? project.id : null,
+        budgetLineId: project?.budgetLines[0]?.id ?? null,
+      },
+    ],
+  });
+  await submitBill(actor, bill.id);
 }
