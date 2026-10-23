@@ -9,6 +9,7 @@ import { ensureDefaultRoles } from "@/server/permissions/roles";
 import { ensureMasterDataDefaults } from "@/server/master-data/defaults";
 import { assignRole, createUser } from "@/server/users/service";
 import { seedDemoOrganisation } from "./seed/organisation";
+import { seedDemoCrm } from "./seed/crm";
 import { seedDemoTwoFactor } from "./seed/two-factor";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
@@ -46,6 +47,9 @@ async function main() {
     where: { email: "finance.in@demo.hmbl.test" },
   });
   await assignRole("system", financeIndia.id, "finance", india.id);
+  const sales = await db.user.findUniqueOrThrow({ where: { email: "sales@demo.hmbl.test" } });
+  await seedDemoCrm(db, sales.id);
+  console.log("Demo clients and contacts");
   await seedDemoTwoFactor(
     db,
     DEMO_USERS.map((u) => u.email).filter((email) => !email.startsWith("new.")),

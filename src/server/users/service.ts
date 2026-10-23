@@ -237,3 +237,18 @@ export async function listUsers(caller: Actor) {
     },
   });
 }
+
+/**
+ * Active people to choose as an owner or manager on a record: names only, no
+ * roles or emails. Open to anyone who works with CRM, quotes or projects.
+ */
+export async function listUserOptions(caller: Actor) {
+  if (!(["crm.view", "commercial.view", "projects.view"] as const).some((p) => can(caller, p))) {
+    throw new ForbiddenError();
+  }
+  return db.user.findMany({
+    where: { status: "ACTIVE" },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+}
