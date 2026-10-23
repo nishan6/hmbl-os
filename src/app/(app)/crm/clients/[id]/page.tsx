@@ -5,6 +5,7 @@ import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { getClient, listClientOptions } from "@/server/crm/clients";
 import { listOpportunities } from "@/server/crm/pipeline";
+import { QuotesSection } from "../../../quotes/_components/quotes-section";
 import { listActivities } from "@/server/crm/activities";
 import { formatMoney } from "@/lib/format";
 import { CLIENT_KINDS, RELATIONSHIPS } from "@/server/crm/schemas";
@@ -287,6 +288,12 @@ export default async function ClientPage({ params, searchParams }: PageProps<"/c
           <p className="text-secondary text-base">No opportunities you can see.</p>
         )}
       </Section>
+
+      <QuotesSection
+        actor={actor}
+        filter={{ clientId: id }}
+        newHref={active ? `/quotes/new?clientId=${id}` : undefined}
+      />
 
       <Section title="Activity">
         {active && can(actor, "crm.create") ? (
