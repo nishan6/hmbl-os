@@ -5,6 +5,7 @@ import { issueQuote } from "@/server/commercial/workflow";
 import { acceptQuote } from "@/server/commercial/acceptance";
 import { createChangeOrder, saveChangeOrderLine } from "@/server/projects/change-orders";
 import { saveScheduleItem } from "@/server/projects/schedule";
+import { saveRequirement } from "@/server/projects/resources";
 
 async function actorFor(db: PrismaClient, userId: string) {
   const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
@@ -211,4 +212,22 @@ export async function seedDemoProject(db: PrismaClient, salesId: string, manager
   ] as const) {
     await saveScheduleItem(manager, project.id, { ...item, location: "Demo Arena, Mumbai" });
   }
+  // The crew line's plan, and an equipment item still to be budgeted.
+  await saveRequirement(manager, project.id, {
+    kind: "CREW",
+    name: "Show crew",
+    quantity: "10",
+    startDate: "2026-12-31",
+    endDate: "2027-01-01",
+    budgetLineId: crew.id,
+    dayRate: "3500",
+  });
+  await saveRequirement(manager, project.id, {
+    kind: "EQUIPMENT",
+    name: "Moving head lights",
+    quantity: "24",
+    startDate: "2026-12-29",
+    endDate: "2027-01-01",
+    notes: "From our own stock if available",
+  });
 }

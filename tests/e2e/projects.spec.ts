@@ -135,3 +135,29 @@ test("the schedule is planned and a milestone ticked off", async ({ page }) => {
   await row.getByRole("button", { name: `Mark done ${title}` }).click();
   await expect(row.getByText("Completed")).toBeVisible();
 });
+
+test("a crew role is planned against its budget line", async ({ page }) => {
+  const role = `E2E follow spot op ${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/projects");
+  await page
+    .getByRole("row", { name: /New Year gala/ })
+    .getByRole("link", { name: /^P-/ })
+    .click();
+  await page.getByRole("link", { name: "Crew and equipment", exact: true }).click();
+
+  const crew = page.getByRole("region", { name: "Crew plan" });
+  const form = crew.locator("form").last();
+  await form.getByLabel("Role").fill(role);
+  await form.getByLabel("How many").fill("2");
+  await form.getByLabel("From").fill("2026-12-31");
+  await form.getByLabel("To").fill("2027-01-01");
+  await form.getByLabel("Budget line").selectOption({ label: "Crew · Show crew" });
+  await form.getByLabel("Day rate").fill("3000");
+  await form.getByRole("button", { name: "Add to plan" }).click();
+  await expect(form.getByText("Plan saved")).toBeVisible();
+  await expect(crew.getByRole("row", { name: new RegExp(role) })).toContainText("₹12,000.00");
+
+  const check = page.getByRole("region", { name: "Plan against budget" });
+  await expect(check.getByRole("row", { name: /Show crew/ })).toContainText("Over by");
+});
