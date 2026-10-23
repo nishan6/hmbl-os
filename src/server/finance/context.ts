@@ -1,0 +1,33 @@
+import "server-only";
+import { db } from "@/server/db";
+import { entityFilter, type Actor } from "@/server/permissions/authorize";
+import { getEntityContext } from "@/server/shell/entity-context";
+
+/**
+ * Books are kept per legal entity, so every finance screen shows one entity.
+ * It is the one in the address (`?entity=`), else the one picked in the
+ * header, else the first the user can see. Null when they can see none.
+ */
+export async function financeEntity(actor: Actor, requested?: string | string[]) {
+  const [entities, { selectedId }] = await Promise.all([
+    db.legalEntity.findMany({
+      where: { status: "ACTIVE", ...entityFilter(actor, "finance.view", "id") },
+      select: {
+        id: true,
+        code: true,
+        legalName: true,
+        baseCurrency: true,
+        countryCode: true,
+        timezone: true,
+        isDemo: true,
+      },
+      orderBy: { code: "asc" },
+    }),
+    getEntityContext(actor),
+  ]);
+  const wanted = typeof requested === "string" ? requested : selectedId;
+  const entity = entities.find((e) => e.id === wanted) ?? entities[0] ?? null;
+  return { entities, entity };
+}
+
+export type FinanceEntity = NonNullable<Awaited<ReturnType<typeof financeEntity>>["entity"]>;

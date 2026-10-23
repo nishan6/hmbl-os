@@ -3,6 +3,7 @@ import { db } from "@/server/db";
 import { withUniqueConflict } from "@/server/db-errors";
 import { recordAudit } from "@/server/audit/record";
 import { addMissingDefaultSchemes } from "@/server/numbering/defaults";
+import { addDefaultChart } from "@/server/finance/accounts";
 import { diffChanges } from "@/server/audit/diff";
 import {
   authorize,
@@ -102,6 +103,8 @@ export async function createLegalEntity(actor: Actor, input: LegalEntityInput) {
       });
       // Every entity can number quotes, projects and invoices from day one.
       await addMissingDefaultSchemes(tx, actor, entity);
+      // …and keep books: the default chart of accounts (docs/ledger.md).
+      await addDefaultChart(tx, actor, entity);
       return entity;
     }),
   );
