@@ -90,6 +90,13 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
                 Discard
               </ActionButton>
             ) : null}
+            {inv.actions.receive ? (
+              <Button asChild>
+                <Link href={withEntity(`/finance/receipts/new?invoice=${inv.id}`, entity)}>
+                  Record receipt
+                </Link>
+              </Button>
+            ) : null}
             {inv.actions.credit ? (
               <Button asChild>
                 <Link href={`/finance/invoices/${inv.id}/credit`}>Credit note</Link>
@@ -306,6 +313,40 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
                     <StatusBadge status={DOCUMENT_STATUS[c.status]} />
                   </TD>
                   <TD align="right">{money(c.totalMinor)}</TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        </Section>
+      ) : null}
+      {inv.allocations.length ? (
+        <Section title="Receipts">
+          <Table dense>
+            <THead>
+              <tr>
+                <TH>Date</TH>
+                <TH>Receipt</TH>
+                <TH align="right">Settled</TH>
+              </tr>
+            </THead>
+            <TBody>
+              {inv.allocations.map((a) => (
+                <TR key={a.id}>
+                  <TD className="tabular text-secondary whitespace-nowrap">
+                    {formatDate(a.date, "UTC")}
+                  </TD>
+                  <TD className="tabular whitespace-nowrap">
+                    <Link
+                      href={`/finance/receipts/${a.receipt.id}`}
+                      className="text-accent hover:underline"
+                    >
+                      {a.receipt.number}
+                    </Link>
+                    {a.receipt.tdsMinor ? (
+                      <span className="text-secondary"> (includes TDS)</span>
+                    ) : null}
+                  </TD>
+                  <TD align="right">{money(a.amountMinor)}</TD>
                 </TR>
               ))}
             </TBody>

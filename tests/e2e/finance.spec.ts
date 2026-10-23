@@ -82,3 +82,44 @@ test("finance issues a GST invoice, credits part of it and prints both", async (
   await page.goto(invoiceUrl);
   await expect(page.getByRole("definition").filter({ hasText: "₹47,200.00" })).toBeVisible();
 });
+
+test("finance records a receipt with TDS that settles an invoice", async ({ page }) => {
+  const line = `E2E crew ${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/finance/invoices");
+  await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await page.getByRole("button", { name: "Show" }).click();
+  await page.getByRole("link", { name: "New invoice" }).click();
+  await page
+    .getByRole("combobox", { name: "Client" })
+    .selectOption({ label: "Demo Arena Live (DEMO)" });
+  await page.getByRole("button", { name: "Start invoice" }).click();
+  await page.getByLabel("Line 1 description").fill(line);
+  await page.getByLabel("Line 1 rate").fill("10000");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Issue" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Invoice INV\// })).toBeVisible();
+  const invoiceUrl = page.url();
+
+  await page.getByRole("link", { name: "Record receipt" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Record a receipt" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: /Amount received/ })).toHaveValue("11800.00");
+  await page.getByRole("textbox", { name: /Amount received/ }).fill("10800");
+  await page.getByRole("textbox", { name: "TDS deducted" }).fill("1000");
+  await page.getByRole("combobox", { name: "TDS section" }).fill("194J");
+  await page.getByRole("textbox", { name: "Reference" }).fill("UTR-E2E");
+  await expect(page.getByText("On account ₹0.00")).toBeVisible();
+  await page.getByRole("button", { name: "Record receipt" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Receipt RCT\// })).toBeVisible();
+  await expect(page.getByText("₹1,000.00 u/s 194J")).toBeVisible();
+
+  await page.goto(invoiceUrl);
+  await expect(page.getByText("Paid", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^RCT\// })).toBeVisible();
+
+  await page.goto("/finance/receivables");
+  await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await page.getByRole("button", { name: "Show" }).first().click();
+  await expect(page.getByText(/Agrees with the receivables account/)).toBeVisible();
+});

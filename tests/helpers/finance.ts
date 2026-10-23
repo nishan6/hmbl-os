@@ -1,7 +1,11 @@
 import { db } from "@/server/db";
+import type { Actor } from "@/server/permissions/authorize";
+import { createBankAccount } from "@/server/finance/bank-accounts";
+import { createInvoice, issueInvoice, saveInvoiceDraft } from "@/server/finance/invoices";
 import { addDefaultChart } from "@/server/finance/accounts";
 import { normalizeClientName } from "@/server/crm/normalize";
-import { makeQuotingEntity } from "./commercial";
+import { makeActor } from "./actors";
+import { makeQuotingEntity, taxRate } from "./commercial";
 
 /** A fictional Assam GSTIN, in the right shape. */
 export const ASSAM_GSTIN = "18AABCH1234K1Z5";
@@ -67,4 +71,55 @@ export async function journalLines(journalId: string) {
     orderBy: { position: "asc" },
   });
   return lines.map((l) => [l.account.code, l.debitMinor, l.creditMinor]);
+}
+
+/** Drafts and issues a one-line invoice: ₹1,00,000 at 18% GST unless told otherwise. */
+export async function issueSimpleInvoice(
+  actor: Actor,
+  entityId: string,
+  clientId: string,
+  options: {
+    amount?: string;
+    currency?: string;
+    fxRate?: string;
+    taxCode?: string;
+    invoiceDate?: string;
+    dueDate?: string;
+  } = {},
+) {
+  const invoice = await createInvoice(actor, entityId, { clientId });
+  const rate = await taxRate(options.taxCode ?? "GST18");
+  const revenue = await db.ledgerAccount.findUniqueOrThrow({
+    where: { legalEntityId_systemKey: { legalEntityId: entityId, systemKey: "REVENUE" } },
+  });
+  await saveInvoiceDraft(actor, invoice.id, {
+    invoiceDate: options.invoiceDate ?? "2026-10-01",
+    dueDate: options.dueDate ?? options.invoiceDate ?? "2026-10-31",
+    currency: options.currency ?? "INR",
+    fxRate: options.fxRate,
+    placeOfSupplyCountry: invoice.placeOfSupplyCountry,
+    placeOfSupplyCode: invoice.placeOfSupplyCode,
+    lines: [
+      {
+        description: "Event services",
+        quantity: "1",
+        unitPrice: options.amount ?? "100000",
+        taxRateId: rate.id,
+        revenueAccountId: revenue.id,
+      },
+    ],
+  });
+  return issueInvoice(actor, invoice.id);
+}
+
+/** A bank account for an entity, with its ledger account. */
+export async function makeBankAccount(entityId: string, currency = "INR") {
+  const owner = await makeActor("owner");
+  return createBankAccount(owner, entityId, {
+    bankName: "Test Bank",
+    accountName: "HMBL Test",
+    accountNumber: `5010${Math.floor(Math.random() * 1e8)}`,
+    ifsc: currency === "INR" ? "HDFC0001234" : null,
+    currency,
+  });
 }
