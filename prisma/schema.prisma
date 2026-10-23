@@ -31,11 +31,12 @@ model User {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
-  sessions   Session[]
-  accounts   Account[]
-  twoFactors TwoFactor[]
-  roles      UserRole[]  @relation("UserRoles")
-  grants     UserRole[]  @relation("UserRoleGrantedBy")
+  sessions     Session[]
+  accounts     Account[]
+  ownedClients Client[]
+  twoFactors   TwoFactor[]
+  roles        UserRole[]  @relation("UserRoles")
+  grants       UserRole[]  @relation("UserRoleGrantedBy")
 
   @@map("users")
 }
@@ -474,4 +475,84 @@ model Unit {
   updatedAt DateTime     @updatedAt
 
   @@map("units")
+}
+
+// ─── CRM: clients and contacts ────────────────────────────────────────────────
+// Clients are shared across the group: one client can work with several HMBL
+// entities. Anything commercial or financial about them (opportunities,
+// quotes, invoices) belongs to one legal entity.
+
+enum ClientKind {
+  COMPANY
+  INDIVIDUAL
+}
+
+enum ClientRelationship {
+  PROSPECT // no accepted work yet
+  CLIENT
+}
+
+model Client {
+  id             String             @id @default(uuid()) @db.Uuid
+  name           String
+  // Lower-case name without punctuation or company suffixes, for duplicate checks.
+  normalizedName String
+  legalName      String?
+  kind           ClientKind         @default(COMPANY)
+  relationship   ClientRelationship @default(PROSPECT)
+  industry       String?
+  website        String?
+  email          String?
+  phone          String?
+  // GSTIN, VAT, TRN… Free text so new jurisdictions need no code.
+  taxIdType      String?
+  taxId          String?
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  // State or province; for India the GST state, which decides place of supply.
+  region         String?
+  postalCode     String?
+  countryCode    String             @db.Char(2)
+  // Currency quotes for this client start in.
+  currency       String             @db.Char(3)
+  ownerId        String?            @db.Uuid
+  owner          User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  notes          String?
+  status         RecordStatus       @default(ACTIVE)
+  // Set when this record was merged into another; it is then archived.
+  mergedIntoId   String?            @db.Uuid
+  mergedInto     Client?            @relation("ClientMerge", fields: [mergedIntoId], references: [id], onDelete: Restrict)
+  mergedFrom     Client[]           @relation("ClientMerge")
+  isDemo         Boolean            @default(false)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  contacts Contact[]
+
+  @@unique([taxIdType, taxId], map: "clients_tax_id_key", where: raw("\"taxId\" IS NOT NULL AND status = 'ACTIVE'"))
+  @@index([normalizedName])
+  @@index([status, name])
+  @@map("clients")
+}
+
+// A person at a client. At most one active primary contact per client.
+model Contact {
+  id        String       @id @default(uuid()) @db.Uuid
+  clientId  String       @db.Uuid
+  client    Client       @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  name      String
+  jobTitle  String?
+  email     String?
+  phone     String?
+  isPrimary Boolean      @default(false)
+  notes     String?
+  status    RecordStatus @default(ACTIVE)
+  isDemo    Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([clientId], map: "contacts_one_primary_key", where: raw("\"isPrimary\" AND status = 'ACTIVE'"))
+  @@index([clientId])
+  @@map("contacts")
 }

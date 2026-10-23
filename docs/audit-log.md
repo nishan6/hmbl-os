@@ -31,13 +31,14 @@ Every important change writes one row to `audit_events`, in the same database tr
 
 ## What is recorded today
 
-| Area         | Actions                                                                                                                                                                            |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sign-in      | `auth.signed_in`, `auth.sign_in_failed`, `auth.sign_in_blocked`                                                                                                                    |
-| Users        | `user.created`, `user.role_granted`, `user.role_revoked`, `user.disabled`                                                                                                          |
-| Master data  | `tax_rate.created`, `.default_set`, `.archived`, `.restored`; the same for `payment_term`; `unit.created`, `.archived`, `.restored`                                                |
-| Numbering    | `numbering_scheme.created` (with `metadata.source = "default"` when added automatically), `numbering_scheme.archived`                                                              |
-| Organisation | `legal_entity.created`, `.updated`, `.archived`, `.restored`; `tax_registration.created`; `business_unit.created`; `department.created`; `cost_centre.created`; `location.created` |
+| Area         | Actions                                                                                                                                                                                                                            |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in      | `auth.signed_in`, `auth.sign_in_failed`, `auth.sign_in_blocked`                                                                                                                                                                    |
+| Users        | `user.created`, `user.role_granted`, `user.role_revoked`, `user.disabled`                                                                                                                                                          |
+| CRM          | `client.created` (with `duplicateConfirmed`), `.updated`, `.archived`, `.restored`, `.merged`, `.merge_received`; `contact.created`, `.updated`, `.archived`, `.restored` (target is the client, `metadata.contactId` the contact) |
+| Master data  | `tax_rate.created`, `.default_set`, `.archived`, `.restored`; the same for `payment_term`; `unit.created`, `.archived`, `.restored`                                                                                                |
+| Numbering    | `numbering_scheme.created` (with `metadata.source = "default"` when added automatically), `numbering_scheme.archived`                                                                                                              |
+| Organisation | `legal_entity.created`, `.updated`, `.archived`, `.restored`; `tax_registration.created`; `business_unit.created`; `department.created`; `cost_centre.created`; `location.created`                                                 |
 
 Sign-in events are written outside a business transaction. If one can't be written, the error is logged and the sign-in still proceeds.
 

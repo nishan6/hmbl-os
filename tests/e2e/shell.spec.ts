@@ -8,8 +8,9 @@ test("navigation only shows what the user may open", async ({ page }) => {
   await expect(nav.getByText("Users")).toHaveCount(0);
   await expect(nav.getByText("Audit log")).toHaveCount(0);
   // Unbuilt modules are listed but not links.
-  await expect(nav.getByText("CRM")).toBeVisible();
-  await expect(nav.getByRole("link", { name: /CRM/ })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "CRM" })).toBeVisible();
+  await expect(nav.getByText("Reports")).toBeVisible();
+  await expect(nav.getByRole("link", { name: /Reports/ })).toHaveCount(0);
 
   // Hiding the link isn't the control: the server refuses the page too.
   await page.goto("/admin/audit");
