@@ -33,6 +33,8 @@ for (const colorScheme of ["light", "dark"] as const) {
     });
 
     test("app pages meet WCAG 2.2 AA", async ({ page }) => {
+      // Many pages, each scanned by axe.
+      test.setTimeout(90_000);
       await signIn(page, DEMO.owner);
       for (const path of [
         "/",
