@@ -35,20 +35,21 @@ model User {
   accounts               Account[]
   ownedClients           Client[]
   twoFactors             TwoFactor[]
-  roles                  UserRole[]            @relation("UserRoles")
-  grants                 UserRole[]            @relation("UserRoleGrantedBy")
+  roles                  UserRole[]                   @relation("UserRoles")
+  grants                 UserRole[]                   @relation("UserRoleGrantedBy")
   opportunities          Opportunity[]
   crmActivities          CrmActivity[]
-  quotes                 Quote[]               @relation("QuoteOwner")
-  quotesCreated          Quote[]               @relation("QuoteCreatedBy")
+  quotes                 Quote[]                      @relation("QuoteOwner")
+  quotesCreated          Quote[]                      @relation("QuoteCreatedBy")
   quoteSteps             QuoteApprovalStep[]
-  projectsCreated        Project[]             @relation("ProjectCreatedBy")
-  projectsManaged        Project[]             @relation("ProjectManager")
-  projectsProduced       Project[]             @relation("ProjectProducer")
-  projectCosts           ProjectCostEntry[]    @relation("ProjectCostCreatedBy")
-  changeOrders           ProjectChangeOrder[]  @relation("ChangeOrderCreatedBy")
-  scheduleItemsCreated   ProjectScheduleItem[] @relation("ScheduleItemCreatedBy")
-  scheduleItemsCompleted ProjectScheduleItem[] @relation("ScheduleItemCompletedBy")
+  projectsCreated        Project[]                    @relation("ProjectCreatedBy")
+  projectsManaged        Project[]                    @relation("ProjectManager")
+  projectsProduced       Project[]                    @relation("ProjectProducer")
+  projectCosts           ProjectCostEntry[]           @relation("ProjectCostCreatedBy")
+  changeOrders           ProjectChangeOrder[]         @relation("ChangeOrderCreatedBy")
+  scheduleItemsCreated   ProjectScheduleItem[]        @relation("ScheduleItemCreatedBy")
+  scheduleItemsCompleted ProjectScheduleItem[]        @relation("ScheduleItemCompletedBy")
+  resourcesCreated       ProjectResourceRequirement[] @relation("ResourceCreatedBy")
 
   @@map("users")
 }
@@ -1038,6 +1039,7 @@ model Project {
   changeOrders   ProjectChangeOrder[]
   budgetVersions ProjectBudgetVersion[]
   scheduleItems  ProjectScheduleItem[]
+  resources      ProjectResourceRequirement[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1088,6 +1090,7 @@ model ProjectBudgetLine {
   forecastNote      String?
 
   costEntries ProjectCostEntry[]
+  resources   ProjectResourceRequirement[]
   changeLines ProjectChangeOrderLine[]
 
   @@unique([projectId, position])
@@ -1289,4 +1292,36 @@ model ProjectScheduleItem {
 
   @@index([projectId, startDate])
   @@map("project_schedule_items")
+}
+
+enum ResourceKind {
+  CREW
+  EQUIPMENT
+}
+
+/// What a project needs: a crew role or an equipment item, how many, for
+/// which days, and the budget line that pays for it. Named people and
+/// specific assets are assigned later (Stage 5).
+model ProjectResourceRequirement {
+  id           String             @id @default(uuid()) @db.Uuid
+  projectId    String             @db.Uuid
+  project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind         ResourceKind
+  // The crew role or the equipment item, e.g. "Lighting operator", "LED wall 4×3 m".
+  name         String
+  quantity     Int
+  startDate    DateTime           @db.Date
+  endDate      DateTime           @db.Date
+  budgetLineId String?            @db.Uuid
+  budgetLine   ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  // Planned cost per unit per day, before tax, in the project's currency.
+  dayRateMinor BigInt?
+  notes        String?
+  createdById  String             @db.Uuid
+  createdBy    User               @relation("ResourceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([projectId, kind])
+  @@map("project_resource_requirements")
 }
