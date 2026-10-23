@@ -9,6 +9,7 @@ import { ensureDefaultRoles } from "@/server/permissions/roles";
 import { ensureMasterDataDefaults } from "@/server/master-data/defaults";
 import { ensurePipelineDefaults } from "@/server/crm/defaults";
 import { ensureProjectTypeDefaults } from "@/server/projects/types";
+import { ensureCostCodeDefaults } from "@/server/projects/cost-codes";
 import { assignRole, createUser } from "@/server/users/service";
 import { seedDemoOrganisation } from "./seed/organisation";
 import { seedDemoCrm, seedDemoPipeline } from "./seed/crm";
@@ -39,6 +40,7 @@ async function main() {
   console.log(`Master data defaults created: ${masterData.length}`);
   await ensurePipelineDefaults(db);
   await ensureProjectTypeDefaults(db);
+  await ensureCostCodeDefaults(db);
 
   const { india, uae } = await seedDemoOrganisation(db);
   console.log("Demo organisation: DEMO-IN, DEMO-AE");

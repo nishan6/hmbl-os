@@ -94,6 +94,8 @@ export async function createProjectFromVersion(
       revenueMinor: line.netMinor,
     })),
   });
+  // The accepted quote is the original budget: lock it once the lines exist.
+  await tx.project.update({ where: { id: project.id }, data: { baselineLockedAt: new Date() } });
   const milestones = planMilestones(readSchedule(version.paymentSchedule), version.totalMinor, {
     acceptedOn: acceptance.acceptedOn,
     eventStartDate: version.eventStartDate,

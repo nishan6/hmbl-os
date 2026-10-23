@@ -46,3 +46,31 @@ test("a direct project is approved, put on hold and edited", async ({ page }) =>
   await page.goto("/projects?status=ON_HOLD");
   await expect(page.getByRole("cell", { name })).toBeVisible();
 });
+
+test("a project manager tracks committed and actual costs against the budget", async ({ page }) => {
+  const ref = `PO-${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/projects");
+  await page.getByRole("link", { name: /^P-/ }).last().click();
+  await page.getByRole("link", { name: "Budget", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Budget lines" })).toBeVisible();
+
+  const form = page.getByRole("region", { name: "Committed and actual costs" });
+  await form.getByLabel("Budget line").selectOption({ label: "Crew · Show crew" });
+  await form.getByLabel("Amount").fill("40000");
+  await form.getByLabel("Description").fill("Crew booking");
+  await form.getByLabel("Reference").fill(ref);
+  await form.getByRole("button", { name: "Record cost" }).click();
+  await expect(form.getByText("Cost recorded")).toBeVisible();
+
+  await form.getByLabel("Budget line").selectOption({ label: "Crew · Show crew" });
+  await form.getByLabel("Type").selectOption("ACTUAL");
+  await form.getByLabel("Amount").fill("40000");
+  await form.getByLabel("Description").fill("Crew invoice");
+  await form
+    .getByLabel("Against commitment")
+    .selectOption({ label: `${ref} · Crew booking (₹40,000.00)` });
+  await form.getByRole("button", { name: "Record cost" }).click();
+  await expect(form.getByText("Cost recorded")).toBeVisible();
+  await expect(form.getByRole("cell", { name: new RegExp(`Against ${ref}`) })).toBeVisible();
+});

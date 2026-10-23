@@ -5,7 +5,10 @@ import { StatusBadge, Tag } from "@/components/ui/status";
 import type { ProjectStatus } from "@/server/projects/lifecycle";
 import { PROJECT_STATUS } from "./status";
 
-const TABS = [{ path: "", label: "Overview" }] as const;
+const TABS = [
+  { path: "", label: "Overview" },
+  { path: "/budget", label: "Budget", costs: true },
+] as const;
 
 export type ProjectTab = (typeof TABS)[number]["path"];
 
@@ -15,6 +18,7 @@ export function ProjectHeader({
   current,
   actions,
   crumb,
+  showCosts = false,
 }: {
   project: {
     id: string;
@@ -29,6 +33,8 @@ export function ProjectHeader({
   actions?: React.ReactNode;
   /** A last breadcrumb below the project, e.g. "Edit". */
   crumb?: string;
+  /** Show the tabs about costs (see canSeeProjectCosts). */
+  showCosts?: boolean;
 }) {
   const base = `/projects/${p.id}`;
   return (
@@ -60,7 +66,7 @@ export function ProjectHeader({
           aria-label="Project"
           className="border-separator mb-6 flex gap-4 overflow-x-auto border-b"
         >
-          {TABS.map((t) => (
+          {TABS.filter((t) => showCosts || !("costs" in t)).map((t) => (
             <Link
               key={t.path}
               href={`${base}${t.path}`}

@@ -68,6 +68,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
       <ProjectHeader
         project={p}
         current=""
+        showCosts={p.showCosts}
         actions={
           canEdit ? (
             <Button asChild>
