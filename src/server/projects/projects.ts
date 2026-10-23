@@ -16,6 +16,7 @@ import {
 } from "./lifecycle";
 import { recordBudgetVersion } from "./versions";
 import { followEventDates } from "./billing-dates";
+import { outstandingCloseout } from "./closeout-rules";
 import {
   newProjectInput,
   projectDetailsInput,
@@ -308,6 +309,18 @@ export async function changeProjectStatus(actor: Actor, id: string, raw: StatusM
     if (!move.ok) throw new ConflictError(move.message);
     authorize(actor, move.permission, { legalEntityId: project.legalEntityId });
     if (move.needsReason && !reason) throw invalid("reason", "Say why");
+    // Closing with closeout items still open is an override: allowed for
+    // whoever may close, with the reason on record.
+    const outstanding = move.closes
+      ? outstandingCloseout(await tx.projectCloseoutItem.findMany({ where: { projectId: id } }))
+      : [];
+    if (outstanding.length && !reason) {
+      throw invalid(
+        "reason",
+        `Closeout isn't finished: ${outstanding.map((i) => i.label.toLowerCase()).join(", ")}. Give a reason to close anyway.`,
+      );
+    }
+    const override = outstanding.length > 0;
     const after = await tx.project.update({
       where: { id },
       data: {
@@ -316,7 +329,7 @@ export async function changeProjectStatus(actor: Actor, id: string, raw: StatusM
         statusChangedAt: new Date(),
       },
     });
-    await recordStatusChange(tx, actor, current, current.status, to, reason);
+    await recordStatusChange(tx, actor, current, current.status, to, reason, override);
     if (to === "APPROVED" && !current.baselineLockedAt) await lockBaseline(tx, actor, current);
     await recordAudit(tx, actor, {
       action: "project.status_changed",
@@ -324,7 +337,10 @@ export async function changeProjectStatus(actor: Actor, id: string, raw: StatusM
       targetId: id,
       legalEntityId: current.legalEntityId,
       changes: { status: { from: current.status, to } },
-      metadata: reason ? { reason } : {},
+      metadata: {
+        ...(reason ? { reason } : {}),
+        ...(override ? { override, outstanding: outstanding.map((i) => i.key) } : {}),
+      },
     });
     return after;
   });

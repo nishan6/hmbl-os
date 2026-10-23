@@ -55,3 +55,17 @@ export function formatDateTime(date: Date | string, timeZone = "Asia/Kolkata"): 
     timeZone,
   }).format(new Date(date));
 }
+
+/** A file size in KB, MB or GB (1024-based), e.g. "2.4 MB". */
+export function formatBytes(bytes: bigint | number): string {
+  const n = Number(bytes);
+  if (n < 1024) return `${n} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = n / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
+}

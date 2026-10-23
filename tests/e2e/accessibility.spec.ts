@@ -78,6 +78,14 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goto(`${projectUrl}/resources`);
         await expect(page.getByRole("heading", { level: 2, name: "Crew plan" })).toBeVisible();
         await expectNoViolations(page);
+        await page.goto(`${projectUrl}/documents`);
+        await expect(page.getByRole("heading", { level: 2, name: "Documents" })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goto(`${projectUrl}/closeout`);
+        await expect(
+          page.getByRole("heading", { level: 2, name: "Closeout checklist" }),
+        ).toBeVisible();
+        await expectNoViolations(page);
         await page.goto(`${projectUrl}/changes`);
         await expect(page.getByRole("heading", { level: 2, name: "Change orders" })).toBeVisible();
         await expectNoViolations(page);

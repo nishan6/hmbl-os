@@ -51,3 +51,5 @@ next-env.d.ts
 
 # database backups (docs/running-locally.md)
 /backups/
+# uploaded documents (STORAGE_DIR, docs/documents.md)
+/storage/

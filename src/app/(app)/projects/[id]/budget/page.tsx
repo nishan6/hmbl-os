@@ -67,6 +67,19 @@ export default async function ProjectBudgetPage({ params }: PageProps<"/projects
         </div>
       ) : null}
 
+      {budget.integrity.length ? (
+        <div className="mb-6">
+          <Alert tone="danger" title="The budget records don't agree">
+            <ul className="list-disc pl-4">
+              {budget.integrity.map((problem) => (
+                <li key={problem}>{problem}</li>
+              ))}
+            </ul>
+            <p className="mt-1">Nothing has been changed. Tell your administrator.</p>
+          </Alert>
+        </div>
+      ) : null}
+
       <Section title="Summary" description="Amounts before tax, in the project's currency.">
         <div className="grid gap-4 lg:grid-cols-2">
           <Panel>

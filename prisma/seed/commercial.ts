@@ -6,6 +6,7 @@ import { acceptQuote } from "@/server/commercial/acceptance";
 import { createChangeOrder, saveChangeOrderLine } from "@/server/projects/change-orders";
 import { saveScheduleItem } from "@/server/projects/schedule";
 import { saveRequirement } from "@/server/projects/resources";
+import { uploadDocument } from "@/server/projects/documents";
 
 async function actorFor(db: PrismaClient, userId: string) {
   const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
@@ -230,4 +231,10 @@ export async function seedDemoProject(db: PrismaClient, salesId: string, manager
     endDate: "2027-01-01",
     notes: "From our own stock if available",
   });
+  await uploadDocument(
+    manager,
+    project.id,
+    { category: "CALL_SHEET", fileName: "Run of show (DEMO).txt", title: "Run of show (DEMO)" },
+    new Blob(["21:00 Doors\n22:30 Awards\n23:55 Countdown\n"]).stream(),
+  );
 }

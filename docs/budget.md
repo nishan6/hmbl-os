@@ -48,3 +48,16 @@ Because an actual cost drawn against a commitment lowers that commitment by the 
 ## Who sees it
 
 The Budget tab, and every cost figure, is for people who can see project costs (see [projects.md](projects.md)). Everyone else sees revenue only, on the Overview tab.
+
+## Integrity
+
+`checkBudgetIntegrity` (`src/server/projects/integrity.ts`) cross-checks a project's budget records once its baseline is fixed. It confirms that:
+
+- the budget lines add up to the project's original budget cost;
+- each approved change order's totals equal the sum of its lines, and every line is on the budget;
+- no line has a negative revised cost or revenue;
+- there is one budget version per approved change order plus version 1, numbered in order;
+- version 1 equals the original budget, and the latest version equals the revised cost and expected revenue;
+- every actual cost draws down only a commitment on its own line.
+
+The Budget tab runs the check every time it loads, and shows any disagreement in a red alert. It never changes data. `tests/integration/budget-integrity.test.ts` takes a quote project and a direct project through costs, voids, approved and withdrawn change orders, forecasts and resource plans, checks after each step, and checks the same figures from the budget, the versions and the original lines.
