@@ -14,7 +14,7 @@ New entities get the default chart when they are created. An existing entity can
 
 ## Periods
 
-Books are kept in monthly periods. The financial year starts in April for Indian entities and in January elsewhere (`finance_settings.fiscalYearStartMonth`). The first time anything is dated in a financial year, its twelve periods are created. Nothing posts into a closed period. Closing and reopening periods arrive with period close.
+Books are kept in monthly periods. The financial year starts in April for Indian entities and in January elsewhere (`finance_settings.fiscalYearStartMonth`). The first time anything is dated in a financial year, its twelve periods are created. Nothing posts into a closed period. Closing and reopening are described in [period-close.md](period-close.md).
 
 ## Journals
 

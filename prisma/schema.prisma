@@ -1533,11 +1533,34 @@ model AccountingPeriod {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  journals Journal[]
+  journals    Journal[]
+  closeEvents PeriodCloseEvent[]
 
   @@unique([legalEntityId, startDate])
   @@index([legalEntityId, fiscalYear])
   @@map("accounting_periods")
+}
+
+enum PeriodCloseAction {
+  CLOSED
+  REOPENED
+}
+
+/// Each close and reopen of a period, with who did it, why, and the close
+/// checklist as it stood: the audit evidence. Never changed or deleted.
+model PeriodCloseEvent {
+  id        String            @id @default(uuid()) @db.Uuid
+  periodId  String            @db.Uuid
+  period    AccountingPeriod  @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  action    PeriodCloseAction
+  actorId   String            @db.Uuid
+  // Required to reopen; on a close, the note acknowledging open warnings.
+  note      String?
+  evidence  Json
+  createdAt DateTime          @default(now())
+
+  @@index([periodId, createdAt])
+  @@map("period_close_events")
 }
 
 enum JournalStatus {

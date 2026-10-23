@@ -29,6 +29,7 @@ test("finance posts a manual journal and sees it in the trial balance", async ({
     .getByRole("navigation", { name: "Breadcrumb" })
     .getByRole("link", { name: "Finance" })
     .click();
+  await page.getByRole("link", { name: "Reports", exact: true }).click();
   await page.getByRole("link", { name: "Trial balance" }).click();
   await expect(page.getByRole("link", { name: "Professional fees" })).toBeVisible();
   await expect(page.getByRole("row", { name: /Totals/ })).toBeVisible();
@@ -315,4 +316,55 @@ test("finance imports a bank statement, matches it to the books and reconciles",
   await page.getByRole("button", { name: /^Complete reconciliation/ }).click();
   await expect(page.getByRole("row", { name: /₹14,941.00\s+Completed/ })).toBeVisible();
   await expect(page.getByRole("definition").filter({ hasText: "at ₹14,941.00" })).toBeVisible();
+});
+
+test("finance reads the statements, downloads one, and closes and reopens a month", async ({
+  page,
+}) => {
+  const id = Date.now().toString(36);
+  await signIn(page, DEMO.owner);
+  await page.goto("/finance");
+  await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await page.getByRole("button", { name: "Show" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Money owed" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Cash and bank" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Reports", exact: true }).click();
+  await page.getByRole("link", { name: "Profit and loss" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Profit and loss" })).toBeVisible();
+  await page.getByRole("combobox", { name: "Compare with" }).selectOption({
+    label: "The period before",
+  });
+  await page.getByRole("button", { name: "Show" }).click();
+  await expect(page.getByRole("row", { name: /^Net (profit|loss)/ })).toBeVisible();
+  const csv = await page.request.get(
+    (await page.getByRole("link", { name: "Download CSV" }).getAttribute("href"))!,
+  );
+  expect(csv.headers()["content-type"]).toContain("text/csv");
+  expect(await csv.text()).toContain("Net profit");
+
+  await page.goBack();
+  await page.goBack();
+  await page.getByRole("link", { name: "Balance sheet" }).click();
+  await expect(page.getByText("The balance sheet doesn't balance")).toHaveCount(0);
+  await expect(page.getByRole("row", { name: /^Total liabilities and equity/ })).toBeVisible();
+
+  await page
+    .getByRole("navigation", { name: "Breadcrumb" })
+    .getByRole("link", { name: "Finance" })
+    .click();
+  await page.getByRole("link", { name: "Period close" }).first().click();
+  await page.getByRole("link", { name: "Apr 2026" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Close checklist" })).toBeVisible();
+  await page.getByRole("textbox", { name: /Why it can close|Note/ }).fill(`E2E close ${id}`);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Close Apr 2026" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Reopen the period" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: `E2E close ${id}` })).toBeVisible();
+
+  await page.getByRole("textbox", { name: "Reason" }).fill(`E2E reopen ${id}`);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Reopen Apr 2026" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Close checklist" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: `E2E reopen ${id}` })).toBeVisible();
 });

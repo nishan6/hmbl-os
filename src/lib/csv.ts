@@ -34,3 +34,29 @@ export function parseCsv(text: string): string[][] {
   if (field !== "" || row.length) endRow();
   return rows;
 }
+
+/** A cell for `toCsv`: text is guarded against spreadsheet formulas, numbers are written as they are. */
+export type CsvCell = string | number | bigint | null | undefined;
+
+const quote = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+
+/**
+ * Writes rows as CSV with CRLF line ends. Text starting with = + - @ or a tab
+ * (other than a plain number like -12.50) gets a leading apostrophe, so a
+ * spreadsheet shows it rather than running it.
+ */
+export function toCsv(rows: CsvCell[][]): string {
+  return rows
+    .map((r) =>
+      r
+        .map((c) => {
+          if (c === null || c === undefined) return "";
+          if (typeof c !== "string") return String(c);
+          const formula = /^[=+\-@\t\r]/.test(c) && !/^-?\d+(\.\d+)?$/.test(c);
+          return quote(formula ? `'${c}` : c);
+        })
+        .join(","),
+    )
+    .join("\r\n")
+    .concat("\r\n");
+}

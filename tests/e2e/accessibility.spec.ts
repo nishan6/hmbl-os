@@ -5,6 +5,10 @@ import { DEMO, enterPassword, signIn } from "./helpers/session";
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 async function expectNoViolations(page: Page) {
+  // Next.js streams a page's <title> in after its content; let the stream
+  // finish so axe checks the whole document rather than racing it.
+  await page.waitForLoadState("networkidle");
+  await expect(page).toHaveTitle(/\S/);
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
   expect(
     violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
@@ -73,6 +77,13 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/finance/vendors/new",
         "/finance/bank-accounts",
         "/finance/trial-balance",
+        "/finance/reports",
+        "/finance/reports/profit-and-loss",
+        "/finance/reports/balance-sheet",
+        "/finance/reports/cash-flow",
+        "/finance/reports/tax",
+        "/finance/reports/projects",
+        "/finance/periods",
         "/finance/settings",
         "/admin/master-data",
         "/admin/numbering",
@@ -101,6 +112,16 @@ for (const colorScheme of ["light", "dark"] as const) {
           await expectNoViolations(page);
         });
       }
+      await test.step("a period's close checklist", async () => {
+        await page.goto("/finance/periods");
+        await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+        await page.getByRole("button", { name: "Show" }).first().click();
+        await page.getByRole("link", { name: "Oct 2026" }).click();
+        await expect(
+          page.getByRole("heading", { level: 2, name: "Close checklist" }),
+        ).toBeVisible();
+        await expectNoViolations(page);
+      });
       await test.step("a bank reconciliation", async () => {
         await page.goto("/finance/bank-accounts");
         await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });

@@ -6,7 +6,8 @@ import {
   parseStatementDate,
   readStatement,
 } from "@/lib/bank-statement";
-import { parseCsv } from "@/lib/csv";
+import { parseCsv, toCsv } from "@/lib/csv";
+import { compareRange, rangeOf } from "@/lib/report-range";
 
 describe("parseCsv", () => {
   it("reads quotes, doubled quotes, commas and line breaks inside quotes", () => {
@@ -113,5 +114,39 @@ describe("dedupeKeys", () => {
     expect(keys[0]).not.toBe(keys[1]);
     expect(keys[0]!.endsWith("|1")).toBe(true);
     expect(dedupeKeys([line])[0]).toBe(keys[0]);
+  });
+});
+
+describe("toCsv", () => {
+  it("quotes where needed, keeps numbers and stops formulas", () => {
+    expect(
+      toCsv([
+        ["Code", "Name", "Amount"],
+        ["4000", 'Fees, "event"', "-12.50"],
+        ["=SUM(A1)", null, 5n],
+        ["-cmd", "+1", "@x"],
+      ]),
+    ).toBe(
+      'Code,Name,Amount\r\n4000,"Fees, ""event""",-12.50\r\n\'=SUM(A1),,5\r\n\'-cmd,\'+1,\'@x\r\n',
+    );
+  });
+});
+
+describe("report ranges", () => {
+  const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  it("defaults to the financial year to date, and compares with the period before or last year", () => {
+    const fy = { start: d("2026-04-01") };
+    expect(rangeOf({}, fy, d("2026-10-23"))).toEqual({
+      from: d("2026-04-01"),
+      to: d("2026-10-23"),
+    });
+    expect(rangeOf({ from: "2026-10-31", to: "2026-10-01" }, fy, d("2026-10-23"))).toEqual({
+      from: d("2026-10-01"),
+      to: d("2026-10-31"),
+    });
+    const oct = { from: d("2026-10-01"), to: d("2026-10-31") };
+    expect(compareRange(oct, "previous")).toEqual({ from: d("2026-08-31"), to: d("2026-09-30") });
+    expect(compareRange(oct, "year")).toEqual({ from: d("2025-10-01"), to: d("2025-10-31") });
+    expect(compareRange(oct, null)).toBeNull();
   });
 });

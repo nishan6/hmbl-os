@@ -3,12 +3,11 @@ import { trialBalance } from "@/server/finance/ledger-reports";
 import { ACCOUNT_TYPES } from "@/server/finance/accounts";
 import { parseDateOnly, toDateOnly } from "@/lib/fiscal";
 import { formatDate, formatMoney } from "@/lib/format";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/field";
 import { Alert, EmptyState } from "@/components/ui/page";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { FinanceHeader } from "../_components/finance-header";
+import { FinanceHeader, withEntity } from "../_components/finance-header";
 import { loadFinancePage, param } from "../_components/load";
+import { exportQuery, ReportControls } from "../reports/report-parts";
 
 export const metadata = { title: "Trial balance" };
 
@@ -27,16 +26,16 @@ export default async function TrialBalancePage({
         description={`Every account's balance at the end of ${formatDate(asAt, "UTC")}, from posted journals.`}
         entity={entity}
         entities={entities}
-        current="/finance/trial-balance"
+        crumbs={[
+          { label: "Reports", href: withEntity("/finance/reports", entity) },
+          { label: "Trial balance" },
+        ]}
       />
-      <form className="mb-4 flex flex-wrap items-end gap-2">
-        <input type="hidden" name="entity" value={entity.id} />
-        <label className="text-sm font-medium">
-          As at
-          <Input type="date" name="asAt" defaultValue={toDateOnly(asAt)} className="mt-1 w-auto" />
-        </label>
-        <Button type="submit">Show</Button>
-      </form>
+      <ReportControls
+        entityId={entity.id}
+        dates={{ asAt }}
+        exportHref={`/api/finance/reports/trial-balance?${exportQuery(entity.id, { asAt })}`}
+      />
       {tb.balanced ? null : (
         <div className="mb-4">
           <Alert tone="danger" title="The trial balance doesn't balance">
