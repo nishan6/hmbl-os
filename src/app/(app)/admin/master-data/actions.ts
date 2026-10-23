@@ -16,6 +16,7 @@ import {
 import { createStage, moveStage, setStageArchived } from "@/server/crm/pipeline";
 import { updateCommercialSettings } from "@/server/commercial/settings";
 import { createProjectType, setProjectTypeArchived } from "@/server/projects/types";
+import { createCostCode, setCostCodeArchived } from "@/server/projects/cost-codes";
 
 async function run(formData: FormData, fn: (values: Record<string, string>) => Promise<unknown>) {
   const state = await attempt(formData, async (values) => fn(values));
@@ -137,5 +138,21 @@ export async function createProjectTypeAction(_: FormState, formData: FormData) 
 export async function projectTypeCommandAction(_: FormState, formData: FormData) {
   return run(formData, async ({ id = "", command }) =>
     setProjectTypeArchived(await requireActor(), id, command === "archive"),
+  );
+}
+
+export async function createCostCodeAction(_: FormState, formData: FormData) {
+  return run(formData, async (v) =>
+    createCostCode(await requireActor(), {
+      code: v.code ?? "",
+      name: v.name ?? "",
+      category: (v.category ?? "") as "CREW",
+    }),
+  );
+}
+
+export async function costCodeCommandAction(_: FormState, formData: FormData) {
+  return run(formData, async ({ id = "", command }) =>
+    setCostCodeArchived(await requireActor(), id, command === "archive"),
   );
 }

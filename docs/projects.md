@@ -39,6 +39,10 @@ Name, project type, revenue model, business line, project manager, producer, cli
 
 `/projects/new` (`projects.create`) starts a **Draft** project without a quote, for internal work, retainers or jobs agreed outside the quote workflow. It has a number from the entity's `project` scheme, a currency, and a client unless the revenue model is Internal. It needs the Director's approval like any other draft.
 
+## Budget
+
+Original budget, committed and actual costs, forecasts and cost codes: see [budget.md](budget.md).
+
 ## Created from an accepted quote
 
 `createProjectFromVersion` runs inside the acceptance transaction (see [commercial.md](commercial.md)) and keeps the accepted version's figures as the project's baseline. The client has accepted the price, so the project starts at **Approved**, with the quote's scope and deliverables:
@@ -67,4 +71,5 @@ Projects are entity-scoped (`projects.view` with `{ legalEntityId }`). Budget co
 - `/projects/new`: create a project directly.
 - `/projects/[id]`: details, scope, budget, billing milestones, figures, the lifecycle and the status history.
 - `/projects/[id]/edit`: project details.
+- `/projects/[id]/budget`: budget figures, lines, forecasts and cost entries (cost viewers only).
 - Client and opportunity pages list their projects.

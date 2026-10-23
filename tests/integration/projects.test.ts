@@ -199,6 +199,7 @@ describe("moving a project through its lifecycle", () => {
     expect(await auditActions(project.id)).toEqual([
       "project.created",
       "project.status_changed",
+      "project.baseline_locked",
       "project.status_changed",
       "project.status_changed",
     ]);

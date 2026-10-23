@@ -9,7 +9,7 @@ All raw values live in `src/app/globals.css`. Components only use the semantic n
 | Group    | Utilities                                                                                                    | Notes                                                             |
 | -------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
 | Surfaces | `bg-bg`, `bg-surface`, `bg-surface-2`, `bg-sunken`, `bg-elevated`, `bg-sidebar`, `bg-hover`, `bg-selected`   | In dark mode surfaces get lighter as they rise                    |
-| Text     | `text-text`, `text-secondary`, `text-muted`, `text-disabled`, `text-on-accent`                               | `muted` is the lightest colour allowed for readable text          |
+| Text     | `text-text`, `text-secondary`, `text-muted`, `text-disabled`, `text-on-accent`, `text-on-danger`             | `muted` is the lightest colour allowed for readable text          |
 | Lines    | `border-border`, `border-separator`, `border-border-strong`                                                  | Separators for structure, borders for controls                    |
 | Accent   | `bg-accent`, `text-accent`, `bg-accent-soft`, `outline-focus`                                                | One brand colour, used for primary actions, selection and focus   |
 | Status   | `success`, `warning`, `danger`, `info`, `neutral`, each with `-soft`                                         | Never the only signal; always with an icon or label               |

@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { PageHeader } from "@/components/ui/page";
+import { PageHeader, type Crumb } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 import type { ProjectStatus } from "@/server/projects/lifecycle";
 import { PROJECT_STATUS } from "./status";
 
-const TABS = [{ path: "", label: "Overview" }] as const;
+const TABS = [
+  { path: "", label: "Overview" },
+  { path: "/schedule", label: "Schedule" },
+  { path: "/budget", label: "Budget", costs: true },
+  { path: "/changes", label: "Change orders" },
+] as const;
 
 export type ProjectTab = (typeof TABS)[number]["path"];
 
@@ -15,6 +20,7 @@ export function ProjectHeader({
   current,
   actions,
   crumb,
+  showCosts = false,
 }: {
   project: {
     id: string;
@@ -27,8 +33,10 @@ export function ProjectHeader({
   };
   current: ProjectTab;
   actions?: React.ReactNode;
-  /** A last breadcrumb below the project, e.g. "Edit". */
-  crumb?: string;
+  /** Breadcrumbs below the project, e.g. "Edit"; a sub-page hides the tabs. */
+  crumb?: string | Crumb[];
+  /** Show the tabs about costs (see canSeeProjectCosts). */
+  showCosts?: boolean;
 }) {
   const base = `/projects/${p.id}`;
   return (
@@ -51,7 +59,12 @@ export function ProjectHeader({
         }
         breadcrumbs={[
           { label: "Projects", href: "/projects" },
-          ...(crumb ? [{ label: p.number, href: base }, { label: crumb }] : [{ label: p.number }]),
+          ...(crumb
+            ? [
+                { label: p.number, href: base },
+                ...(typeof crumb === "string" ? [{ label: crumb }] : crumb),
+              ]
+            : [{ label: p.number }]),
         ]}
         actions={actions}
       />
@@ -60,7 +73,7 @@ export function ProjectHeader({
           aria-label="Project"
           className="border-separator mb-6 flex gap-4 overflow-x-auto border-b"
         >
-          {TABS.map((t) => (
+          {TABS.filter((t) => showCosts || !("costs" in t)).map((t) => (
             <Link
               key={t.path}
               href={`${base}${t.path}`}

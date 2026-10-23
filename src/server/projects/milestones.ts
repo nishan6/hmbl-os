@@ -29,18 +29,34 @@ export function planMilestones(
     totalMinor,
     entries.map((e) => e.percentBps),
   );
+  return entries.map((entry, i) => ({
+    position: i + 1,
+    ...entry,
+    amountMinor: amounts[i]!,
+    dueDate: dueDateFor(entry, dates),
+  }));
+}
+
+/**
+ * When a milestone falls due, from the date its trigger depends on: the
+ * acceptance date, the event start, or delivery (the event end, else start).
+ * Null while that date isn't known.
+ */
+export function dueDateFor(
+  entry: Pick<ScheduleEntry, "trigger" | "days">,
+  dates: { acceptedOn: Date | null; eventStartDate: Date | null; eventEndDate: Date | null },
+): Date | null {
   const delivery = dates.eventEndDate ?? dates.eventStartDate;
-  return entries.map((entry, i) => {
-    let dueDate: Date | null = null;
-    if (entry.trigger === "ON_ACCEPTANCE") dueDate = dates.acceptedOn;
-    else if (entry.trigger === "BEFORE_START" && dates.eventStartDate) {
-      dueDate = new Date(dates.eventStartDate.getTime() - entry.days * DAY);
-    } else if (entry.trigger === "ON_DELIVERY") dueDate = delivery;
-    else if (entry.trigger === "AFTER_DELIVERY" && delivery) {
-      dueDate = new Date(delivery.getTime() + entry.days * DAY);
-    }
-    return { position: i + 1, ...entry, amountMinor: amounts[i]!, dueDate };
-  });
+  switch (entry.trigger) {
+    case "ON_ACCEPTANCE":
+      return dates.acceptedOn;
+    case "BEFORE_START":
+      return dates.eventStartDate && new Date(dates.eventStartDate.getTime() - entry.days * DAY);
+    case "ON_DELIVERY":
+      return delivery;
+    case "AFTER_DELIVERY":
+      return delivery && new Date(delivery.getTime() + entry.days * DAY);
+  }
 }
 
 /** Reads a stored payment schedule (JSON) defensively. */

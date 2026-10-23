@@ -46,3 +46,92 @@ test("a direct project is approved, put on hold and edited", async ({ page }) =>
   await page.goto("/projects?status=ON_HOLD");
   await expect(page.getByRole("cell", { name })).toBeVisible();
 });
+
+test("a project manager tracks committed and actual costs against the budget", async ({ page }) => {
+  const ref = `PO-${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/projects");
+  await page.getByRole("link", { name: /^P-/ }).last().click();
+  await page.getByRole("link", { name: "Budget", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Budget lines" })).toBeVisible();
+
+  const form = page.getByRole("region", { name: "Committed and actual costs" });
+  await form.getByLabel("Budget line").selectOption({ label: "Crew · Show crew" });
+  await form.getByLabel("Amount").fill("40000");
+  await form.getByLabel("Description").fill("Crew booking");
+  await form.getByLabel("Reference").fill(ref);
+  await form.getByRole("button", { name: "Record cost" }).click();
+  await expect(form.getByText("Cost recorded")).toBeVisible();
+
+  await form.getByLabel("Budget line").selectOption({ label: "Crew · Show crew" });
+  await form.getByLabel("Type").selectOption("ACTUAL");
+  await form.getByLabel("Amount").fill("40000");
+  await form.getByLabel("Description").fill("Crew invoice");
+  await form
+    .getByLabel("Against commitment")
+    .selectOption({ label: `${ref} · Crew booking (₹40,000.00)` });
+  await form.getByRole("button", { name: "Record cost" }).click();
+  await expect(form.getByText("Cost recorded")).toBeVisible();
+  await expect(form.getByRole("cell", { name: new RegExp(`Against ${ref}`) })).toBeVisible();
+});
+
+test("a change order is agreed with the client and approved into a new budget version", async ({
+  page,
+}) => {
+  const title = `E2E extra truss ${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/projects");
+  await page.getByRole("link", { name: /^P-/ }).last().click();
+  await page.getByRole("link", { name: "Change orders", exact: true }).click();
+  await page.getByRole("textbox", { name: "Title" }).fill(title);
+  await page.getByRole("textbox", { name: "Reason" }).fill("More rigging points");
+  await page.getByRole("button", { name: "Create draft" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: new RegExp(title) })).toBeVisible();
+
+  const changes = page.getByRole("region", { name: "Budget changes" });
+  await changes.getByLabel("Budget line").selectOption({ label: "Crew · Show crew" });
+  await changes.getByLabel("Cost change").fill("6000");
+  await changes.getByLabel("Revenue change").fill("9000");
+  await changes.getByRole("button", { name: "Add change" }).click();
+  await expect(changes.getByText("Change saved")).toBeVisible();
+  await expect(page.getByText("Client agreement needed")).toBeVisible();
+
+  const client = page.getByRole("region", { name: "Client agreement" });
+  await client.getByLabel("Agreed on").fill("2026-10-20");
+  await client.getByLabel("Agreed by").fill("Priya Shah");
+  await client.getByLabel("How").selectOption({ label: "Email" });
+  await client.getByRole("button", { name: "Record client agreement" }).click();
+  await expect(client.getByText("Client agreement recorded")).toBeVisible();
+
+  await page.getByRole("button", { name: "Approve change" }).click();
+  await expect(page.getByRole("main").getByText("Approved").first()).toBeVisible();
+
+  await page.getByRole("link", { name: "Change orders" }).first().click();
+  const versions = page.getByRole("region", { name: "Budget versions" });
+  await expect(versions.getByRole("link", { name: new RegExp(title) })).toBeVisible();
+});
+
+test("the schedule is planned and a milestone ticked off", async ({ page }) => {
+  const title = `E2E rigging plot ${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/projects");
+  await page
+    .getByRole("row", { name: /New Year gala/ })
+    .getByRole("link", { name: /^P-/ })
+    .click();
+  await page.getByRole("link", { name: "Schedule", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Billing milestones" })).toBeVisible();
+
+  const schedule = page.getByRole("region", { name: "Schedule" });
+  // The add form comes after the edit forms of each row.
+  const form = schedule.locator("form").last();
+  await form.getByLabel("What").selectOption({ label: "Milestone" });
+  await form.getByLabel("Title").fill(title);
+  await form.getByLabel("Due").fill("2026-12-15");
+  await form.getByRole("button", { name: "Add to schedule" }).click();
+  await expect(form.getByText("Schedule saved")).toBeVisible();
+
+  const row = schedule.getByRole("row", { name: new RegExp(title) });
+  await row.getByRole("button", { name: `Mark done ${title}` }).click();
+  await expect(row.getByText("Completed")).toBeVisible();
+});

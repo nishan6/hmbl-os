@@ -63,8 +63,28 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.getByRole("link", { name: /^P-/ }).first().click();
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
         await expectNoViolations(page);
+        const projectUrl = page.url();
         await page.getByRole("link", { name: "Edit details" }).click();
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goto(`${projectUrl}/budget`);
+        await expect(page.getByRole("heading", { level: 2, name: "Budget lines" })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goto(`${projectUrl}/schedule`);
+        await expect(page.getByRole("heading", { level: 2, name: "Schedule" })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goto(`${projectUrl}/changes`);
+        await expect(page.getByRole("heading", { level: 2, name: "Change orders" })).toBeVisible();
+        await expectNoViolations(page);
+        // The demo project has a draft change order.
+        await page.goto("/projects");
+        await page
+          .getByRole("row", { name: /New Year gala/ })
+          .getByRole("link", { name: /^P-/ })
+          .click();
+        await page.getByRole("link", { name: "Change orders", exact: true }).click();
+        await page.getByRole("link", { name: /^CO-01/ }).click();
+        await expect(page.getByRole("heading", { level: 2, name: "Budget changes" })).toBeVisible();
         await expectNoViolations(page);
       });
       await test.step("a quote and its editor", async () => {

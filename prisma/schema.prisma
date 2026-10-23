@@ -31,20 +31,24 @@ model User {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
-  sessions         Session[]
-  accounts         Account[]
-  ownedClients     Client[]
-  twoFactors       TwoFactor[]
-  roles            UserRole[]          @relation("UserRoles")
-  grants           UserRole[]          @relation("UserRoleGrantedBy")
-  opportunities    Opportunity[]
-  crmActivities    CrmActivity[]
-  quotes           Quote[]             @relation("QuoteOwner")
-  quotesCreated    Quote[]             @relation("QuoteCreatedBy")
-  quoteSteps       QuoteApprovalStep[]
-  projectsCreated  Project[]           @relation("ProjectCreatedBy")
-  projectsManaged  Project[]           @relation("ProjectManager")
-  projectsProduced Project[]           @relation("ProjectProducer")
+  sessions               Session[]
+  accounts               Account[]
+  ownedClients           Client[]
+  twoFactors             TwoFactor[]
+  roles                  UserRole[]            @relation("UserRoles")
+  grants                 UserRole[]            @relation("UserRoleGrantedBy")
+  opportunities          Opportunity[]
+  crmActivities          CrmActivity[]
+  quotes                 Quote[]               @relation("QuoteOwner")
+  quotesCreated          Quote[]               @relation("QuoteCreatedBy")
+  quoteSteps             QuoteApprovalStep[]
+  projectsCreated        Project[]             @relation("ProjectCreatedBy")
+  projectsManaged        Project[]             @relation("ProjectManager")
+  projectsProduced       Project[]             @relation("ProjectProducer")
+  projectCosts           ProjectCostEntry[]    @relation("ProjectCostCreatedBy")
+  changeOrders           ProjectChangeOrder[]  @relation("ChangeOrderCreatedBy")
+  scheduleItemsCreated   ProjectScheduleItem[] @relation("ScheduleItemCreatedBy")
+  scheduleItemsCompleted ProjectScheduleItem[] @relation("ScheduleItemCompletedBy")
 
   @@map("users")
 }
@@ -1019,15 +1023,21 @@ model Project {
   description          String?
   scope                String?
   deliverables         String?
+  // When the original budget was fixed: on approval, or on creation from a quote.
+  baselineLockedAt     DateTime?
   createdById          String         @db.Uuid
   createdBy            User           @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   isDemo               Boolean        @default(false)
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
-  budgetLines   ProjectBudgetLine[]
-  milestones    ProjectMilestone[]
-  statusChanges ProjectStatusChange[]
+  budgetLines    ProjectBudgetLine[]
+  milestones     ProjectMilestone[]
+  statusChanges  ProjectStatusChange[]
+  costEntries    ProjectCostEntry[]
+  changeOrders   ProjectChangeOrder[]
+  budgetVersions ProjectBudgetVersion[]
+  scheduleItems  ProjectScheduleItem[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1055,39 +1065,228 @@ model ProjectStatusChange {
 
 // The cost and revenue plan, one line per quote line.
 model ProjectBudgetLine {
-  id           String       @id @default(uuid()) @db.Uuid
-  projectId    String       @db.Uuid
-  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  position     Int
-  section      String?
-  category     LineCategory
-  description  String
-  quantity     Decimal      @db.Decimal(12, 3)
-  days         Decimal      @db.Decimal(12, 3)
-  unitCode     String?
-  costMinor    BigInt
+  id                String       @id @default(uuid()) @db.Uuid
+  projectId         String       @db.Uuid
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position          Int
+  section           String?
+  category          LineCategory
+  costCodeId        String?      @db.Uuid
+  costCode          CostCode?    @relation(fields: [costCodeId], references: [id], onDelete: Restrict)
+  description       String
+  quantity          Decimal      @db.Decimal(12, 3)
+  days              Decimal      @db.Decimal(12, 3)
+  unitCode          String?
+  // The original approved budget. Frozen once the project's baseline is
+  // locked (a database trigger enforces it); changes go through change orders.
+  costMinor         BigInt
   // Selling amount after discount, before tax.
-  revenueMinor BigInt
+  revenueMinor      BigInt
+  // The project manager's estimate of the final cost, when it differs from
+  // the calculated forecast. Null uses the calculation (docs/budget.md).
+  forecastCostMinor BigInt?
+  forecastNote      String?
+
+  costEntries ProjectCostEntry[]
+  changeLines ProjectChangeOrderLine[]
 
   @@unique([projectId, position])
   @@map("project_budget_lines")
 }
 
+/// Configurable cost codes under the budget categories (the quote line categories).
+model CostCode {
+  id          String       @id @default(uuid()) @db.Uuid
+  code        String       @unique
+  name        String
+  category    LineCategory
+  description String?
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  budgetLines ProjectBudgetLine[]
+
+  @@map("cost_codes")
+}
+
+enum CostEntryKind {
+  // A purchase or booking HMBL has agreed to pay for but not yet been billed.
+  COMMITMENT
+  // A cost incurred: a bill, an expense, a settlement.
+  ACTUAL
+}
+
+/// Committed and actual costs against a budget line. Entries are never edited
+/// or deleted: a mistake is voided with a reason and entered again.
+model ProjectCostEntry {
+  id           String             @id @default(uuid()) @db.Uuid
+  projectId    String             @db.Uuid
+  project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  budgetLineId String             @db.Uuid
+  budgetLine   ProjectBudgetLine  @relation(fields: [budgetLineId], references: [id], onDelete: Restrict)
+  kind         CostEntryKind
+  // In the project's currency; always positive.
+  amountMinor  BigInt
+  entryDate    DateTime           @db.Date
+  description  String
+  supplier     String?
+  reference    String?
+  // An actual cost that draws down a commitment, so it isn't counted twice.
+  commitmentId String?            @db.Uuid
+  commitment   ProjectCostEntry?  @relation("CommitmentDrawdown", fields: [commitmentId], references: [id], onDelete: Restrict)
+  drawdowns    ProjectCostEntry[] @relation("CommitmentDrawdown")
+  // A commitment with nothing more to come: what wasn't billed is released.
+  closedAt     DateTime?
+  voidedAt     DateTime?
+  voidReason   String?
+  createdById  String             @db.Uuid
+  createdBy    User               @relation("ProjectCostCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt    DateTime           @default(now())
+
+  @@index([projectId])
+  @@index([budgetLineId])
+  @@map("project_cost_entries")
+}
+
 // A billing milestone from the quote's payment schedule.
 model ProjectMilestone {
-  id          String         @id @default(uuid()) @db.Uuid
-  projectId   String         @db.Uuid
-  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  position    Int
-  label       String
-  percentBps  Int
-  trigger     PaymentTrigger
-  days        Int            @default(0)
+  id            String         @id @default(uuid()) @db.Uuid
+  projectId     String         @db.Uuid
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position      Int
+  label         String
+  percentBps    Int
+  trigger       PaymentTrigger
+  days          Int            @default(0)
   // Share of the quote total, including tax. Milestones add up to the total.
-  amountMinor BigInt
+  amountMinor   BigInt
   // Known when the trigger's date is: acceptance, or the event dates.
-  dueDate     DateTime?      @db.Date
+  dueDate       DateTime?      @db.Date
+  // Set by hand: kept when the event dates move. The note says why.
+  dueDateManual Boolean        @default(false)
+  dueDateNote   String?
 
   @@unique([projectId, position])
   @@map("project_milestones")
+}
+
+enum ChangeOrderStatus {
+  DRAFT
+  APPROVED
+  WITHDRAWN
+}
+
+/// A controlled change to an approved project's budget, scope or schedule
+/// (spec §10, "Change control"). Approved change orders are the only way the
+/// revised budget moves away from the original.
+model ProjectChangeOrder {
+  id                      String            @id @default(uuid()) @db.Uuid
+  projectId               String            @db.Uuid
+  project                 Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // CO-01, CO-02… within the project.
+  number                  Int
+  title                   String
+  reason                  String
+  description             String?
+  scopeImpact             String?
+  scheduleImpact          String?
+  // Positive delays the end date, negative brings it forward.
+  scheduleImpactDays      Int?
+  status                  ChangeOrderStatus @default(DRAFT)
+  // Totals of the lines, kept in step on every save.
+  costDeltaMinor          BigInt            @default(0)
+  revenueDeltaMinor       BigInt            @default(0)
+  // The client's agreement, required when the change alters revenue.
+  clientApprovedOn        DateTime?         @db.Date
+  clientApprovedByName    String?
+  clientApprovalMethod    AcceptanceMethod?
+  clientApprovalReference String?
+  // Why it was withdrawn, or a comment on approval.
+  statusComment           String?
+  decidedAt               DateTime?
+  decidedById             String?           @db.Uuid
+  createdById             String            @db.Uuid
+  createdBy               User              @relation("ChangeOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  lines         ProjectChangeOrderLine[]
+  budgetVersion ProjectBudgetVersion?
+
+  @@unique([projectId, number])
+  @@index([status])
+  @@map("project_change_orders")
+}
+
+/// One budget movement in a change order: an existing line up or down, or a new line.
+model ProjectChangeOrderLine {
+  id                String             @id @default(uuid()) @db.Uuid
+  changeOrderId     String             @db.Uuid
+  changeOrder       ProjectChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+  position          Int
+  // The line it changes. For a new line it is null until approval creates it.
+  budgetLineId      String?            @db.Uuid
+  budgetLine        ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: Restrict)
+  // For a new line.
+  newCategory       LineCategory?
+  newDescription    String?
+  newCostCodeId     String?            @db.Uuid
+  costDeltaMinor    BigInt
+  revenueDeltaMinor BigInt
+  note              String?
+
+  @@unique([changeOrderId, position])
+  @@index([budgetLineId])
+  @@map("project_change_order_lines")
+}
+
+/// The budget's history: version 1 is the original, each approved change order adds one.
+model ProjectBudgetVersion {
+  id             String              @id @default(uuid()) @db.Uuid
+  projectId      String              @db.Uuid
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version        Int
+  changeOrderId  String?             @unique @db.Uuid
+  changeOrder    ProjectChangeOrder? @relation(fields: [changeOrderId], references: [id], onDelete: Restrict)
+  // The revised budget cost and expected revenue (before tax) after this version.
+  costMinor      BigInt
+  revenueMinor   BigInt
+  createdById    String?             @db.Uuid
+  createdByLabel String
+  createdAt      DateTime            @default(now())
+
+  @@unique([projectId, version])
+  @@map("project_budget_versions")
+}
+
+enum ScheduleItemKind {
+  SHOW
+  PHASE
+  MILESTONE
+}
+
+/// The project's plan in dates: show dates, phases such as build or load-in,
+/// and delivery milestones that are ticked off when done.
+model ProjectScheduleItem {
+  id            String           @id @default(uuid()) @db.Uuid
+  projectId     String           @db.Uuid
+  project       Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind          ScheduleItemKind
+  title         String
+  startDate     DateTime         @db.Date
+  // Shows and phases can span days; milestones are a single date.
+  endDate       DateTime?        @db.Date
+  location      String?
+  notes         String?
+  completedAt   DateTime?
+  completedById String?          @db.Uuid
+  completedBy   User?            @relation("ScheduleItemCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  createdById   String           @db.Uuid
+  createdBy     User             @relation("ScheduleItemCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([projectId, startDate])
+  @@map("project_schedule_items")
 }

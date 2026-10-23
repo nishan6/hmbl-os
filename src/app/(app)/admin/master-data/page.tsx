@@ -12,6 +12,8 @@ import {
 import { TAX_TREATMENTS } from "@/server/master-data/schemas";
 import { listCommercialSettings } from "@/server/commercial/settings";
 import { listProjectTypes } from "@/server/projects/types";
+import { listCostCodes } from "@/server/projects/cost-codes";
+import { LINE_CATEGORIES } from "@/server/commercial/schemas";
 import { REVENUE_MODELS } from "@/server/projects/schemas";
 import { formatMoney } from "@/lib/format";
 import { minorToInput } from "@/lib/money";
@@ -21,6 +23,7 @@ import { PageHeader, Panel, Section } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import {
+  costCodeCommandAction,
   paymentTermCommandAction,
   projectTypeCommandAction,
   stageCommandAction,
@@ -31,7 +34,7 @@ import {
 import { QuoteSettingsForm } from "./quote-settings-form";
 import { PaymentTermForm, TaxRateForm, UnitForm } from "./forms";
 import { StageForm } from "./stage-form";
-import { ProjectTypeForm } from "./project-forms";
+import { CostCodeForm, ProjectTypeForm } from "./project-forms";
 
 export const metadata = { title: "Master data" };
 
@@ -59,6 +62,9 @@ export default async function MasterDataPage() {
   const stages = can(actor, "crm.view") ? await listStages(actor, { includeArchived: true }) : [];
   const projectTypes = can(actor, "projects.view")
     ? await listProjectTypes(actor, { includeArchived: true })
+    : [];
+  const costCodes = can(actor, "projects.view")
+    ? await listCostCodes(actor, { includeArchived: true })
     : [];
   const canStages = canEverywhere(actor, "crm.configure");
   const canProjects = canEverywhere(actor, "projects.configure");
@@ -402,6 +408,55 @@ export default async function MasterDataPage() {
           {canProjects ? (
             <Panel className="mt-4">
               <ProjectTypeForm />
+            </Panel>
+          ) : null}
+        </Section>
+      ) : null}
+      {costCodes.length || canProjects ? (
+        <Section
+          title="Cost codes"
+          description="Project budgets group costs by the quote line categories; cost codes break each category down further."
+        >
+          <Table dense>
+            <THead>
+              <tr>
+                <TH>Code</TH>
+                <TH>Name</TH>
+                <TH>Category</TH>
+                <TH>Status</TH>
+                {canProjects ? <TH>Actions</TH> : null}
+              </tr>
+            </THead>
+            <TBody>
+              {costCodes.map((c) => (
+                <TR key={c.id}>
+                  <TD className="font-medium">{c.code}</TD>
+                  <TD>{c.name}</TD>
+                  <TD className="text-secondary">{LINE_CATEGORIES[c.category]}</TD>
+                  <TD>
+                    <StatusBadge status={c.status === "ACTIVE" ? "active" : "archived"} />
+                  </TD>
+                  {canProjects ? (
+                    <TD>
+                      <ActionButton
+                        action={costCodeCommandAction}
+                        fields={{
+                          id: c.id,
+                          command: c.status === "ACTIVE" ? "archive" : "restore",
+                        }}
+                      >
+                        {c.status === "ACTIVE" ? "Archive" : "Restore"}
+                        <span className="sr-only"> {c.code}</span>
+                      </ActionButton>
+                    </TD>
+                  ) : null}
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+          {canProjects ? (
+            <Panel className="mt-4">
+              <CostCodeForm />
             </Panel>
           ) : null}
         </Section>

@@ -3,6 +3,8 @@ import { loadGrants } from "@/server/permissions/grants";
 import { createQuote, localToday, saveDraft } from "@/server/commercial/quotes";
 import { issueQuote } from "@/server/commercial/workflow";
 import { acceptQuote } from "@/server/commercial/acceptance";
+import { createChangeOrder, saveChangeOrderLine } from "@/server/projects/change-orders";
+import { saveScheduleItem } from "@/server/projects/schedule";
 
 async function actorFor(db: PrismaClient, userId: string) {
   const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
@@ -181,4 +183,32 @@ export async function seedDemoProject(db: PrismaClient, salesId: string, manager
     where: { id: project.id },
     data: { projectTypeId: live.id, projectManagerId: managerId },
   });
+  // A draft change order, part of the demo project.
+  const manager = await actorFor(db, managerId);
+  const order = await createChangeOrder(manager, project.id, {
+    title: "Extra follow spots (DEMO)",
+    reason: "The client asked for two more follow spots for the countdown.",
+  });
+  const crew = await db.projectBudgetLine.findFirstOrThrow({
+    where: { projectId: project.id, category: "CREW" },
+  });
+  await saveChangeOrderLine(manager, order.id, {
+    budgetLineId: crew.id,
+    cost: "14000",
+    revenue: "22000",
+    note: "Two operators for two days",
+  });
+  // The show dates come from the quote; add the build and two milestones.
+  for (const item of [
+    {
+      kind: "PHASE",
+      title: "Stage build and load-in",
+      startDate: "2026-12-29",
+      endDate: "2026-12-30",
+    },
+    { kind: "MILESTONE", title: "Stage design signed off by client", startDate: "2026-12-10" },
+    { kind: "MILESTONE", title: "Crew list confirmed", startDate: "2026-12-20" },
+  ] as const) {
+    await saveScheduleItem(manager, project.id, { ...item, location: "Demo Arena, Mumbai" });
+  }
 }

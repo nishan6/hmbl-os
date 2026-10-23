@@ -14,6 +14,8 @@ import {
   PROJECT_STATUSES,
   type ProjectStatus,
 } from "./lifecycle";
+import { recordBudgetVersion } from "./versions";
+import { followEventDates } from "./billing-dates";
 import {
   newProjectInput,
   projectDetailsInput,
@@ -288,6 +290,7 @@ export async function updateProjectDetails(actor: Actor, id: string, raw: Projec
         changes,
       });
     }
+    if (changes?.eventStartDate || changes?.eventEndDate) await followEventDates(tx, actor, after);
     return after;
   });
 }
@@ -314,6 +317,7 @@ export async function changeProjectStatus(actor: Actor, id: string, raw: StatusM
       },
     });
     await recordStatusChange(tx, actor, current, current.status, to, reason);
+    if (to === "APPROVED" && !current.baselineLockedAt) await lockBaseline(tx, actor, current);
     await recordAudit(tx, actor, {
       action: "project.status_changed",
       targetType: "project",
@@ -323,5 +327,45 @@ export async function changeProjectStatus(actor: Actor, id: string, raw: StatusM
       metadata: reason ? { reason } : {},
     });
     return after;
+  });
+}
+
+/**
+ * Fixes the original budget when a direct project is approved: from now on
+ * its lines' budget amounts can't change (a database trigger enforces it) and
+ * changes go through change orders. A direct project's contract value and
+ * budget cost become the totals of its lines.
+ */
+async function lockBaseline(
+  tx: Tx,
+  actor: Actor,
+  project: { id: string; legalEntityId: string; quoteId: string | null; taxMinor: bigint },
+) {
+  const totals = await tx.projectBudgetLine.aggregate({
+    where: { projectId: project.id },
+    _sum: { costMinor: true, revenueMinor: true },
+  });
+  const cost = totals._sum.costMinor ?? 0n;
+  const revenue = totals._sum.revenueMinor ?? 0n;
+  const locked = await tx.project.update({
+    where: { id: project.id },
+    data: {
+      baselineLockedAt: new Date(),
+      ...(project.quoteId
+        ? {}
+        : {
+            budgetCostMinor: cost,
+            contractValueMinor: revenue,
+            totalMinor: revenue + project.taxMinor,
+          }),
+    },
+  });
+  await recordBudgetVersion(tx, actor, locked, null);
+  await recordAudit(tx, actor, {
+    action: "project.baseline_locked",
+    targetType: "project",
+    targetId: project.id,
+    legalEntityId: project.legalEntityId,
+    metadata: { budgetCostMinor: cost.toString(), revenueMinor: revenue.toString() },
   });
 }
