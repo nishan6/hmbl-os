@@ -13,6 +13,10 @@ A scheme belongs to one legal entity and one document type (`src/server/numberin
 | `fiscalYearStartMonth` | 4 (April) for India, 1 for calendar-year entities                                     |
 | `startAt`              | First number in each period. Use it to continue a series migrated from another system |
 
+### Default formats
+
+A new legal entity gets the default scheme for every document type (`DEFAULT_SCHEMES` in `document-types.ts`) in the same transaction, with `fiscalYearStartMonth` 4 for Indian entities and 1 elsewhere. For an entity created before that, the Numbering screen offers **Add default formats**, which adds only the types that have no active scheme (`addDefaultNumberingSchemes`, needs `organisation.configure` for that entity).
+
 ### Tokens
 
 | Token             | Example            | Meaning                                                                                |

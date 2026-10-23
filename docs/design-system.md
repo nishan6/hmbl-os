@@ -34,14 +34,16 @@ The target is WCAG 2.2 AA.
 
 ## Components
 
-| Component                                                    | File                       | Use                                                                     |
-| ------------------------------------------------------------ | -------------------------- | ----------------------------------------------------------------------- |
-| `Button`, `IconButton`, `buttonClasses`                      | `components/ui/button.tsx` | One primary action per view; secondary for the rest; quiet in toolbars  |
-| `Field`, `Input`, `Select`, `Textarea`                       | `components/ui/field.tsx`  | Errors appear under the field; submitted values are kept after an error |
-| `StatusBadge`, `Tag`                                         | `components/ui/status.tsx` | Statuses from the spec, each with an icon, a label and a tone           |
-| `Table`, `THead`, `TBody`, `TR`, `TH`, `TD`                  | `components/ui/table.tsx`  | `align="right"` for numbers and money; sticky header; horizontal scroll |
-| `PageHeader`, `Section`, `Panel`, `DetailList`, `EmptyState` | `components/ui/page.tsx`   | Page structure: hierarchy and spacing first, cards only where they help |
-| `Alert`, `Skeleton`, `Breadcrumbs`                           | `components/ui/page.tsx`   | Feedback, loading and wayfinding                                        |
+| Component                                                    | File                                          | Use                                                                                             |
+| ------------------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `Button`, `IconButton`, `buttonClasses`                      | `components/ui/button.tsx`                    | One primary action per view; secondary for the rest; quiet in toolbars                          |
+| `Field`, `Input`, `Select`, `Textarea`                       | `components/ui/field.tsx`                     | Errors appear under the field; submitted values are kept after an error                         |
+| `StatusBadge`, `Tag`                                         | `components/ui/status.tsx`                    | Statuses from the spec, each with an icon, a label and a tone                                   |
+| `Table`, `THead`, `TBody`, `TR`, `TH`, `TD`                  | `components/ui/table.tsx`                     | `align="right"` for numbers and money; sticky header; horizontal scroll                         |
+| `PageHeader`, `Section`, `Panel`, `DetailList`, `EmptyState` | `components/ui/page.tsx`                      | Page structure: hierarchy and spacing first, cards only where they help                         |
+| `Alert`, `Skeleton`, `Breadcrumbs`                           | `components/ui/page.tsx`                      | Feedback, loading and wayfinding                                                                |
+| `ActionButton`                                               | `components/ui/action-button.tsx`             | One-click server actions (archive, make default) with an inline error and optional confirmation |
+| `useForm`, `FormAlert`                                       | `components/ui/use-form.ts`, `form-alert.tsx` | Form state for server actions: keeps values after an error, resets after success                |
 
 Formatting helpers live in `src/lib/format.ts`: `formatMoney` takes integer minor units and an ISO currency code and never goes through floating point; `formatDate` and `formatDateTime` take the entity's time zone.
 
@@ -57,13 +59,14 @@ Hiding a navigation item is never the access control. Each page and service chec
 
 ## Admin screens in this stage
 
-| Path                                | Shows                                                   | Permission                             |
-| ----------------------------------- | ------------------------------------------------------- | -------------------------------------- |
-| `/admin/organisation`               | Legal entities, business units, cost centres, locations | `organisation.view`                    |
-| `/admin/organisation/entities/new`  | Create a legal entity                                   | `organisation.create` for all entities |
-| `/admin/organisation/entities/[id]` | Entity details, tax registrations, number formats       | `organisation.view` for that entity    |
-| `/admin/numbering`                  | Number formats with an example of the next number       | `organisation.view`                    |
-| `/admin/users`                      | Users, their roles and entity scope                     | `users.view`                           |
-| `/admin/audit`                      | Audit events, filterable by action, newest first        | `audit.view`                           |
+| Path                                | Shows                                                   | Permission                                               |
+| ----------------------------------- | ------------------------------------------------------- | -------------------------------------------------------- |
+| `/admin/organisation`               | Legal entities, business units, cost centres, locations | `organisation.view`                                      |
+| `/admin/organisation/entities/new`  | Create a legal entity                                   | `organisation.create` for all entities                   |
+| `/admin/organisation/entities/[id]` | Entity details, tax registrations, number formats       | `organisation.view` for that entity                      |
+| `/admin/master-data`                | Tax rates, payment terms and units                      | `commercial.view`, `finance.view` or `organisation.view` |
+| `/admin/numbering`                  | Number formats with an example of the next number       | `organisation.view`                                      |
+| `/admin/users`                      | Users, their roles and entity scope                     | `users.view`                                             |
+| `/admin/audit`                      | Audit events, filterable by action, newest first        | `audit.view`                                             |
 
 Editing roles, users and numbering schemes from the UI comes later; the services for them exist and are tested.

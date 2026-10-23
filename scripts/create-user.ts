@@ -11,6 +11,7 @@ import "dotenv/config";
 import { parseArgs } from "node:util";
 import { db } from "@/server/db";
 import { ensureDefaultRoles } from "@/server/permissions/roles";
+import { ensureMasterDataDefaults } from "@/server/master-data/defaults";
 import { createUser } from "@/server/users/service";
 
 async function main() {
@@ -29,6 +30,7 @@ async function main() {
     process.exit(1);
   }
   await ensureDefaultRoles(db);
+  await ensureMasterDataDefaults(db);
   const user = await createUser("system", {
     name: values.name,
     email: values.email,

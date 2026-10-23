@@ -3,12 +3,15 @@ import { Hash } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { listNumberingSchemes } from "@/server/numbering/service";
+import { listLegalEntities } from "@/server/organisation/service";
 import { DOCUMENT_TYPES, type DocumentType } from "@/server/numbering/document-types";
 import { formatNumber } from "@/server/numbering/pattern";
 import { getEntityContext } from "@/server/shell/entity-context";
-import { EmptyState, PageHeader } from "@/components/ui/page";
+import { ActionButton } from "@/components/ui/action-button";
+import { Alert, EmptyState, PageHeader } from "@/components/ui/page";
 import { Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { addDefaultSchemesAction } from "./actions";
 
 export const metadata = { title: "Numbering" };
 
@@ -22,11 +25,20 @@ const RESETS: Record<string, string> = {
 export default async function NumberingPage() {
   const actor = await requireActorOrRedirect();
   if (!can(actor, "organisation.view")) notFound();
-  const [schemes, { selectedId }] = await Promise.all([
+  const [schemes, { selectedId }, entities] = await Promise.all([
     listNumberingSchemes(actor),
     getEntityContext(actor),
+    listLegalEntities(actor),
   ]);
   const shown = selectedId ? schemes.filter((s) => s.legalEntityId === selectedId) : schemes;
+  const typeCount = Object.keys(DOCUMENT_TYPES).length;
+  // Entities created before default formats existed may be missing some.
+  const incomplete = entities.filter(
+    (e) =>
+      (!selectedId || e.id === selectedId) &&
+      can(actor, "organisation.configure", { legalEntityId: e.id }) &&
+      schemes.filter((s) => s.legalEntityId === e.id).length < typeCount,
+  );
   const now = new Date();
 
   return (
@@ -36,6 +48,24 @@ export default async function NumberingPage() {
         description="How each legal entity numbers its documents. Formats can't be edited once in use; archive and replace them instead."
         breadcrumbs={[{ label: "Administration" }, { label: "Numbering" }]}
       />
+      {incomplete.map((e) => (
+        <div key={e.id} className="mb-4">
+          <Alert tone="warning" title={`${e.code} is missing some number formats`}>
+            <p className="mb-2">
+              Quotes, projects and invoices can&apos;t be numbered in this entity until it has a
+              format for them.
+            </p>
+            <ActionButton
+              action={addDefaultSchemesAction}
+              fields={{ legalEntityId: e.id }}
+              variant="secondary"
+              pendingLabel="Adding…"
+            >
+              Add default formats for {e.code}
+            </ActionButton>
+          </Alert>
+        </div>
+      ))}
       {shown.length ? (
         <Table>
           <THead>

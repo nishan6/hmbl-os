@@ -3,6 +3,7 @@ import {
   Briefcase,
   Building2,
   ClipboardList,
+  Database,
   FileText,
   Hash,
   Home,
@@ -64,6 +65,12 @@ export const NAV: NavGroup[] = [
         icon: Building2,
         permission: "organisation.view",
         href: "/admin/organisation",
+      },
+      {
+        label: "Master data",
+        icon: Database,
+        permission: "organisation.view",
+        href: "/admin/master-data",
       },
       {
         label: "Numbering",

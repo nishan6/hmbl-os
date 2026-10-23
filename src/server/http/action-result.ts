@@ -4,11 +4,13 @@ import { logger } from "@/lib/logger";
 
 /** What a form's server action returns when it doesn't redirect. */
 export type FormState = {
-  status: "idle" | "error";
+  status: "idle" | "success" | "error";
   message?: string;
   fieldErrors?: Record<string, string[]>;
   /** The submitted values, so a failed submission never clears the form. */
   values?: Record<string, string>;
+  /** Set on success, so a form can tell two successful submissions apart. */
+  savedAt?: number;
 };
 
 export const idle: FormState = { status: "idle" };
@@ -30,4 +32,22 @@ export function toFormState(error: unknown, values: Record<string, string>): For
   if (error instanceof AppError) return { status: "error", message: error.message, values };
   logger.error("unexpected error in form action", { error });
   return { status: "error", message: "Something went wrong. Nothing was saved.", values };
+}
+
+/**
+ * Runs a mutation for a form action: success state when it works, error state
+ * (with the submitted values kept) when it throws. Redirects belong outside.
+ */
+export async function attempt(
+  formData: FormData,
+  run: (values: Record<string, string>) => Promise<unknown>,
+  message?: string,
+): Promise<FormState> {
+  const values = formValues(formData);
+  try {
+    await run(values);
+  } catch (error) {
+    return toFormState(error, values);
+  }
+  return { status: "success", message, savedAt: Date.now() };
 }
