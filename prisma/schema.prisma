@@ -31,12 +31,14 @@ model User {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
-  sessions     Session[]
-  accounts     Account[]
-  ownedClients Client[]
-  twoFactors   TwoFactor[]
-  roles        UserRole[]  @relation("UserRoles")
-  grants       UserRole[]  @relation("UserRoleGrantedBy")
+  sessions      Session[]
+  accounts      Account[]
+  ownedClients  Client[]
+  twoFactors    TwoFactor[]
+  roles         UserRole[]    @relation("UserRoles")
+  grants        UserRole[]    @relation("UserRoleGrantedBy")
+  opportunities Opportunity[]
+  crmActivities CrmActivity[]
 
   @@map("users")
 }
@@ -199,6 +201,7 @@ model LegalEntity {
   costCentres      CostCentre[]
   locations        Location[]
   userRoles        UserRole[]
+  opportunities    Opportunity[]
 
   @@map("legal_entities")
 }
@@ -234,7 +237,8 @@ model BusinessUnit {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  costCentres CostCentre[]
+  costCentres   CostCentre[]
+  opportunities Opportunity[]
 
   @@map("business_units")
 }
@@ -528,7 +532,9 @@ model Client {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  contacts Contact[]
+  contacts      Contact[]
+  opportunities Opportunity[]
+  activities    CrmActivity[]
 
   @@unique([taxIdType, taxId], map: "clients_tax_id_key", where: raw("\"taxId\" IS NOT NULL AND status = 'ACTIVE'"))
   @@index([normalizedName])
@@ -552,7 +558,134 @@ model Contact {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
+  opportunities Opportunity[]
+
   @@unique([clientId], map: "contacts_one_primary_key", where: raw("\"isPrimary\" AND status = 'ACTIVE'"))
   @@index([clientId])
   @@map("contacts")
+}
+
+// ─── CRM: pipeline ────────────────────────────────────────────────────────────
+
+enum StageKind {
+  OPEN
+  WON
+  LOST
+  ON_HOLD // deferred
+  CANCELLED
+}
+
+// A configurable pipeline stage. Defaults follow the spec:
+// New → Qualified → Discovery → Estimation → Proposal sent → Negotiation → Won / Lost / On hold.
+model PipelineStage {
+  id             String       @id @default(uuid()) @db.Uuid
+  key            String       @unique
+  name           String
+  kind           StageKind
+  position       Int
+  // Default win probability for opportunities in this stage.
+  probabilityBps Int?
+  status         RecordStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  opportunities Opportunity[]
+
+  @@map("pipeline_stages")
+}
+
+// Commercial work HMBL is pursuing, from first enquiry to won or lost.
+// Belongs to the legal entity that would contract the work.
+model Opportunity {
+  id                 String        @id @default(uuid()) @db.Uuid
+  legalEntityId      String        @db.Uuid
+  legalEntity        LegalEntity   @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  clientId           String        @db.Uuid
+  client             Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  contactId          String?       @db.Uuid
+  contact            Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  title              String
+  description        String?
+  stageId            String        @db.Uuid
+  stage              PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  ownerId            String?       @db.Uuid
+  owner              User?         @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  // Business line.
+  businessUnitId     String?       @db.Uuid
+  businessUnit       BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  // Where the enquiry came from: referral, website, repeat client…
+  source             String?
+  // Opportunity value: the salesperson's estimate. Not a quoted or contract value.
+  expectedValueMinor BigInt?
+  currency           String        @db.Char(3)
+  // Overrides the stage's default probability when set.
+  probabilityBps     Int?
+  expectedCloseDate  DateTime?     @db.Date
+  eventStartDate     DateTime?     @db.Date
+  eventEndDate       DateTime?     @db.Date
+  venue              String?
+  competitors        String?
+  // Why it was won, lost, put on hold or cancelled.
+  outcomeReason      String?
+  closedAt           DateTime?
+  isDemo             Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  stageChanges OpportunityStageChange[]
+  activities   CrmActivity[]
+
+  @@index([legalEntityId, stageId])
+  @@index([clientId])
+  @@map("opportunities")
+}
+
+// Every stage move, for the opportunity's history and pipeline reporting.
+model OpportunityStageChange {
+  id            String      @id @default(uuid()) @db.Uuid
+  opportunityId String      @db.Uuid
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  fromStageId   String?     @db.Uuid
+  toStageId     String      @db.Uuid
+  reason        String?
+  actorId       String?     @db.Uuid
+  actorLabel    String
+  changedAt     DateTime    @default(now())
+
+  @@index([opportunityId, changedAt])
+  @@map("opportunity_stage_changes")
+}
+
+enum ActivityType {
+  NOTE
+  CALL
+  MEETING
+  EMAIL
+  FOLLOW_UP
+}
+
+// A note, call, meeting or follow-up with a client, optionally about one opportunity.
+model CrmActivity {
+  id            String       @id @default(uuid()) @db.Uuid
+  clientId      String       @db.Uuid
+  client        Client       @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  opportunityId String?      @db.Uuid
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  type          ActivityType
+  subject       String
+  body          String?
+  occurredAt    DateTime
+  // Follow-ups: when it's due and when it was done.
+  dueAt         DateTime?
+  completedAt   DateTime?
+  ownerId       String?      @db.Uuid
+  owner         User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  createdById   String       @db.Uuid
+  isDemo        Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+
+  @@index([clientId, occurredAt])
+  @@index([opportunityId, occurredAt])
+  @@index([ownerId, dueAt])
+  @@map("crm_activities")
 }

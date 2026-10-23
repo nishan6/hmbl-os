@@ -13,6 +13,7 @@ import {
   setTaxRateArchived,
   setUnitArchived,
 } from "@/server/master-data/service";
+import { createStage, moveStage, setStageArchived } from "@/server/crm/pipeline";
 
 async function run(formData: FormData, fn: (values: Record<string, string>) => Promise<unknown>) {
   const state = await attempt(formData, async (values) => fn(values));
@@ -86,4 +87,22 @@ export async function unitCommandAction(_: FormState, formData: FormData) {
   return run(formData, async ({ id = "", command }) =>
     setUnitArchived(await requireActor(), id, command === "archive"),
   );
+}
+
+export async function createStageAction(_: FormState, formData: FormData) {
+  return run(formData, async (v) =>
+    createStage(await requireActor(), {
+      name: v.name ?? "",
+      kind: (v.kind ?? "OPEN") as "OPEN",
+      probability: v.probability,
+    }),
+  );
+}
+
+export async function stageCommandAction(_: FormState, formData: FormData) {
+  return run(formData, async ({ id = "", command }) => {
+    const actor = await requireActor();
+    if (command === "up" || command === "down") return moveStage(actor, id, command);
+    return setStageArchived(actor, id, command === "archive");
+  });
 }

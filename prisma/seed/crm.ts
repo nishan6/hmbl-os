@@ -54,3 +54,69 @@ export async function seedDemoCrm(db: PrismaClient, ownerId: string) {
     });
   }
 }
+
+/** DEMO opportunities across the pipeline, in the demo entities. */
+export async function seedDemoPipeline(
+  db: PrismaClient,
+  ids: { ownerId: string; indiaId: string; uaeId: string },
+) {
+  if (await db.opportunity.findFirst({ where: { isDemo: true } })) return;
+  const stage = async (key: string) => db.pipelineStage.findUniqueOrThrow({ where: { key } });
+  const client = async (name: string) => db.client.findFirstOrThrow({ where: { name } });
+  const arena = await client("Demo Arena Live (DEMO)");
+  const pixel = await client("Demo Pixel Esports League (DEMO)");
+  const gulf = await client("Demo Gulf Broadcast Network (DEMO)");
+  const rows = [
+    {
+      title: "Arena winter concert series",
+      client: arena,
+      stage: "proposal_sent",
+      value: 4_500_000_00n,
+      entity: ids.indiaId,
+      currency: "INR",
+    },
+    {
+      title: "Arena product launch",
+      client: arena,
+      stage: "estimation",
+      value: 1_200_000_00n,
+      entity: ids.indiaId,
+      currency: "INR",
+    },
+    {
+      title: "Pixel league finals broadcast",
+      client: pixel,
+      stage: "qualified",
+      value: 2_800_000_00n,
+      entity: ids.indiaId,
+      currency: "INR",
+    },
+    {
+      title: "Gulf studio refit consult",
+      client: gulf,
+      stage: "new",
+      value: 180_000_00n,
+      entity: ids.uaeId,
+      currency: "AED",
+    },
+  ];
+  for (const row of rows) {
+    const s = await stage(row.stage);
+    await db.opportunity.create({
+      data: {
+        title: `${row.title} (DEMO)`,
+        legalEntityId: row.entity,
+        clientId: row.client.id,
+        stageId: s.id,
+        ownerId: ids.ownerId,
+        currency: row.currency,
+        expectedValueMinor: row.value,
+        source: "Demo data",
+        isDemo: true,
+        stageChanges: {
+          create: { toStageId: s.id, actorLabel: "System" },
+        },
+      },
+    });
+  }
+}

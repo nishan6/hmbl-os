@@ -91,12 +91,21 @@ export async function listClients(actor: Actor, options: ClientListOptions = {})
   });
 }
 
-/** Active clients for pickers: id and name only. */
+/** Active clients for pickers, with their active contacts. */
 export async function listClientOptions(actor: Actor) {
   authorize(actor, "crm.view");
   return db.client.findMany({
     where: { status: "ACTIVE" },
-    select: { id: true, name: true, currency: true },
+    select: {
+      id: true,
+      name: true,
+      currency: true,
+      contacts: {
+        where: { status: "ACTIVE" },
+        select: { id: true, name: true },
+        orderBy: [{ isPrimary: "desc" }, { name: "asc" }],
+      },
+    },
     orderBy: { name: "asc" },
   });
 }
@@ -253,7 +262,15 @@ export async function setClientArchived(
  * Tables that point at a client, moved to the surviving record on merge.
  * Modules that add a clientId column add it here.
  */
-const CLIENT_REFERENCES = ["contact"] as const;
+type Move = (tx: Prisma.TransactionClient, from: string, to: string) => Promise<{ count: number }>;
+const CLIENT_REFERENCES: Record<string, Move> = {
+  contact: (tx, from, to) =>
+    tx.contact.updateMany({ where: { clientId: from }, data: { clientId: to } }),
+  opportunity: (tx, from, to) =>
+    tx.opportunity.updateMany({ where: { clientId: from }, data: { clientId: to } }),
+  crmActivity: (tx, from, to) =>
+    tx.crmActivity.updateMany({ where: { clientId: from }, data: { clientId: to } }),
+};
 
 /**
  * Merges a duplicate into the client to keep. Everything that pointed at the
@@ -282,12 +299,8 @@ export async function mergeClient(actor: Actor, duplicateId: string, input: unkn
       await tx.contact.updateMany({ where: { clientId: duplicateId }, data: { isPrimary: false } });
     }
     const moved: Record<string, number> = {};
-    for (const table of CLIENT_REFERENCES) {
-      const { count } = await tx[table].updateMany({
-        where: { clientId: duplicateId },
-        data: { clientId: targetId },
-      });
-      moved[table] = count;
+    for (const [table, move] of Object.entries(CLIENT_REFERENCES)) {
+      moved[table] = (await move(tx, duplicateId, targetId)).count;
     }
     // Carry over details the survivor is missing.
     const fill: Prisma.ClientUpdateInput = {};
