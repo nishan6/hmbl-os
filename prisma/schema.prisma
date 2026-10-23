@@ -1167,7 +1167,6 @@ model ProjectMilestone {
 
 enum ChangeOrderStatus {
   DRAFT
-  SUBMITTED
   APPROVED
   WITHDRAWN
 }
@@ -1197,14 +1196,10 @@ model ProjectChangeOrder {
   clientApprovedByName    String?
   clientApprovalMethod    AcceptanceMethod?
   clientApprovalReference String?
-  // Why it was sent back or withdrawn; the Director's comment on approval.
+  // Why it was withdrawn, or a comment on approval.
   statusComment           String?
-  submittedAt             DateTime?
-  submittedById           String?           @db.Uuid
   decidedAt               DateTime?
   decidedById             String?           @db.Uuid
-  // Approved by the person who submitted it: allowed, but recorded.
-  selfApproval            Boolean           @default(false)
   createdById             String            @db.Uuid
   createdBy               User              @relation("ChangeOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   createdAt               DateTime          @default(now())

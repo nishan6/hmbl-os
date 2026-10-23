@@ -20,14 +20,12 @@ import { approvedChangesByLine, recordBudgetVersion } from "./versions";
 /*
  * Change control (spec §10). A change order moves an approved budget:
  *
- *   DRAFT ──submit──▶ SUBMITTED ──approve──▶ APPROVED (budget version n+1)
- *     ▲                   │send back
- *     └───────────────────┘
- *   DRAFT / SUBMITTED ──withdraw──▶ WITHDRAWN
+ *   DRAFT ──approve──▶ APPROVED (budget version n+1)
+ *   DRAFT ──withdraw──▶ WITHDRAWN
  *
- * The project manager drafts and submits (`projects.edit`, `projects.submit`);
- * the Director approves or sends back (`projects.approve`, `projects.reject`).
- * A change to revenue needs the client's agreement recorded before approval.
+ * The project manager drafts and approves (`projects.edit`); no Director
+ * approval is needed (Nishan, 2026-10-23). A change to revenue needs the
+ * client's agreement recorded before approval.
  * The original budget is never touched: approved lines add to it.
  */
 
@@ -142,9 +140,7 @@ export async function getChangeOrder(actor: Actor, id: string) {
   const showCosts = canSeeProjectCosts(actor, project.legalEntityId);
   const [people, budgetLines] = await Promise.all([
     db.user.findMany({
-      where: {
-        id: { in: [order.submittedById, order.decidedById].filter((v): v is string => !!v) },
-      },
+      where: { id: order.decidedById ?? undefined },
       select: { id: true, name: true },
     }),
     // Lines a change can move; amounts aren't needed to pick one.
@@ -159,7 +155,6 @@ export async function getChangeOrder(actor: Actor, id: string) {
     ...order,
     project,
     showCosts,
-    submittedBy: name(order.submittedById),
     decidedBy: name(order.decidedById),
     budgetLines,
     costDeltaMinor: showCosts ? order.costDeltaMinor : null,
@@ -175,17 +170,9 @@ export function changeOrderActions(
 ) {
   const scope = { legalEntityId: project.legalEntityId };
   const open = project.status !== "CLOSED" && project.status !== "CANCELLED";
-  const has = (p: Permission) => open && can(actor, p, scope);
-  return {
-    edit: order.status === "DRAFT" && has("projects.edit"),
-    clientApproval:
-      (order.status === "DRAFT" || order.status === "SUBMITTED") && has("projects.edit"),
-    submit: order.status === "DRAFT" && has("projects.submit"),
-    approve: order.status === "SUBMITTED" && has("projects.approve"),
-    reject: order.status === "SUBMITTED" && has("projects.reject"),
-    withdraw: (order.status === "DRAFT" || order.status === "SUBMITTED") && has("projects.edit"),
-    needsClient: order.revenueDeltaMinor !== 0n && !order.clientApprovedOn,
-  };
+  const edit = order.status === "DRAFT" && open && can(actor, "projects.edit", scope);
+  const needsClient = order.revenueDeltaMinor !== 0n && !order.clientApprovedOn;
+  return { edit, clientApproval: edit, approve: edit, withdraw: edit, needsClient };
 }
 
 // ─── Drafting ────────────────────────────────────────────────────────────────
@@ -398,7 +385,7 @@ export async function recordClientApproval(actor: Actor, id: string, raw: Client
   return db.$transaction(async (tx) => {
     assertChangeable(await lockProject(tx, project.id));
     const before = await lockOrder(tx, id);
-    requireStatus(before, "DRAFT", "SUBMITTED");
+    requireStatus(before, "DRAFT");
     const after = await tx.projectChangeOrder.update({
       where: { id },
       data: { ...data, clientApprovedOn: data.clientApprovedOn! },
@@ -417,44 +404,19 @@ export async function recordClientApproval(actor: Actor, id: string, raw: Client
 
 // ─── Workflow ────────────────────────────────────────────────────────────────
 
-export async function submitChangeOrder(actor: Actor, id: string, raw: unknown = {}) {
-  const { project } = await loadForAction(actor, id, "projects.submit");
-  const { comment } = parseInput(commentInput, raw);
-  return db.$transaction(async (tx) => {
-    assertChangeable(await lockProject(tx, project.id));
-    const order = await lockOrder(tx, id);
-    requireStatus(order, "DRAFT");
-    const lines = await tx.projectChangeOrderLine.count({ where: { changeOrderId: id } });
-    if (!lines) throw new ValidationError("Add at least one budget change before submitting.");
-    const after = await tx.projectChangeOrder.update({
-      where: { id },
-      data: {
-        status: "SUBMITTED",
-        submittedAt: new Date(),
-        submittedById: actor.id,
-        statusComment: comment,
-      },
-    });
-    await audit(tx, actor, project, order, "change_order.submitted", {
-      changes: { status: { from: "DRAFT", to: "SUBMITTED" } },
-    });
-    return after;
-  });
-}
-
 /**
- * Approves a submitted change order: creates any new budget lines (with a
+ * Approves a draft change order: creates any new budget lines (with a
  * zero original budget), so the change shows in the revised budget, and adds
  * a budget version. The original budget is not touched.
  */
 export async function approveChangeOrder(actor: Actor, id: string, raw: unknown = {}) {
-  const { project } = await loadForAction(actor, id, "projects.approve");
+  const { project } = await loadForAction(actor, id, "projects.edit");
   const { comment } = parseInput(commentInput, raw);
   return db.$transaction(async (tx) => {
     const current = await lockProject(tx, project.id);
     assertChangeable(current);
     const order = await lockOrder(tx, id);
-    requireStatus(order, "SUBMITTED");
+    requireStatus(order, "DRAFT");
     if (order.revenueDeltaMinor !== 0n && !order.clientApprovedOn) {
       throw new ConflictError("This change alters revenue. Record the client's agreement first.");
     }
@@ -462,6 +424,7 @@ export async function approveChangeOrder(actor: Actor, id: string, raw: unknown 
       where: { changeOrderId: id },
       orderBy: { position: "asc" },
     });
+    if (!lines.length) throw new ValidationError("Add at least one budget change first.");
     // No line may end up with a negative revised budget or revenue.
     const existing = await tx.projectBudgetLine.findMany({ where: { projectId: project.id } });
     const approved = await approvedChangesByLine(tx, project.id);
@@ -473,7 +436,7 @@ export async function approveChangeOrder(actor: Actor, id: string, raw: unknown 
         line.revenueMinor + prior.revenueMinor + l.revenueDeltaMinor < 0n
       ) {
         throw new ConflictError(
-          `"${line.description}" would go below zero. Send the change order back to fix it.`,
+          `"${line.description}" would go below zero. Change the amount first.`,
         );
       }
     }
@@ -499,46 +462,23 @@ export async function approveChangeOrder(actor: Actor, id: string, raw: unknown 
         data: { budgetLineId: created.id },
       });
     }
-    const selfApproval = order.submittedById === actor.id;
     const after = await tx.projectChangeOrder.update({
       where: { id },
       data: {
         status: "APPROVED",
         decidedAt: new Date(),
         decidedById: actor.id,
-        selfApproval,
         statusComment: comment,
       },
     });
     const version = await recordBudgetVersion(tx, actor, current, id);
     await audit(tx, actor, project, order, "change_order.approved", {
-      changes: { status: { from: "SUBMITTED", to: "APPROVED" } },
+      changes: { status: { from: "DRAFT", to: "APPROVED" } },
       metadata: {
-        selfApproval,
         budgetVersion: version.version,
         costDeltaMinor: order.costDeltaMinor.toString(),
         revenueDeltaMinor: order.revenueDeltaMinor.toString(),
       },
-    });
-    return after;
-  });
-}
-
-/** Sends it back to draft with the reason. */
-export async function rejectChangeOrder(actor: Actor, id: string, raw: unknown) {
-  const { project } = await loadForAction(actor, id, "projects.reject");
-  const { comment } = parseInput(reasonInput, raw);
-  return db.$transaction(async (tx) => {
-    assertChangeable(await lockProject(tx, project.id));
-    const order = await lockOrder(tx, id);
-    requireStatus(order, "SUBMITTED");
-    const after = await tx.projectChangeOrder.update({
-      where: { id },
-      data: { status: "DRAFT", submittedAt: null, submittedById: null, statusComment: comment },
-    });
-    await audit(tx, actor, project, order, "change_order.rejected", {
-      changes: { status: { from: "SUBMITTED", to: "DRAFT" } },
-      metadata: { reason: comment },
     });
     return after;
   });
@@ -550,7 +490,7 @@ export async function withdrawChangeOrder(actor: Actor, id: string, raw: unknown
   return db.$transaction(async (tx) => {
     assertChangeable(await lockProject(tx, project.id));
     const order = await lockOrder(tx, id);
-    requireStatus(order, "DRAFT", "SUBMITTED");
+    requireStatus(order, "DRAFT");
     const after = await tx.projectChangeOrder.update({
       where: { id },
       data: {
@@ -561,7 +501,7 @@ export async function withdrawChangeOrder(actor: Actor, id: string, raw: unknown
       },
     });
     await audit(tx, actor, project, order, "change_order.withdrawn", {
-      changes: { status: { from: order.status, to: "WITHDRAWN" } },
+      changes: { status: { from: "DRAFT", to: "WITHDRAWN" } },
       metadata: { reason: comment },
     });
     return after;

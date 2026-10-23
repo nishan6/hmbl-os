@@ -103,8 +103,6 @@ test("a change order is agreed with the client and approved into a new budget ve
   await client.getByRole("button", { name: "Record client agreement" }).click();
   await expect(client.getByText("Client agreement recorded")).toBeVisible();
 
-  await page.getByRole("button", { name: "Submit for approval" }).click();
-  await expect(page.getByRole("main").getByText("Pending approval").first()).toBeVisible();
   await page.getByRole("button", { name: "Approve change" }).click();
   await expect(page.getByRole("main").getByText("Approved").first()).toBeVisible();
 

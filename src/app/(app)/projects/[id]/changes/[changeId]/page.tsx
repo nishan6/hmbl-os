@@ -75,14 +75,8 @@ export default async function ChangeOrderPage({
         <h2 className="text-text flex flex-wrap items-center gap-2 text-lg font-semibold">
           {label} · {order.title}
           <StatusBadge status={CHANGE_ORDER_STATUS[order.status]} />
-          {order.selfApproval ? <Tag>Own change</Tag> : null}
         </h2>
-        {order.status === "DRAFT" && order.statusComment ? (
-          <Alert tone="warning" title="Sent back">
-            {order.statusComment}
-          </Alert>
-        ) : null}
-        {allowed.needsClient && (order.status === "DRAFT" || order.status === "SUBMITTED") ? (
+        {allowed.needsClient && order.status === "DRAFT" ? (
           <Alert tone="info" title="Client agreement needed">
             This change alters revenue, so the client&apos;s agreement must be recorded before it
             can be approved.
@@ -99,13 +93,7 @@ export default async function ChangeOrderPage({
                 value: `${order.createdBy.name} · ${formatDate(order.createdAt, tz)}`,
               },
               {
-                label: "Submitted",
-                value: order.submittedAt
-                  ? `${order.submittedBy ?? "—"} · ${formatDateTime(order.submittedAt, tz)}`
-                  : null,
-              },
-              {
-                label: order.status === "WITHDRAWN" ? "Withdrawn" : "Decided",
+                label: order.status === "WITHDRAWN" ? "Withdrawn" : "Approved",
                 value: order.decidedAt
                   ? `${order.decidedBy ?? "—"} · ${formatDateTime(order.decidedAt, tz)}`
                   : null,
@@ -124,9 +112,7 @@ export default async function ChangeOrderPage({
             <Text label="Description" value={order.description} />
             <Text label="Scope impact" value={order.scopeImpact} />
             <Text label="Schedule impact" value={order.scheduleImpact} />
-            {order.status !== "DRAFT" && order.statusComment ? (
-              <Text label="Comment" value={order.statusComment} />
-            ) : null}
+            {order.statusComment ? <Text label="Comment" value={order.statusComment} /> : null}
           </dl>
           {allowed.edit ? (
             <details className="mt-4 text-sm">
@@ -274,34 +260,18 @@ export default async function ChangeOrderPage({
         </Panel>
       </Section>
 
-      {allowed.submit || allowed.approve || allowed.reject || allowed.withdraw ? (
+      {allowed.approve || allowed.withdraw ? (
         <Section title="Next step">
           <div className="grid gap-4 lg:grid-cols-2">
-            {allowed.submit ? (
+            {allowed.approve ? (
               <Panel>
                 <CommandForm
                   action={changeOrderCommandAction.bind(null, order.id)}
-                  title="Submit for approval"
-                  description="The Director approves it or sends it back. Lines can't change after this."
+                  title="Approve"
+                  description="Adds the changes to the revised budget as a new budget version. The change order can't be edited after this."
                   label="Comment"
-                  disabled={!order.lines.length}
-                  buttons={[{ command: "submit", label: "Submit for approval", primary: true }]}
-                />
-              </Panel>
-            ) : null}
-            {allowed.approve || allowed.reject ? (
-              <Panel>
-                <CommandForm
-                  action={changeOrderCommandAction.bind(null, order.id)}
-                  title="Decide"
-                  description="Approving adds the changes to the revised budget as a new budget version. Sending back needs a reason."
-                  label="Comment"
-                  buttons={[
-                    ...(allowed.approve
-                      ? [{ command: "approve", label: "Approve change", primary: true }]
-                      : []),
-                    ...(allowed.reject ? [{ command: "reject", label: "Send back" }] : []),
-                  ]}
+                  disabled={!order.lines.length || allowed.needsClient}
+                  buttons={[{ command: "approve", label: "Approve change", primary: true }]}
                 />
               </Panel>
             ) : null}

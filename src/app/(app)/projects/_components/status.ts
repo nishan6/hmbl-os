@@ -15,12 +15,8 @@ export const PROJECT_STATUS: Record<ProjectStatus, StatusKey> = {
   CANCELLED: "cancelled",
 };
 
-export const CHANGE_ORDER_STATUS: Record<
-  "DRAFT" | "SUBMITTED" | "APPROVED" | "WITHDRAWN",
-  StatusKey
-> = {
+export const CHANGE_ORDER_STATUS: Record<"DRAFT" | "APPROVED" | "WITHDRAWN", StatusKey> = {
   DRAFT: "draft",
-  SUBMITTED: "pending_approval",
   APPROVED: "approved",
   WITHDRAWN: "withdrawn",
 };

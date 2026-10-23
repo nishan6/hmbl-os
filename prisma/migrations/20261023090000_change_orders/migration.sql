@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "ChangeOrderStatus" AS ENUM ('DRAFT', 'SUBMITTED', 'APPROVED', 'WITHDRAWN');
+CREATE TYPE "ChangeOrderStatus" AS ENUM ('DRAFT', 'APPROVED', 'WITHDRAWN');
 
 -- CreateTable
 CREATE TABLE "project_change_orders" (
@@ -20,11 +20,8 @@ CREATE TABLE "project_change_orders" (
     "clientApprovalMethod" "AcceptanceMethod",
     "clientApprovalReference" TEXT,
     "statusComment" TEXT,
-    "submittedAt" TIMESTAMP(3),
-    "submittedById" UUID,
     "decidedAt" TIMESTAMP(3),
     "decidedById" UUID,
-    "selfApproval" BOOLEAN NOT NULL DEFAULT false,
     "createdById" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -113,8 +110,7 @@ INSERT INTO "project_budget_versions" ("id", "projectId", "version", "costMinor"
 SELECT gen_random_uuid(), p.id, 1, p."budgetCostMinor", p."contractValueMinor", 'System', p."baselineLockedAt"
 FROM "projects" p WHERE p."baselineLockedAt" IS NOT NULL;
 
--- A change order's lines are fixed once it leaves draft. Approval may only
--- fill in the budget line it created for a new line.
+-- A change order's lines are fixed once it leaves draft.
 CREATE OR REPLACE FUNCTION project_change_order_lines_frozen() RETURNS trigger AS $$
 DECLARE
   co_status "ChangeOrderStatus";
@@ -123,10 +119,6 @@ BEGIN
    WHERE id = COALESCE(NEW."changeOrderId", OLD."changeOrderId");
   IF co_status = 'DRAFT' THEN
     RETURN COALESCE(NEW, OLD);
-  END IF;
-  IF TG_OP = 'UPDATE' AND co_status = 'SUBMITTED' AND OLD."budgetLineId" IS NULL
-     AND (to_jsonb(NEW) - 'budgetLineId') = (to_jsonb(OLD) - 'budgetLineId') THEN
-    RETURN NEW;
   END IF;
   RAISE EXCEPTION 'change order lines can only change while the change order is a draft'
     USING ERRCODE = 'check_violation';

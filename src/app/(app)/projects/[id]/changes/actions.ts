@@ -8,10 +8,8 @@ import {
   approveChangeOrder,
   createChangeOrder,
   recordClientApproval,
-  rejectChangeOrder,
   removeChangeOrderLine,
   saveChangeOrderLine,
-  submitChangeOrder,
   updateChangeOrder,
   withdrawChangeOrder,
   type ChangeOrderLineInput,
@@ -101,12 +99,8 @@ export async function changeOrderCommandAction(id: string, _: FormState, formDat
     const actor = await requireActor();
     const input = { comment };
     switch (command) {
-      case "submit":
-        return submitChangeOrder(actor, id, input);
       case "approve":
         return approveChangeOrder(actor, id, input);
-      case "reject":
-        return rejectChangeOrder(actor, id, input);
       case "withdraw":
         return withdrawChangeOrder(actor, id, input);
       default:

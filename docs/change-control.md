@@ -5,22 +5,13 @@ Once a project is approved, its original budget is fixed (see [budget.md](budget
 ## Workflow
 
 ```
-DRAFT ──submit──▶ SUBMITTED ──approve──▶ APPROVED (new budget version)
-  ▲                   │ send back (reason required)
-  └───────────────────┘
-DRAFT / SUBMITTED ──withdraw (reason required)──▶ WITHDRAWN
+DRAFT ──approve──▶ APPROVED (new budget version)
+DRAFT ──withdraw (reason required)──▶ WITHDRAWN
 ```
 
-| Step                          | Who             | Permission         |
-| ----------------------------- | --------------- | ------------------ |
-| Raise, edit, add lines        | Project manager | `projects.edit`    |
-| Record the client's agreement | Project manager | `projects.edit`    |
-| Submit                        | Project manager | `projects.submit`  |
-| Approve                       | Director        | `projects.approve` |
-| Send back                     | Director        | `projects.reject`  |
-| Withdraw                      | Project manager | `projects.edit`    |
+The project manager raises, edits, records the client's agreement, approves and withdraws, all with `projects.edit`. No Director approval is needed (Nishan, 2026-10-23); the audit log records who approved each change. People without `projects.edit` can view change orders, and see revenue amounts only unless they can see project costs.
 
-Change orders can only be raised on an approved project whose budget is fixed, and stop when the project is closed or cancelled. They are numbered per project: CO-01, CO-02 and so on. When the approver also submitted the change, it is marked **Own change** and the audit event records `selfApproval`.
+Change orders can only be raised on an approved project whose budget is fixed, and stop when the project is closed or cancelled. They are numbered per project: CO-01, CO-02 and so on.
 
 ## What a change order holds
 
@@ -28,7 +19,7 @@ Change orders can only be raised on an approved project whose budget is fixed, a
 - **Lines.** Each line moves an existing budget line up or down by a signed cost and revenue amount, or adds a new line. A new line can only add cost or revenue. A line with both amounts at zero is refused.
 - **The client's agreement.** This records the date, the person, the method and a reference. It is required before approval whenever the change alters revenue, and a database CHECK enforces this.
 
-The lines can only change while the change order is a draft, and a database trigger enforces this too. The change order's total cost and revenue are kept as the sum of its lines.
+The lines can only change while the change order is a draft, and a database trigger enforces this too. Approval needs at least one line. The change order's total cost and revenue are kept as the sum of its lines.
 
 ## Approval
 
@@ -51,4 +42,4 @@ Change orders don't change billing milestones. Extra revenue from a change is in
 
 ## Audit events
 
-`change_order.created`, `.updated`, `.line_saved`, `.line_removed`, `.client_approval_recorded`, `.submitted`, `.approved`, `.rejected`, `.withdrawn`. All of them are recorded against the project, with the change order in the metadata.
+`change_order.created`, `.updated`, `.line_saved`, `.line_removed`, `.client_approval_recorded`, `.approved`, `.withdrawn`. All of them are recorded against the project, with the change order in the metadata.
