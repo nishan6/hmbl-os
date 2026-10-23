@@ -5,6 +5,7 @@ import type { Actor } from "@/server/permissions/authorize";
 import { allocateNumber } from "@/server/numbering/service";
 import { planMilestones, readSchedule } from "./milestones";
 import { recordStatusChange } from "./projects";
+import { recordBudgetVersion } from "./versions";
 
 type Tx = Prisma.TransactionClient;
 
@@ -96,6 +97,7 @@ export async function createProjectFromVersion(
   });
   // The accepted quote is the original budget: lock it once the lines exist.
   await tx.project.update({ where: { id: project.id }, data: { baselineLockedAt: new Date() } });
+  await recordBudgetVersion(tx, actor, project, null);
   const milestones = planMilestones(readSchedule(version.paymentSchedule), version.totalMinor, {
     acceptedOn: acceptance.acceptedOn,
     eventStartDate: version.eventStartDate,

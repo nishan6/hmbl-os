@@ -15,6 +15,7 @@ import { optionalText, requiredText } from "@/lib/validation";
 import { isPreApproval } from "./lifecycle";
 import { assertChangeable, canSeeProjectCosts, loadProject, lockProject } from "./projects";
 import { optionalDate, optionalId } from "./schemas";
+import { approvedChangesByLine } from "./versions";
 
 type Tx = Prisma.TransactionClient;
 type Reader = Tx | typeof db;
@@ -51,8 +52,7 @@ export async function budgetFigures(
     }),
     reader.projectCostEntry.findMany({ where: { projectId: project.id } }),
   ]);
-  // Approved change orders per line; none until change control exists.
-  const changes = new Map<string, { costMinor: bigint; revenueMinor: bigint }>();
+  const changes = await approvedChangesByLine(reader, project.id);
   const rows = lines.map((line) => {
     const change = changes.get(line.id) ?? { costMinor: 0n, revenueMinor: 0n };
     return {

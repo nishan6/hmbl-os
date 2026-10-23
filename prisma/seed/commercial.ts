@@ -3,6 +3,7 @@ import { loadGrants } from "@/server/permissions/grants";
 import { createQuote, localToday, saveDraft } from "@/server/commercial/quotes";
 import { issueQuote } from "@/server/commercial/workflow";
 import { acceptQuote } from "@/server/commercial/acceptance";
+import { createChangeOrder, saveChangeOrderLine } from "@/server/projects/change-orders";
 
 async function actorFor(db: PrismaClient, userId: string) {
   const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
@@ -180,5 +181,20 @@ export async function seedDemoProject(db: PrismaClient, salesId: string, manager
   await db.project.update({
     where: { id: project.id },
     data: { projectTypeId: live.id, projectManagerId: managerId },
+  });
+  // A draft change order, part of the demo project.
+  const manager = await actorFor(db, managerId);
+  const order = await createChangeOrder(manager, project.id, {
+    title: "Extra follow spots (DEMO)",
+    reason: "The client asked for two more follow spots for the countdown.",
+  });
+  const crew = await db.projectBudgetLine.findFirstOrThrow({
+    where: { projectId: project.id, category: "CREW" },
+  });
+  await saveChangeOrderLine(manager, order.id, {
+    budgetLineId: crew.id,
+    cost: "14000",
+    revenue: "22000",
+    note: "Two operators for two days",
   });
 }

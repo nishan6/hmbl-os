@@ -37,4 +37,5 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 | Quote approvals, issuing and acceptance      | Built — see [commercial.md](commercial.md)                     |
 | Projects: lifecycle, types and details       | Built — see [projects.md](projects.md)                         |
 | Project budgets, costs and forecasts         | Built — see [budget.md](budget.md)                             |
+| Change control                               | Built — see [change-control.md](change-control.md)             |
 | Other business modules (finance…)            | Not started; listed in the navigation as "Planned"             |
