@@ -76,6 +76,8 @@ pnpm db:backup
 
 This writes `backups/hmbl_live-<date>-<time>.dump` and deletes backups older than 30 days (change with `BACKUP_KEEP_DAYS`).
 
+It also copies any new uploaded documents from the `storage` folder (`STORAGE_DIR`) into `backups/storage`. Documents are never deleted, and there is no size limit, so keep an eye on free disk space if you store large video files.
+
 Run it automatically:
 
 - **macOS or Linux**: run `crontab -e` and add (with your own path):
@@ -95,6 +97,8 @@ Restoring replaces everything in the database with the backup. Stop the app firs
 ```bash
 docker compose exec -T postgres pg_restore -U hmbl --clean --if-exists -d hmbl_live < backups/hmbl_live-YYYYMMDD-HHMMSS.dump
 ```
+
+Then copy the documents back: `cp -Rn backups/storage/. storage/`.
 
 Try a restore once into a scratch database (`createdb -U hmbl hmbl_restore_test`, then restore with `-d hmbl_restore_test`) so you know it works before you need it.
 

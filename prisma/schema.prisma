@@ -50,6 +50,7 @@ model User {
   scheduleItemsCreated   ProjectScheduleItem[]        @relation("ScheduleItemCreatedBy")
   scheduleItemsCompleted ProjectScheduleItem[]        @relation("ScheduleItemCompletedBy")
   resourcesCreated       ProjectResourceRequirement[] @relation("ResourceCreatedBy")
+  documentsUploaded      ProjectDocument[]            @relation("DocumentUploadedBy")
 
   @@map("users")
 }
@@ -1040,6 +1041,8 @@ model Project {
   budgetVersions ProjectBudgetVersion[]
   scheduleItems  ProjectScheduleItem[]
   resources      ProjectResourceRequirement[]
+  documents      ProjectDocument[]
+  closeoutItems  ProjectCloseoutItem[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1324,4 +1327,73 @@ model ProjectResourceRequirement {
 
   @@index([projectId, kind])
   @@map("project_resource_requirements")
+}
+
+enum DocumentCategory {
+  CONTRACT
+  CLIENT_PO
+  TECHNICAL
+  CALL_SHEET
+  TRAVEL
+  DELIVERABLE
+  CLOSEOUT_REPORT
+  OTHER
+}
+
+/// A file attached to a project. The bytes live on disk under STORAGE_DIR
+/// (`storageKey`); a new version is a new row and a new file, so files are
+/// never overwritten. Documents are archived, never deleted.
+model ProjectDocument {
+  id                String           @id @default(uuid()) @db.Uuid
+  projectId         String           @db.Uuid
+  project           Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  category          DocumentCategory
+  title             String
+  fileName          String
+  contentType       String
+  sizeBytes         BigInt
+  sha256            String           @db.Char(64)
+  storageKey        String           @unique
+  version           Int              @default(1)
+  // The version this one replaces; that one gets `supersededAt`.
+  previousVersionId String?          @unique @db.Uuid
+  previousVersion   ProjectDocument? @relation("DocumentVersions", fields: [previousVersionId], references: [id], onDelete: Restrict)
+  nextVersion       ProjectDocument? @relation("DocumentVersions")
+  supersededAt      DateTime?
+  archivedAt        DateTime?
+  archiveReason     String?
+  uploadedById      String           @db.Uuid
+  uploadedBy        User             @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  uploadedAt        DateTime         @default(now())
+
+  @@index([projectId, category])
+  @@map("project_documents")
+}
+
+enum CloseoutItemKey {
+  INVOICES_ISSUED
+  PAYMENTS_COLLECTED
+  VENDOR_BILLS_RECEIVED
+  CREW_SETTLED
+  EQUIPMENT_RETURNED
+  EXPENSES_RECONCILED
+  FINAL_REPORT
+}
+
+/// One closeout requirement, ticked off (or marked not applicable) before
+/// the project closes. A missing row means not done yet.
+model ProjectCloseoutItem {
+  id             String          @id @default(uuid()) @db.Uuid
+  projectId      String          @db.Uuid
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key            CloseoutItemKey
+  doneAt         DateTime?
+  notApplicable  Boolean         @default(false)
+  note           String?
+  updatedById    String?         @db.Uuid
+  updatedByLabel String
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([projectId, key])
+  @@map("project_closeout_items")
 }

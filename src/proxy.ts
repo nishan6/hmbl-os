@@ -15,6 +15,10 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except sign-in, the auth and health APIs, and static assets.
-  matcher: ["/((?!sign-in|api/auth|api/health|_next/static|_next/image|favicon.ico).*)"],
+  // Everything except sign-in, the auth, health and upload APIs, and static
+  // assets. Uploads stream large bodies the proxy would buffer and cut off;
+  // their route handler checks the session itself.
+  matcher: [
+    "/((?!sign-in|api/auth|api/health|api/uploads|_next/static|_next/image|favicon.ico).*)",
+  ],
 };

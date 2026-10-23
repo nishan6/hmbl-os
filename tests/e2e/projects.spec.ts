@@ -161,3 +161,32 @@ test("a crew role is planned against its budget line", async ({ page }) => {
   const check = page.getByRole("region", { name: "Plan against budget" });
   await expect(check.getByRole("row", { name: /Show crew/ })).toContainText("Over by");
 });
+
+test("a large document is uploaded and downloaded", async ({ page }) => {
+  const title = `E2E LED content ${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/projects");
+  await page
+    .getByRole("row", { name: /New Year gala/ })
+    .getByRole("link", { name: /^P-/ })
+    .click();
+  await page.getByRole("link", { name: "Documents", exact: true }).click();
+
+  // Bigger than the proxy's 10 MB buffer: the upload route streams it.
+  const upload = page.getByRole("region", { name: "Documents" }).locator("form").last();
+  await upload.getByLabel("Category").selectOption({ label: "Technical document" });
+  await upload.getByLabel("Title").fill(title);
+  await upload.getByLabel("File").setInputFiles({
+    name: "content.mov",
+    mimeType: "video/quicktime",
+    buffer: Buffer.alloc(12 * 1024 * 1024, 7),
+  });
+  await upload.getByRole("button", { name: "Upload" }).click();
+  await expect(upload.getByText("Uploaded content.mov")).toBeVisible();
+  const row = page.getByRole("row", { name: new RegExp(title) });
+  await expect(row).toContainText("12 MB");
+  const href = await row.getByRole("link", { name: title }).getAttribute("href");
+  const download = await page.request.get(href!);
+  expect(download.status()).toBe(200);
+  expect((await download.body()).length).toBe(12 * 1024 * 1024);
+});

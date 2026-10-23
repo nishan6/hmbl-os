@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Backs up the HMBL OS database from the local Docker Postgres.
+# Backs up the HMBL OS database from the local Docker Postgres, and copies
+# new uploaded documents.
 # Usage: scripts/backup-db.sh [database]   (default: hmbl_live)
 # Keeps 30 days of backups in ./backups. See docs/running-locally.md.
 set -euo pipefail
@@ -16,3 +17,13 @@ mv "$file.partial" "$file"
 echo "Backed up $database to $file ($(du -h "$file" | cut -f1))"
 
 find backups -name "${database}-*.dump" -mtime +"$keep_days" -print -delete
+
+# Uploaded documents. Files are never changed once written, so copying the
+# ones not yet in the backup is enough (docs/documents.md).
+storage="${STORAGE_DIR:-$(grep -E '^STORAGE_DIR=' .env 2>/dev/null | cut -d= -f2- || true)}"
+storage="${storage:-storage}"
+if [ -d "$storage" ]; then
+  mkdir -p backups/storage
+  cp -Rn "$storage"/. backups/storage/
+  echo "Copied new documents from $storage to backups/storage"
+fi

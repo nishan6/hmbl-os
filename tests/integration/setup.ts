@@ -1,8 +1,10 @@
+import { tmpdir } from "node:os";
 import { afterAll, beforeEach } from "vitest";
 import { testDatabaseUrl } from "./test-database";
 
 process.env.DATABASE_URL = testDatabaseUrl();
 process.env.APP_ENV = "test";
+process.env.STORAGE_DIR = `${tmpdir()}/hmbl-test-storage`;
 
 const { db } = await import("@/server/db");
 

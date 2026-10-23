@@ -11,6 +11,8 @@ const TABS = [
   { path: "/resources", label: "Crew and equipment" },
   { path: "/budget", label: "Budget", costs: true },
   { path: "/changes", label: "Change orders" },
+  { path: "/documents", label: "Documents" },
+  { path: "/closeout", label: "Closeout" },
 ] as const;
 
 export type ProjectTab = (typeof TABS)[number]["path"];

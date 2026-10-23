@@ -7,6 +7,8 @@ const envSchema = z.object({
   // Signs session cookies. Generate with: openssl rand -base64 32
   BETTER_AUTH_SECRET: z.string().min(32, "must be at least 32 characters"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  // Where uploaded documents are kept. Back it up with the database.
+  STORAGE_DIR: z.string().min(1).default("storage"),
 });
 
 export type Env = z.infer<typeof envSchema>;
