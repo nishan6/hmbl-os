@@ -6,6 +6,7 @@ import "dotenv/config";
 import { db } from "@/server/db";
 import { env } from "@/lib/env";
 import { ensureDefaultRoles } from "@/server/permissions/roles";
+import { ensureMasterDataDefaults } from "@/server/master-data/defaults";
 import { assignRole, createUser } from "@/server/users/service";
 import { seedDemoOrganisation } from "./seed/organisation";
 import { seedDemoTwoFactor } from "./seed/two-factor";
@@ -30,6 +31,8 @@ async function main() {
   }
   const createdRoles = await ensureDefaultRoles(db);
   console.log(`Roles created: ${createdRoles.join(", ") || "none (already present)"}`);
+  const masterData = await ensureMasterDataDefaults(db);
+  console.log(`Master data defaults created: ${masterData.length}`);
 
   const { india } = await seedDemoOrganisation(db);
   console.log("Demo organisation: DEMO-IN, DEMO-AE");

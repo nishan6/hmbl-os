@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/server/db";
 import { withUniqueConflict } from "@/server/db-errors";
 import { recordAudit } from "@/server/audit/record";
+import { addMissingDefaultSchemes } from "@/server/numbering/defaults";
 import { diffChanges } from "@/server/audit/diff";
 import {
   authorize,
@@ -98,6 +99,8 @@ export async function createLegalEntity(actor: Actor, input: LegalEntityInput) {
         legalEntityId: entity.id,
         changes: created(entity, ENTITY_FIELDS),
       });
+      // Every entity can number quotes, projects and invoices from day one.
+      await addMissingDefaultSchemes(tx, actor, entity);
       return entity;
     }),
   );

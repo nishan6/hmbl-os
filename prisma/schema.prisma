@@ -393,3 +393,85 @@ model NumberCounter {
   @@id([schemeId, periodKey])
   @@map("number_counters")
 }
+
+// ─── Master data: tax rates, payment terms, units ─────────────────────────────
+// Group-wide configuration. Documents copy the values they use (rate, label,
+// instalments) so later changes never rewrite an issued quote or invoice.
+
+enum TaxTreatment {
+  STANDARD // a positive rate, e.g. GST 18%
+  ZERO_RATED // taxable at 0%, e.g. exports of services
+  EXEMPT
+  OUT_OF_SCOPE
+}
+
+// A tax rate for one country. Rates are basis points (1800 = 18%) and never
+// change once created: archive and replace instead.
+model TaxRate {
+  id          String       @id @default(uuid()) @db.Uuid
+  countryCode String       @db.Char(2)
+  code        String
+  name        String
+  rateBps     Int
+  treatment   TaxTreatment @default(STANDARD)
+  // The rate new lines get for entities in this country. One per country.
+  isDefault   Boolean      @default(false)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([countryCode, code])
+  @@unique([countryCode], map: "tax_rates_one_default_per_country_key", where: raw("\"isDefault\" AND status = 'ACTIVE'"))
+  @@map("tax_rates")
+}
+
+enum PaymentTrigger {
+  ON_ACCEPTANCE // advance, due when the client accepts
+  BEFORE_START // `days` before the project or event starts
+  ON_DELIVERY // when the work is delivered
+  AFTER_DELIVERY // `days` after delivery
+}
+
+// A named payment schedule, e.g. "50% advance, balance on delivery".
+model PaymentTerm {
+  id          String                  @id @default(uuid()) @db.Uuid
+  code        String                  @unique
+  name        String
+  description String?
+  // Used for new quotes. At most one active default.
+  isDefault   Boolean                 @default(false)
+  status      RecordStatus            @default(ACTIVE)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  instalments PaymentTermInstalment[]
+
+  @@unique([isDefault], map: "payment_terms_one_default_key", where: raw("\"isDefault\" AND status = 'ACTIVE'"))
+  @@map("payment_terms")
+}
+
+// One instalment of a payment term. Percentages of a term add up to 100%.
+model PaymentTermInstalment {
+  id            String         @id @default(uuid()) @db.Uuid
+  paymentTermId String         @db.Uuid
+  paymentTerm   PaymentTerm    @relation(fields: [paymentTermId], references: [id], onDelete: Cascade)
+  position      Int
+  label         String
+  percentBps    Int
+  trigger       PaymentTrigger
+  days          Int            @default(0)
+
+  @@unique([paymentTermId, position])
+  @@map("payment_term_instalments")
+}
+
+// A unit of measure for quantities: each, day, hour, set, show…
+model Unit {
+  id        String       @id @default(uuid()) @db.Uuid
+  code      String       @unique
+  name      String
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("units")
+}

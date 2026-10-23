@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { db } from "@/server/db";
 import {
   allocateNumber,
+  addDefaultNumberingSchemes,
   archiveNumberingScheme,
   createNumberingScheme,
   listNumberingSchemes,
@@ -10,6 +11,8 @@ import {
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { makeActor, makeScopedActor } from "../helpers/actors";
 import { makeEntity } from "../helpers/organisation";
+import { createLegalEntity } from "@/server/organisation/service";
+import { DOCUMENT_TYPES } from "@/server/numbering/document-types";
 
 async function setup(
   pattern = "Q-{FY}-{SEQ:4}",
@@ -153,5 +156,47 @@ describe("allocateNumber", () => {
     await expect(issue(entity.id)).rejects.toBeInstanceOf(ConflictError);
     const other = await makeEntity();
     await expect(issue(other.id)).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("default number formats", () => {
+  const typeCount = Object.keys(DOCUMENT_TYPES).length;
+
+  it("gives a new entity a format for every document type, with India's April fiscal year", async () => {
+    const owner = await makeActor("owner");
+    const entity = await createLegalEntity(owner, {
+      code: "NEW-IN",
+      legalName: "New India Pvt Ltd",
+      countryCode: "IN",
+      baseCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const schemes = await db.numberingScheme.findMany({ where: { legalEntityId: entity.id } });
+    expect(schemes).toHaveLength(typeCount);
+    expect(schemes.every((s) => s.fiscalYearStartMonth === 4 && !s.isDemo)).toBe(true);
+    expect(
+      await db.auditEvent.count({
+        where: { action: "numbering_scheme.created", legalEntityId: entity.id },
+      }),
+    ).toBe(typeCount);
+    await expect(issue(entity.id, new Date("2026-10-23T00:00:00Z"))).resolves.toMatchObject({
+      number: "Q-2627-0001",
+    });
+  });
+
+  it("fills in only the missing formats for an existing entity", async () => {
+    const { owner, entity } = await setup();
+    const added = await addDefaultNumberingSchemes(owner, entity.id);
+    expect(added).not.toContain("quotation");
+    expect(added).toHaveLength(typeCount - 1);
+    expect(await addDefaultNumberingSchemes(owner, entity.id)).toEqual([]);
+  });
+
+  it("needs configuration rights in that entity", async () => {
+    const entity = await makeEntity();
+    const admin = await makeScopedActor("sales", entity.id);
+    await expect(addDefaultNumberingSchemes(admin, entity.id)).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
   });
 });

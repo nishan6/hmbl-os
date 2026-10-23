@@ -21,14 +21,15 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 
 ## What exists
 
-| Area                                       | State                                                          |
-| ------------------------------------------ | -------------------------------------------------------------- |
-| Scaffold, CI, local Postgres, env template | Built                                                          |
-| Authentication, roles and permissions      | Built — see [auth-and-permissions.md](auth-and-permissions.md) |
-| Two-factor sign-in                         | Built — see [auth-and-permissions.md](auth-and-permissions.md) |
-| Running locally with backups               | Built — see [running-locally.md](running-locally.md)           |
-| Legal entities and organisation structure  | Built — see [organisation.md](organisation.md)                 |
-| Audit log                                  | Built — see [audit-log.md](audit-log.md)                       |
-| Numbering schemes                          | Built — see [numbering.md](numbering.md)                       |
-| Design system and app shell                | Built — see [design-system.md](design-system.md)               |
-| Business modules (CRM, finance and so on)  | Not started; listed in the navigation as "Planned"             |
+| Area                                         | State                                                          |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| Scaffold, CI, local Postgres, env template   | Built                                                          |
+| Authentication, roles and permissions        | Built — see [auth-and-permissions.md](auth-and-permissions.md) |
+| Two-factor sign-in                           | Built — see [auth-and-permissions.md](auth-and-permissions.md) |
+| Running locally with backups                 | Built — see [running-locally.md](running-locally.md)           |
+| Legal entities and organisation structure    | Built — see [organisation.md](organisation.md)                 |
+| Audit log                                    | Built — see [audit-log.md](audit-log.md)                       |
+| Numbering schemes                            | Built — see [numbering.md](numbering.md)                       |
+| Design system and app shell                  | Built — see [design-system.md](design-system.md)               |
+| Master data: tax rates, payment terms, units | Built — see [master-data.md](master-data.md)                   |
+| Business modules (CRM, finance and so on)    | Not started; listed in the navigation as "Planned"             |

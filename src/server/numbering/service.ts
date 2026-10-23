@@ -9,6 +9,7 @@ import { getLegalEntity } from "@/server/organisation/service";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { parseInput } from "@/lib/parse";
 import { DOCUMENT_TYPES, type DocumentType } from "./document-types";
+import { addMissingDefaultSchemes } from "./defaults";
 import { formatNumber, periodKey, validatePattern } from "./pattern";
 import { numberingSchemeInput, type NumberingSchemeInput } from "./schemas";
 
@@ -137,4 +138,13 @@ export async function allocateNumber(
     RETURNING "lastValue"`;
   const sequence = row!.lastValue;
   return { number: formatNumber(scheme, ctx, sequence), schemeId: scheme.id, sequence };
+}
+
+/** Adds the default format for each document type an entity has no active format for. */
+export async function addDefaultNumberingSchemes(actor: Actor, legalEntityId: string) {
+  const entity = await getLegalEntity(actor, legalEntityId);
+  authorize(actor, "organisation.configure", { legalEntityId });
+  return withUniqueConflict("Another change added formats at the same time. Try again.", () =>
+    db.$transaction((tx) => addMissingDefaultSchemes(tx, actor, entity)),
+  );
 }
