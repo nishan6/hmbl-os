@@ -87,9 +87,11 @@ export async function issueSimpleInvoice(
     taxCode?: string;
     invoiceDate?: string;
     dueDate?: string;
+    kind?: "PROFORMA" | "COMMERCIAL" | "TAX";
+    serviceCode?: string;
   } = {},
 ) {
-  const invoice = await createInvoice(actor, entityId, { clientId });
+  const invoice = await createInvoice(actor, entityId, { clientId, kind: options.kind });
   const rate = await taxRate(options.taxCode ?? "GST18");
   const revenue = await db.ledgerAccount.findUniqueOrThrow({
     where: { legalEntityId_systemKey: { legalEntityId: entityId, systemKey: "REVENUE" } },
@@ -101,6 +103,7 @@ export async function issueSimpleInvoice(
     fxRate: options.fxRate,
     placeOfSupplyCountry: invoice.placeOfSupplyCountry,
     placeOfSupplyCode: invoice.placeOfSupplyCode,
+    serviceCode: options.serviceCode,
     lines: [
       {
         description: "Event services",

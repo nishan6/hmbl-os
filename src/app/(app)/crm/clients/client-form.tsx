@@ -154,6 +154,21 @@ export function ClientForm({
               <Input name="currency" defaultValue={f.value("currency")} maxLength={3} {...p} />
             )}
           </Field>
+          <Field
+            label="Invoice code"
+            description="In invoice numbers, e.g. MAG. Blank for one-off clients, who share INT"
+            errors={f.errors("invoiceCode")}
+          >
+            {(p) => (
+              <Input
+                name="invoiceCode"
+                defaultValue={f.value("invoiceCode")}
+                maxLength={6}
+                className="font-mono uppercase"
+                {...p}
+              />
+            )}
+          </Field>
         </div>
       </fieldset>
 

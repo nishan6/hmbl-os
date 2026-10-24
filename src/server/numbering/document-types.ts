@@ -1,3 +1,5 @@
+import type { DocumentField } from "./pattern";
+
 /**
  * Documents that get a human-readable number. Modules add their type here when
  * they start issuing numbers.
@@ -5,7 +7,8 @@
 export const DOCUMENT_TYPES = {
   quotation: { label: "Quotation", scope: "entity" },
   project: { label: "Project", scope: "entity" },
-  sales_invoice: { label: "Sales invoice", scope: "entity" },
+  // Proforma, commercial and tax invoices share this series.
+  sales_invoice: { label: "Sales invoice", scope: "entity", fields: ["CLIENT", "SERVICE"] },
   credit_note: { label: "Credit note", scope: "entity" },
   receipt: { label: "Receipt", scope: "entity" },
   purchase_order: { label: "Purchase order", scope: "entity" },
@@ -14,9 +17,18 @@ export const DOCUMENT_TYPES = {
   expense_claim: { label: "Expense claim", scope: "entity" },
   staff_advance: { label: "Staff advance", scope: "entity" },
   journal: { label: "Journal", scope: "entity" },
-} as const satisfies Record<string, { label: string; scope: "entity" | "group" }>;
+} as const satisfies Record<
+  string,
+  { label: string; scope: "entity" | "group"; fields?: readonly DocumentField[] }
+>;
 
 export type DocumentType = keyof typeof DOCUMENT_TYPES;
+
+/** The {CLIENT}/{SERVICE} values a document type can supply to its number. */
+export function documentFields(type: DocumentType): readonly DocumentField[] {
+  const spec = DOCUMENT_TYPES[type];
+  return "fields" in spec ? spec.fields : [];
+}
 
 export function isDocumentType(value: string): value is DocumentType {
   return Object.hasOwn(DOCUMENT_TYPES, value);

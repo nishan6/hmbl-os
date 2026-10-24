@@ -5,6 +5,7 @@ import { listInvoices } from "@/server/finance/invoices";
 import type { InvoiceStatus } from "@/generated/prisma/enums";
 import { formatDate, formatMoney } from "@/lib/format";
 import { paymentState } from "@/lib/invoice";
+import { INVOICE_KINDS, type InvoiceKind } from "@/lib/invoice-kinds";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/page";
@@ -26,7 +27,9 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/finance
   const { actor, params, entities, entity } = await loadFinancePage(searchParams);
   const q = param(params.q) ?? "";
   const status = param(params.status) as InvoiceStatus | undefined;
+  const kind = param(params.kind) as InvoiceKind | undefined;
   const invoices = await listInvoices(actor, {
+    kind: kind && kind in INVOICE_KINDS ? kind : undefined,
     legalEntityId: entity.id,
     search: q,
     status: status && status in STATUSES ? status : undefined,
@@ -37,7 +40,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/finance
     <>
       <FinanceHeader
         title="Invoices"
-        description="Tax invoices to clients, and what is still owed on them."
+        description="Proforma, commercial and tax invoices to clients, and what is still owed on the tax invoices."
         entity={entity}
         entities={entities}
         current="/finance/invoices"
@@ -75,6 +78,17 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/finance
             </option>
           ))}
         </Select>
+        <label className="sr-only" htmlFor="invoice-kind">
+          Type
+        </label>
+        <Select id="invoice-kind" name="kind" defaultValue={kind ?? ""} className="w-auto">
+          <option value="">All types</option>
+          {Object.entries(INVOICE_KINDS).map(([value, k]) => (
+            <option key={value} value={value}>
+              {k.label}
+            </option>
+          ))}
+        </Select>
         <Button type="submit">
           <Search aria-hidden />
           Search
@@ -86,6 +100,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/finance
             <tr>
               <TH>Date</TH>
               <TH>Number</TH>
+              <TH>Type</TH>
               <TH>Client</TH>
               <TH>Project</TH>
               <TH>Status</TH>
@@ -97,6 +112,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/finance
           <TBody>
             {invoices.map((i) => {
               const money = (minor: bigint) => formatMoney(minor, i.currency);
+              const owed = i.status === "ISSUED" && i.kind === "TAX";
               return (
                 <TR key={i.id}>
                   <TD className="tabular text-secondary whitespace-nowrap">
@@ -110,14 +126,13 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/finance
                       {i.number ?? "Draft"}
                     </Link>
                   </TD>
+                  <TD className="text-secondary">{INVOICE_KINDS[i.kind].short}</TD>
                   <TD>{i.clientName}</TD>
                   <TD className="text-secondary tabular">{i.project?.number ?? ""}</TD>
                   <TD>
                     <StatusBadge
                       status={
-                        i.status === "ISSUED"
-                          ? PAYMENT_STATUS[paymentState(i, i, now)]
-                          : DOCUMENT_STATUS[i.status]
+                        owed ? PAYMENT_STATUS[paymentState(i, i, now)] : DOCUMENT_STATUS[i.status]
                       }
                     />
                   </TD>
@@ -125,7 +140,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/finance
                     {formatDate(i.dueDate, "UTC")}
                   </TD>
                   <TD align="right">{money(i.totalMinor)}</TD>
-                  <TD align="right">{i.status === "ISSUED" ? money(i.outstandingMinor) : ""}</TD>
+                  <TD align="right">{owed ? money(i.outstandingMinor) : ""}</TD>
                 </TR>
               );
             })}

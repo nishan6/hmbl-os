@@ -33,6 +33,7 @@ function clientFrom(v: Record<string, string>): ClientInput {
     postalCode: v.postalCode,
     countryCode: v.countryCode ?? "",
     currency: v.currency ?? "",
+    invoiceCode: v.invoiceCode,
     ownerId: v.ownerId || null,
     notes: v.notes,
     allowDuplicate: v.allowDuplicate,

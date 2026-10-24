@@ -48,7 +48,9 @@ test("finance issues a GST invoice, credits part of it and prints both", async (
   await page.getByRole("button", { name: "Start invoice" }).click();
 
   // DEMO-IN and the client are both in Maharashtra: CGST and SGST.
-  await expect(page.getByRole("heading", { level: 1, name: /^Draft invoice to/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: /^Draft tax invoice to/ }),
+  ).toBeVisible();
   await expect(page.getByText("Within the state (CGST + SGST)")).toBeVisible();
   await page.getByLabel("Line 1 description").fill(line);
   await page.getByLabel("Line 1 rate").fill("50,000");
@@ -82,6 +84,55 @@ test("finance issues a GST invoice, credits part of it and prints both", async (
 
   await page.goto(invoiceUrl);
   await expect(page.getByRole("definition").filter({ hasText: "₹47,200.00" })).toBeVisible();
+});
+
+test("finance sends a commercial invoice, then turns it into the tax invoice", async ({ page }) => {
+  const line = `E2E stage rental ${Date.now().toString(36)}`;
+  await signIn(page, DEMO.owner);
+  await page.goto("/finance/invoices");
+  await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+  await page.getByRole("button", { name: "Show" }).click();
+  await page.getByRole("link", { name: "New invoice" }).click();
+  // Let the form hydrate first, or React resets the choice to its default.
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("combobox", { name: "Type" }).selectOption({ label: "Commercial invoice" });
+  await page
+    .getByRole("combobox", { name: "Client" })
+    .selectOption({ label: "Demo Arena Live (DEMO)" });
+  await page.getByRole("button", { name: "Start invoice" }).click();
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: /^Draft commercial invoice to/ }),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Service" })
+    .selectOption({ label: "VLR · DEMO Rental service" });
+  await page.getByLabel("Line 1 description").fill(line);
+  await page.getByLabel("Line 1 rate").fill("20,000");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("A commercial invoice is not a tax invoice")).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Issue" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: /^Commercial invoice INV\// }),
+  ).toBeVisible();
+  const commercial = (await page.getByRole("heading", { level: 1 }).textContent())!.replace(
+    "Commercial invoice ",
+    "",
+  );
+  await expect(page.getByRole("link", { name: "Record receipt" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Make tax invoice" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: /^Draft tax invoice to/ }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Line 1 description")).toHaveValue(line);
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByRole("link", { name: `Commercial invoice ${commercial}` })).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Issue" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Invoice INV\// })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Record receipt" })).toBeVisible();
 });
 
 test("finance records a receipt with TDS that settles an invoice", async ({ page }) => {

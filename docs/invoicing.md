@@ -9,10 +9,34 @@ Sales invoices bill clients and post to the ledger (spec §11, "Accounts receiva
 
 - **Starting.** An invoice is for one client, optionally for one of the client's projects in the same entity. Choosing a billing milestone starts the draft with one line for the milestone's share of the contract value at the default GST rate, and takes the milestone's due date.
 - **Drafting.** Each line has a description, a SAC code (default `998596`, event services), quantity, rate, GST rate and the income account it credits. Totals are recalculated from the lines on every save.
-- **Issuing** (`finance.issue`) takes the next number from the entity's `sales_invoice` series (`INV/2627/00001` by default), copies the client's and the entity's names, addresses and GSTINs onto the invoice, and posts the journal in the same transaction. An issued invoice can't change: a database trigger refuses any edit except recording revenue recognition once.
+- **Issuing** (`finance.issue`) takes the next number from the entity's `sales_invoice` series (`INV/2627/00001` by default, see [Invoice numbers](#invoice-numbers)), copies the client's and the entity's names, addresses and GSTINs onto the invoice, and posts the journal in the same transaction. An issued invoice can't change: a database trigger refuses any edit except recording revenue recognition once.
 - **Correcting** is by credit note, never by editing or cancelling the invoice.
 
 Finance creates and issues invoices. There is no approval step before issuing.
+
+## Proforma, commercial and tax invoices
+
+HMBL bills in up to three steps, and all three take their numbers from the same `sales_invoice` series (Nishan, 2026-10-24):
+
+| Type               | Used for                                                      | Posts to the ledger                       |
+| ------------------ | ------------------------------------------------------------- | ----------------------------------------- |
+| Proforma invoice   | An estimate of the bill before the work                       | No                                        |
+| Commercial invoice | Sent so the client pays, GST included, before the tax invoice | No                                        |
+| Tax invoice        | The GST invoice, sent once the client has paid                | Yes: receivable, income and GST, as below |
+
+The type is chosen when the invoice is started (`kind` on `sales_invoices`, default `TAX`). A proforma or commercial invoice is drafted, numbered and frozen like a tax invoice, but issuing it posts nothing, so it is never owed: it has no receivable, no outstanding amount, and receipts and credit notes can't point at it. Money the client pays against a commercial invoice is recorded as a receipt without allocation, which waits as a client advance until the tax invoice is issued and the receipt is allocated to it.
+
+**Make tax invoice** (or **Make commercial invoice** from a proforma) on an issued invoice drafts the next type with the same client, project, service and lines, dated today, linked back to its source (`makeInvoiceFrom`, `finance.create`). It gets its own number when issued. Each invoice becomes each later type at most once; a unique index on `(sourceInvoiceId, kind)` enforces it. The database also refuses a tax invoice issued without its journal, an earlier type with one, and a receipt allocation or credit note against anything but a tax invoice.
+
+Only tax invoices count in receivables, the receipts screen, the finance dashboard's drafts and the period-close checklist.
+
+## Invoice numbers
+
+HMBL's own format is `{FYS}-{CLIENT}-{SERVICE}-{CSEQ:2}-{SEQ:2}`, e.g. `26-MAG-VLR-03-08`: FY 2026-27, Magnanimous, a rental, MAG's third invoice and the eighth overall. See [numbering](numbering.md) for the tokens.
+
+- **Client code** (`{CLIENT}`) is the client's _Invoice code_ on the client record (2–6 capitals or digits, unique among active clients). Clients without one are one-off clients and share `INT`, so they share one per-client count too. No client may hold `INT` itself.
+- **Service** (`{SERVICE}`) is picked on each invoice from the entity's invoice services (Finance → Settings → Invoice services, `finance.configure`), e.g. `VLR` rental service and `LDS` live design services. A service's code never changes once added; archive it to stop using it.
+- An invoice whose number needs a service can't be issued without one, and nothing is used up when it's refused.
 
 ## GST
 

@@ -8,6 +8,7 @@ import { AppError } from "@/lib/errors";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { GST_STATES, SUPPLY_TYPES } from "@/lib/gst";
 import { paymentState } from "@/lib/invoice";
+import { INVOICE_KINDS } from "@/lib/invoice-kinds";
 import { formatBps } from "@/lib/percent";
 import { ActionButton } from "@/components/ui/action-button";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import { StatusBadge } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { FinanceHeader, withEntity } from "../../_components/finance-header";
 import { DOCUMENT_STATUS, PAYMENT_STATUS } from "../../_components/status";
-import { invoiceCommandAction } from "../actions";
+import { invoiceCommandAction, makeInvoiceFromAction } from "../actions";
 
 export const metadata = { title: "Invoice" };
 
@@ -33,6 +34,18 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
   const command = invoiceCommandAction.bind(null, inv.id);
   const account = (accountId: string) => inv.revenueAccounts.find((a) => a.id === accountId);
   const issued = inv.status === "ISSUED";
+  const kind = INVOICE_KINDS[inv.kind];
+  const tax = inv.kind === "TAX";
+  const owed = issued && tax;
+  const invoiceLink = (i: {
+    id: string;
+    number: string | null;
+    kind: keyof typeof INVOICE_KINDS;
+  }) => (
+    <Link href={`/finance/invoices/${i.id}`} className="text-accent hover:underline">
+      {INVOICE_KINDS[i.kind].label} {i.number ?? "(draft)"}
+    </Link>
+  );
   const placeOfSupply =
     inv.placeOfSupplyCountry === "IN"
       ? inv.placeOfSupplyCode
@@ -49,11 +62,15 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
   return (
     <>
       <FinanceHeader
-        title={inv.number ? `Invoice ${inv.number}` : `Draft invoice to ${inv.clientName}`}
+        title={
+          inv.number
+            ? `${tax ? "Invoice" : kind.label} ${inv.number}`
+            : `Draft ${kind.label.toLowerCase()} to ${inv.clientName}`
+        }
         description={
           <>
             <StatusBadge status={DOCUMENT_STATUS[inv.status]} />
-            {issued ? (
+            {owed ? (
               <StatusBadge status={PAYMENT_STATUS[paymentState(inv, inv, new Date())]} />
             ) : null}
           </>
@@ -70,7 +87,7 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
               <Button asChild>
                 <Link href={`/print/invoices/${inv.id}`}>
                   <Printer aria-hidden />
-                  {issued ? "Tax invoice" : "Preview"}
+                  {issued ? kind.label : "Preview"}
                 </Link>
               </Button>
             ) : null}
@@ -102,6 +119,18 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
                 <Link href={`/finance/invoices/${inv.id}/credit`}>Credit note</Link>
               </Button>
             ) : null}
+            {inv.actions.makeFrom.map((k) => (
+              <ActionButton
+                key={k}
+                action={makeInvoiceFromAction.bind(null, inv.id)}
+                fields={{ kind: k }}
+                variant={k === "TAX" ? "primary" : "secondary"}
+                size="md"
+                pendingLabel="Drafting…"
+              >
+                Make {INVOICE_KINDS[k].label.toLowerCase()}
+              </ActionButton>
+            ))}
             {inv.actions.recognise ? (
               <ActionButton
                 action={command}
@@ -121,7 +150,11 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
                 variant="primary"
                 size="md"
                 pendingLabel="Issuing…"
-                confirm="Issue this invoice? It gets its number and is posted to the ledger. After that it can only be corrected with a credit note."
+                confirm={
+                  tax
+                    ? "Issue this invoice? It gets its number and is posted to the ledger. After that it can only be corrected with a credit note."
+                    : `Issue this ${kind.label.toLowerCase()}? It takes the next number from the invoice series and can't change after. Nothing is posted to the ledger.`
+                }
               >
                 Issue
               </ActionButton>
@@ -137,6 +170,15 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
           </Alert>
         </div>
       ) : null}
+      {!tax && inv.status !== "DISCARDED" ? (
+        <div className="mb-6">
+          <Alert tone="info" title={`A ${kind.label.toLowerCase()} is not a tax invoice`}>
+            It asks the client to pay but posts nothing: no receivable and no GST. Record the
+            client&apos;s payment as a receipt; it waits as an advance until you make the tax
+            invoice and allocate it there.
+          </Alert>
+        </div>
+      ) : null}
       {inv.revenueDeferred && !inv.revenueRecognisedAt ? (
         <div className="mb-6">
           <Alert tone="info" title="Revenue held as client advances">
@@ -149,6 +191,25 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
       <Section title="Details">
         <DetailList
           items={[
+            { label: "Type", value: kind.label },
+            ...(inv.serviceCode ? [{ label: "Service", value: inv.serviceCode }] : []),
+            ...(inv.sourceInvoice
+              ? [{ label: "Made from", value: invoiceLink(inv.sourceInvoice) }]
+              : []),
+            ...(inv.madeFrom.length
+              ? [
+                  {
+                    label: "Made into",
+                    value: (
+                      <span className="flex flex-wrap gap-3">
+                        {inv.madeFrom.map((m) => (
+                          <span key={m.id}>{invoiceLink(m)}</span>
+                        ))}
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
             {
               label: "Client",
               value: (
@@ -269,7 +330,7 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
           <dd className="border-border tabular mt-1 border-t pt-2 text-right font-semibold">
             {money(inv.totalMinor)}
           </dd>
-          {issued ? (
+          {owed ? (
             <>
               <dt className="text-secondary">Credited</dt>
               <dd className="tabular text-right">{money(inv.creditedMinor)}</dd>

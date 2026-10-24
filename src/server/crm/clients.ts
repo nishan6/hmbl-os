@@ -40,6 +40,7 @@ const CLIENT_FIELDS = [
   "postalCode",
   "countryCode",
   "currency",
+  "invoiceCode",
   "ownerId",
   "notes",
   "status",
@@ -55,7 +56,21 @@ const CONTACT_FIELDS = [
   "status",
 ] as const;
 
-const TAX_ID_TAKEN = "Another active client already has this tax ID.";
+const TAX_ID_TAKEN = "Another active client already has this tax ID or invoice code.";
+
+/** Refuses an invoice code another active client holds. */
+async function assertInvoiceCodeFree(code: string | null, exceptId?: string) {
+  if (!code) return;
+  const holder = await db.client.findFirst({
+    where: { invoiceCode: code, status: "ACTIVE", ...(exceptId ? { id: { not: exceptId } } : {}) },
+    select: { name: true },
+  });
+  if (holder) {
+    throw new ValidationError("Check the highlighted fields.", {
+      invoiceCode: [`${holder.name} already uses ${code}`],
+    });
+  }
+}
 
 export type ClientListOptions = {
   search?: string;
@@ -168,6 +183,7 @@ export async function createClient(actor: Actor, input: ClientInput) {
   authorize(actor, "crm.create");
   const { allowDuplicate, ...data } = parseInput(clientInput, input);
   await assertOwner(data.ownerId);
+  await assertInvoiceCodeFree(data.invoiceCode);
   if (!allowDuplicate) {
     const duplicates = await findPossibleDuplicates(actor, data);
     if (duplicates.length) {
@@ -206,6 +222,7 @@ export async function updateClient(actor: Actor, id: string, input: ClientInput)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { allowDuplicate, ...data } = parseInput(clientInput, input);
   await assertOwner(data.ownerId);
+  await assertInvoiceCodeFree(data.invoiceCode, id);
   return withUniqueConflict(TAX_ID_TAKEN, () =>
     db.$transaction(async (tx) => {
       const after = await tx.client.update({

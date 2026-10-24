@@ -167,7 +167,9 @@ export async function createCreditNote(actor: Actor, invoiceId: string, raw: Cre
   if (!invoice) throw new NotFoundError();
   await getLegalEntity(actor, invoice.legalEntityId);
   authorize(actor, "finance.create", { legalEntityId: invoice.legalEntityId });
-  if (invoice.status !== "ISSUED") throw new ConflictError("Only issued invoices can be credited.");
+  if (invoice.status !== "ISSUED" || invoice.kind !== "TAX") {
+    throw new ConflictError("Only issued tax invoices can be credited.");
+  }
   const data = parseInput(draftInput, raw);
   if (data.date! < invoice.invoiceDate) {
     throw new ValidationError("Check the highlighted fields.", {

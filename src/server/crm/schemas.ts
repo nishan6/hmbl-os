@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { countryCodeSchema, currencySchema, optionalText, requiredText } from "@/lib/validation";
+import { ONE_OFF_CLIENT_CODE } from "@/lib/invoice-kinds";
+import {
+  countryCodeSchema,
+  currencySchema,
+  numberCodeSchema,
+  optionalText,
+  requiredText,
+} from "@/lib/validation";
 
 const GSTIN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
@@ -43,6 +50,20 @@ export const clientInput = z
     postalCode: optionalText(20),
     countryCode: countryCodeSchema,
     currency: currencySchema,
+    /** Short code in invoice numbers. Blank for one-off clients. */
+    invoiceCode: z
+      .string()
+      .trim()
+      .nullish()
+      .transform((v) => v || null)
+      .pipe(
+        numberCodeSchema
+          .refine(
+            (v) => v !== ONE_OFF_CLIENT_CODE,
+            `${ONE_OFF_CLIENT_CODE} is the code one-off clients share`,
+          )
+          .nullable(),
+      ),
     ownerId: z.uuid().nullish(),
     notes: optionalText(2000),
     /** Create even though similar clients exist. */

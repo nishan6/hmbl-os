@@ -1,8 +1,9 @@
 import "server-only";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
-import type { InvoiceStatus } from "@/generated/prisma/enums";
+import type { InvoiceKind, InvoiceStatus } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
+import { withUniqueConflict } from "@/server/db-errors";
 import { recordAudit } from "@/server/audit/record";
 import { authorize, can, entityFilter, type Actor } from "@/server/permissions/authorize";
 import { allocateNumber } from "@/server/numbering/service";
@@ -12,6 +13,7 @@ import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { parseRate, toBaseMinor } from "@/lib/fx";
 import { GST_STATES, gstStateCode, supplyTypeFor, type SupplyType } from "@/lib/gst";
 import { documentTotals, priceInvoiceLine, type PricedLine } from "@/lib/invoice";
+import { INVOICE_KINDS, laterKinds, ONE_OFF_CLIENT_CODE } from "@/lib/invoice-kinds";
 import { parseMoneyToMinor } from "@/lib/money";
 import { parseInput } from "@/lib/parse";
 import { parseQuantity, MILLI, roundDiv } from "@/lib/pricing";
@@ -28,6 +30,11 @@ import { financeSettingsOf } from "./settings";
  * Issued invoices are corrected with credit notes (credit-notes.ts), never
  * edited or cancelled. Finance drafts (`finance.create`/`finance.edit`) and
  * issues (`finance.issue`); there is no approval step.
+ *
+ * Proforma and commercial invoices (src/lib/invoice-kinds.ts) take numbers
+ * from the same series but never post: no receivable, no GST, no receipts
+ * or credit notes against them. An issued one is turned into the next kind
+ * with `makeInvoiceFrom`, which drafts a copy that gets its own number.
  */
 
 type Tx = Prisma.TransactionClient;
@@ -123,6 +130,7 @@ export async function listInvoices(
   options: {
     legalEntityId?: string | null;
     status?: InvoiceStatus;
+    kind?: InvoiceKind;
     clientId?: string;
     projectId?: string;
     search?: string;
@@ -135,6 +143,7 @@ export async function listInvoices(
       ...entityFilter(actor, "finance.view"),
       ...(options.legalEntityId ? { legalEntityId: options.legalEntityId } : {}),
       ...(options.status ? { status: options.status } : { status: { not: "DISCARDED" } }),
+      ...(options.kind ? { kind: options.kind } : {}),
       ...(options.clientId ? { clientId: options.clientId } : {}),
       ...(options.projectId ? { projectId: options.projectId } : {}),
       ...(q
@@ -156,14 +165,15 @@ export async function listInvoices(
   });
   const settled = await invoiceSettlements(
     db,
-    invoices.filter((i) => i.status === "ISSUED").map((i) => i.id),
+    invoices.filter((i) => i.status === "ISSUED" && i.kind === "TAX").map((i) => i.id),
   );
   return invoices.map((i) => {
     const s = settled.get(i.id) ?? { creditedMinor: 0n, paidMinor: 0n };
+    const owed = i.status === "ISSUED" && i.kind === "TAX";
     return {
       ...i,
       ...s,
-      outstandingMinor: i.status === "ISSUED" ? i.totalMinor - s.creditedMinor - s.paidMinor : 0n,
+      outstandingMinor: owed ? i.totalMinor - s.creditedMinor - s.paidMinor : 0n,
     };
   });
 }
@@ -201,6 +211,12 @@ export async function getInvoice(actor: Actor, id: string) {
       client: { select: { id: true, name: true } },
       project: { select: { id: true, number: true, name: true, status: true } },
       milestone: { select: { id: true, label: true, amountMinor: true } },
+      sourceInvoice: { select: { id: true, number: true, kind: true } },
+      madeFrom: {
+        where: { status: { not: "DISCARDED" } },
+        select: { id: true, number: true, kind: true, status: true },
+        orderBy: { createdAt: "asc" },
+      },
       lines: { orderBy: { position: "asc" } },
       creditNotes: { where: { status: { not: "DISCARDED" } }, orderBy: { createdAt: "asc" } },
       allocations: {
@@ -218,9 +234,12 @@ export async function getInvoice(actor: Actor, id: string) {
   const scope = { legalEntityId: invoice.legalEntityId };
   const draft = invoice.status === "DRAFT";
   const issued = invoice.status === "ISSUED";
-  const outstandingMinor = issued
+  // Only a tax invoice is owed; the earlier kinds just ask for payment.
+  const owed = issued && invoice.kind === "TAX";
+  const outstandingMinor = owed
     ? invoice.totalMinor - settled.creditedMinor - settled.paidMinor
     : 0n;
+  const made = new Set(invoice.madeFrom.map((m) => m.kind));
   const projectDone =
     !invoice.project || ["COMPLETED", "FINANCIAL_CLOSE", "CLOSED"].includes(invoice.project.status);
   return {
@@ -232,10 +251,14 @@ export async function getInvoice(actor: Actor, id: string) {
       edit: draft && can(actor, "finance.edit", scope),
       issue: draft && can(actor, "finance.issue", scope),
       discard: draft && can(actor, "finance.edit", scope),
-      credit: issued && outstandingMinor > 0n && can(actor, "finance.create", scope),
-      receive: issued && outstandingMinor > 0n && can(actor, "finance.post", scope),
+      credit: owed && outstandingMinor > 0n && can(actor, "finance.create", scope),
+      receive: owed && outstandingMinor > 0n && can(actor, "finance.post", scope),
+      makeFrom:
+        issued && can(actor, "finance.create", scope)
+          ? laterKinds(invoice.kind).filter((k) => !made.has(k))
+          : [],
       recognise:
-        issued &&
+        owed &&
         invoice.revenueDeferred &&
         !invoice.revenueRecognisedAt &&
         projectDone &&
@@ -248,7 +271,7 @@ export async function getInvoice(actor: Actor, id: string) {
 export async function invoiceFormOptions(actor: Actor, legalEntityId: string) {
   const entity = await getLegalEntity(actor, legalEntityId);
   authorize(actor, "finance.create", { legalEntityId });
-  const [position, clients, projects, taxRates, revenueAccounts] = await Promise.all([
+  const [position, clients, projects, taxRates, revenueAccounts, services] = await Promise.all([
     entityTaxPosition(db, legalEntityId),
     db.client.findMany({
       where: { status: "ACTIVE" },
@@ -279,18 +302,24 @@ export async function invoiceFormOptions(actor: Actor, legalEntityId: string) {
       select: { id: true, code: true, name: true, systemKey: true },
       orderBy: { code: "asc" },
     }),
+    db.invoiceService.findMany({
+      where: { legalEntityId, status: "ACTIVE" },
+      select: { code: true, name: true },
+      orderBy: { code: "asc" },
+    }),
   ]);
   const tax = {
     countryCode: position.countryCode,
     stateCode: position.stateCode,
     gstin: position.gstin,
   };
-  return { entity, tax, clients, projects, taxRates, revenueAccounts };
+  return { entity, tax, clients, projects, taxRates, revenueAccounts, services };
 }
 
 // ─── Drafting ────────────────────────────────────────────────────────────────
 
 const startInput = z.object({
+  kind: z.enum(["PROFORMA", "COMMERCIAL", "TAX"]).default("TAX"),
   clientId: z.uuid({ message: "Choose a client" }),
   projectId: optionalId,
   milestoneId: optionalId,
@@ -377,6 +406,7 @@ export async function createInvoice(actor: Actor, legalEntityId: string, raw: St
     const invoice = await tx.salesInvoice.create({
       data: {
         legalEntityId,
+        kind: input.kind,
         clientId: client.id,
         projectId: project?.id ?? null,
         milestoneId: milestone?.id ?? null,
@@ -402,7 +432,12 @@ export async function createInvoice(actor: Actor, legalEntityId: string, raw: St
       targetType: "sales_invoice",
       targetId: invoice.id,
       legalEntityId,
-      metadata: { clientId: client.id, projectId: project?.id, milestoneId: milestone?.id },
+      metadata: {
+        kind: input.kind,
+        clientId: client.id,
+        projectId: project?.id,
+        milestoneId: milestone?.id,
+      },
     });
     return invoice;
   });
@@ -436,6 +471,7 @@ const draftInput = z.object({
     .nullish()
     .transform((v) => v || null),
   clientPoNumber: optionalText(100),
+  serviceCode: optionalText(6),
   notes: optionalText(2000),
   lines: z.array(lineInput).min(1, "Add at least one line").max(200),
 });
@@ -480,6 +516,12 @@ export async function saveInvoiceDraft(actor: Actor, id: string, raw: InvoiceDra
     countryCode: data.placeOfSupplyCountry,
     stateCode: placeOfSupplyCode,
   });
+  if (data.serviceCode) {
+    const service = await db.invoiceService.findFirst({
+      where: { legalEntityId: before.legalEntityId, code: data.serviceCode, status: "ACTIVE" },
+    });
+    if (!service) throw invalid("serviceCode", "Choose an active service");
+  }
   const [rates, accounts] = await Promise.all([
     db.taxRate.findMany({ where: { countryCode: position.countryCode, status: "ACTIVE" } }),
     db.ledgerAccount.findMany({
@@ -531,6 +573,7 @@ export async function saveInvoiceDraft(actor: Actor, id: string, raw: InvoiceDra
         placeOfSupplyCode,
         placeOfSupplyCountry: data.placeOfSupplyCountry,
         clientPoNumber: data.clientPoNumber,
+        serviceCode: data.serviceCode,
         notes: data.notes,
         ...totals,
         lines: { create: lines },
@@ -647,6 +690,7 @@ export async function salesPostingLines(
  * Issues a draft: gives it the next invoice number, copies the client's and
  * entity's details onto it, and posts it. Revenue goes to income, or to
  * client advances when the entity recognises revenue on completion.
+ * A proforma or commercial invoice is numbered and frozen but not posted.
  */
 export async function issueInvoice(actor: Actor, id: string) {
   const invoice = await loadInvoice(actor, id);
@@ -679,11 +723,17 @@ export async function issueInvoice(actor: Actor, id: string) {
     }
     const client = await tx.client.findUniqueOrThrow({ where: { id: current.clientId } });
     const settings = await financeSettingsOf(tx, current.legalEntityId);
-    const deferred = settings.revenueRecognition === "ON_COMPLETION" && current.projectId !== null;
+    const tax = current.kind === "TAX";
+    const deferred =
+      tax && settings.revenueRecognition === "ON_COMPLETION" && current.projectId !== null;
     const { number } = await allocateNumber(tx, {
       documentType: "sales_invoice",
       legalEntityId: current.legalEntityId,
       date: current.invoiceDate,
+      fields: {
+        CLIENT: client.invoiceCode ?? ONE_OFF_CLIENT_CODE,
+        SERVICE: current.serviceCode,
+      },
     });
     const { lines: posting, baseTotalMinor } = await salesPostingLines(
       tx,
@@ -696,17 +746,19 @@ export async function issueInvoice(actor: Actor, id: string) {
       position.entity.baseCurrency,
       1,
     );
-    const journal = await postJournal(tx, actor, {
-      legalEntityId: current.legalEntityId,
-      date: current.invoiceDate,
-      source: "SALES_INVOICE",
-      sourceId: id,
-      sourceRef: number,
-      narration: `Invoice ${number} to ${client.legalName ?? client.name}`,
-      idempotencyKey: `sales_invoice:${id}`,
-      isDemo: current.isDemo,
-      lines: posting,
-    });
+    const journal = tax
+      ? await postJournal(tx, actor, {
+          legalEntityId: current.legalEntityId,
+          date: current.invoiceDate,
+          source: "SALES_INVOICE",
+          sourceId: id,
+          sourceRef: number,
+          narration: `Invoice ${number} to ${client.legalName ?? client.name}`,
+          idempotencyKey: `sales_invoice:${id}`,
+          isDemo: current.isDemo,
+          lines: posting,
+        })
+      : null;
     const after = await tx.salesInvoice.update({
       where: { id },
       data: {
@@ -718,7 +770,7 @@ export async function issueInvoice(actor: Actor, id: string) {
         entityGstin: position.gstin,
         baseTotalMinor,
         revenueDeferred: deferred,
-        journalId: journal.id,
+        journalId: journal?.id ?? null,
         issuedAt: new Date(),
         issuedById: actor.id,
       },
@@ -730,8 +782,9 @@ export async function issueInvoice(actor: Actor, id: string) {
       legalEntityId: after.legalEntityId,
       changes: { status: { from: "DRAFT", to: "ISSUED" } },
       metadata: {
+        kind: current.kind,
         number,
-        journal: journal.number,
+        journal: journal?.number ?? null,
         totalMinor: after.totalMinor.toString(),
         currency: after.currency,
         revenueDeferred: deferred,
@@ -739,6 +792,89 @@ export async function issueInvoice(actor: Actor, id: string) {
     });
     return after;
   });
+}
+
+const makeFromInput = z.object({ kind: z.enum(["COMMERCIAL", "TAX"]) });
+
+/**
+ * Drafts the next kind of invoice (commercial, or tax) from an issued
+ * proforma or commercial invoice: same client, project, service and lines,
+ * dated today. It gets its own number from the shared series when issued.
+ * Each invoice is made into each later kind at most once.
+ */
+export async function makeInvoiceFrom(
+  actor: Actor,
+  id: string,
+  raw: z.input<typeof makeFromInput>,
+) {
+  const source = await loadInvoice(actor, id);
+  authorize(actor, "finance.create", { legalEntityId: source.legalEntityId });
+  const { kind } = parseInput(makeFromInput, raw);
+  if (source.status !== "ISSUED" || !laterKinds(source.kind).includes(kind)) {
+    throw new ConflictError(
+      `A ${INVOICE_KINDS[kind].label.toLowerCase()} is made from an issued ${
+        kind === "TAX" ? "proforma or commercial" : "proforma"
+      } invoice.`,
+    );
+  }
+  return withUniqueConflict(
+    `This invoice already has a ${INVOICE_KINDS[kind].label.toLowerCase()}.`,
+    () =>
+      db.$transaction(async (tx) => {
+        await lockInvoice(tx, id);
+        const lines = await tx.salesInvoiceLine.findMany({
+          where: { invoiceId: id },
+          orderBy: { position: "asc" },
+        });
+        const date = today();
+        const draft = await tx.salesInvoice.create({
+          data: {
+            legalEntityId: source.legalEntityId,
+            kind,
+            sourceInvoiceId: id,
+            clientId: source.clientId,
+            projectId: source.projectId,
+            milestoneId: source.milestoneId,
+            invoiceDate: date,
+            dueDate: source.dueDate > date ? source.dueDate : date,
+            currency: source.currency,
+            fxRate: source.fxRate,
+            fxNote: source.fxNote,
+            supplyType: source.supplyType,
+            placeOfSupplyCode: source.placeOfSupplyCode,
+            placeOfSupplyCountry: source.placeOfSupplyCountry,
+            clientName: source.clientName,
+            clientGstin: source.clientGstin,
+            clientAddress: source.clientAddress,
+            entityGstin: source.entityGstin,
+            clientPoNumber: source.clientPoNumber,
+            serviceCode: source.serviceCode,
+            notes: source.notes,
+            subtotalMinor: source.subtotalMinor,
+            cgstMinor: source.cgstMinor,
+            sgstMinor: source.sgstMinor,
+            igstMinor: source.igstMinor,
+            otherTaxMinor: source.otherTaxMinor,
+            taxMinor: source.taxMinor,
+            totalMinor: source.totalMinor,
+            createdById: actor.id,
+            isDemo: source.isDemo,
+            lines: {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              create: lines.map(({ id: _id, invoiceId: _invoiceId, ...line }) => line),
+            },
+          },
+        });
+        await recordAudit(tx, actor, {
+          action: "sales_invoice.drafted",
+          targetType: "sales_invoice",
+          targetId: draft.id,
+          legalEntityId: draft.legalEntityId,
+          metadata: { kind, madeFrom: source.number, sourceInvoiceId: id },
+        });
+        return draft;
+      }),
+  );
 }
 
 const recogniseInput = z.object({ date: optionalDate });
