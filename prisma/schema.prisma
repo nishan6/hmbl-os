@@ -1503,6 +1503,7 @@ model RecordDocument {
   uploadedAt        DateTime           @default(now())
 
   portalShares PortalShare[]
+  billUpload   PortalBillSubmission?
 
   @@index([recordType, recordId])
   @@index([projectId, category])
@@ -2146,6 +2147,8 @@ model Vendor {
 
   portalInvitations PortalInvitation[]
   portalAccounts    PortalAccount[]
+  billUploads       PortalBillSubmission[]
+  detailRequests    PortalDetailsRequest[]
 
   @@index([normalizedName])
   @@index([status, name])
@@ -2680,6 +2683,7 @@ model CrewMember {
 
   portalInvitations PortalInvitation[]
   portalAccounts    PortalAccount[]
+  detailRequests    PortalDetailsRequest[]
 
   @@index([normalizedName])
   @@index([status, name])
@@ -2796,7 +2800,8 @@ model CrewAssignment {
   createdAt         DateTime                    @default(now())
   updatedAt         DateTime                    @updatedAt
 
-  workRecords CrewWorkRecord[]
+  workRecords    CrewWorkRecord[]
+  portalResponse CrewAssignmentResponse?
 
   @@index([crewMemberId, startDate])
   @@index([projectId])
@@ -3279,6 +3284,9 @@ model PurchaseOrder {
   lines     PurchaseOrderLine[]
   revisions PurchaseOrderRevision[]
   receipts  GoodsReceipt[]
+
+  vendorResponses PurchaseOrderVendorResponse[]
+  billUploads     PortalBillSubmission[]
 
   @@unique([legalEntityId, number])
   @@index([legalEntityId, status])
@@ -3805,6 +3813,10 @@ model PortalAccount {
 
   quoteResponses QuotePortalResponse[]
   submissions    PortalSubmission[]
+  orderResponses PurchaseOrderVendorResponse[]
+  billUploads    PortalBillSubmission[]
+  crewResponses  CrewAssignmentResponse[]
+  detailRequests PortalDetailsRequest[]
 
   @@index([clientId])
   @@index([vendorId])
@@ -3896,4 +3908,84 @@ model PortalSubmission {
 
   @@index([projectId])
   @@map("portal_submissions")
+}
+
+// ─── Vendor and freelancer portal (docs/vendor-portal.md) ───────────────────
+
+enum PortalOrderAnswer {
+  CONFIRMED
+  DECLINED
+}
+
+/// A vendor's answer to one approved revision of a purchase order. Never changed.
+model PurchaseOrderVendorResponse {
+  id              String            @id @default(uuid()) @db.Uuid
+  purchaseOrderId String            @db.Uuid
+  purchaseOrder   PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  revision        Int
+  accountId       String            @db.Uuid
+  account         PortalAccount     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  answer          PortalOrderAnswer
+  note            String?
+  createdAt       DateTime          @default(now())
+
+  @@unique([purchaseOrderId, revision])
+  @@map("purchase_order_vendor_responses")
+}
+
+/// An invoice a vendor uploaded against one of their orders. Finance enters
+/// the bill from it as usual. Never changed.
+model PortalBillSubmission {
+  id                  String         @id @default(uuid()) @db.Uuid
+  accountId           String         @db.Uuid
+  account             PortalAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  vendorId            String         @db.Uuid
+  vendor              Vendor         @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  purchaseOrderId     String         @db.Uuid
+  purchaseOrder       PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  vendorInvoiceNumber String
+  invoiceDate         DateTime       @db.Date
+  currency            String         @db.Char(3)
+  totalMinor          BigInt
+  note                String?
+  // The uploaded file, kept on the order's documents.
+  documentId          String         @unique @db.Uuid
+  document            RecordDocument @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  createdAt           DateTime       @default(now())
+
+  @@unique([vendorId, vendorInvoiceNumber])
+  @@index([purchaseOrderId])
+  @@map("portal_bill_submissions")
+}
+
+/// A freelancer's answer to a proposed booking. Never changed.
+model CrewAssignmentResponse {
+  id           String            @id @default(uuid()) @db.Uuid
+  assignmentId String            @unique @db.Uuid
+  assignment   CrewAssignment    @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  accountId    String            @db.Uuid
+  account      PortalAccount     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  answer       PortalOrderAnswer
+  note         String?
+  createdAt    DateTime          @default(now())
+
+  @@map("crew_assignment_responses")
+}
+
+/// Changes to compliance or bank details a vendor or freelancer asked for.
+/// Staff check and apply them; the portal never changes these itself.
+model PortalDetailsRequest {
+  id           String        @id @default(uuid()) @db.Uuid
+  accountId    String        @db.Uuid
+  account      PortalAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  vendorId     String?       @db.Uuid
+  vendor       Vendor?       @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  crewMemberId String?       @db.Uuid
+  crewMember   CrewMember?   @relation(fields: [crewMemberId], references: [id], onDelete: Restrict)
+  details      String
+  createdAt    DateTime      @default(now())
+
+  @@index([vendorId])
+  @@index([crewMemberId])
+  @@map("portal_details_requests")
 }

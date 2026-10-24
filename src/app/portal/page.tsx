@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requirePortalActorOrRedirect } from "@/server/portal/session";
 import { PORTAL_PERMISSIONS } from "@/server/portal/permissions";
 import { clientOverview } from "@/server/portal/client";
+import { listMyBookings } from "@/server/portal/freelancer";
+import { listVendorOrders } from "@/server/portal/vendor";
 import { formatMoney } from "@/lib/format";
 import { EmptyState, PageHeader, Panel, Section } from "@/components/ui/page";
 
@@ -13,7 +15,29 @@ export default async function PortalHome() {
   const overview = actor.kind === "CLIENT" ? await clientOverview(actor) : null;
   const awaiting = overview?.quotes?.filter((q) => q.latest.status === "ISSUED") ?? [];
   const unpaid = overview?.invoices?.filter((i) => i.outstandingMinor && i.outstandingMinor > 0n);
-  const cards = overview
+  const has = (p: string) => actor.permissions.has(p);
+  const orders =
+    actor.kind === "VENDOR" && has("orders.view") ? await listVendorOrders(actor) : null;
+  const bookings =
+    actor.kind === "FREELANCER" && has("work.view") ? await listMyBookings(actor) : null;
+  const supplierCards = [
+    orders && {
+      href: "/portal/orders",
+      label: "Orders waiting for your answer",
+      value: String(orders.filter((o) => o.state === "open" && !o.answer).length),
+    },
+    bookings && {
+      href: "/portal/bookings",
+      label: "Bookings waiting for your answer",
+      value: String(bookings.filter((b) => b.status === "PROPOSED" && !b.portalResponse).length),
+    },
+    bookings && {
+      href: "/portal/bookings",
+      label: "Confirmed bookings",
+      value: String(bookings.filter((b) => b.status === "CONFIRMED").length),
+    },
+  ].filter((c) => !!c);
+  const clientCards = overview
     ? [
         overview.projects && {
           href: "/portal/projects",
@@ -37,6 +61,7 @@ export default async function PortalHome() {
         },
       ].filter((c) => !!c)
     : [];
+  const cards = [...clientCards, ...supplierCards];
   return (
     <>
       <PageHeader
