@@ -18,11 +18,11 @@ Until Finance (Stage 4) tracks invoices, payments, bills and expenses, those ite
 
 Three items are checked against what Stage 5 records, every time the tab loads. Each problem is listed under its item, linked to the record that fixes it:
 
-| Item                  | Open while                                                                                                                                                                    |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Crew settled          | a crew booking is still proposed; work recorded on a booking isn't approved; a freelancer's approved work isn't settled; a crew settlement's bill isn't approved              |
-| Equipment returned    | equipment dispatched to the project isn't back (returned, damaged or lost); a rental on a purchase order is still on hire                                                     |
-| Vendor bills received | a purchase order for the project isn't closed or cancelled; a vendor bill with a line on the project is a draft or awaiting approval (crew settlement bills count under crew) |
+| Item                  | Open while                                                                                                                                                                                                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Crew settled          | a crew booking is still proposed; work recorded on a booking isn't approved; a freelancer's approved work isn't settled; a crew settlement's bill isn't approved                                                                                                      |
+| Equipment returned    | equipment dispatched to the project isn't back (returned, damaged or lost); a rental on a purchase order is still on hire                                                                                                                                             |
+| Vendor bills received | a purchase order for the project isn't closed or cancelled; a vendor bill with a line on the project is a draft or awaiting approval (crew settlement bills count under crew); a trip isn't completed or cancelled; a logistics movement isn't delivered or cancelled |
 
 Employees' approved work isn't settled through a bill (it is payroll), so it doesn't hold the item open.
 

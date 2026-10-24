@@ -16,6 +16,7 @@ import {
   createTrip,
   submitTrip,
 } from "@/server/logistics/travel";
+import { bookShipment, createShipment, dispatchShipment } from "@/server/logistics/shipments";
 
 const day = (offset: number) =>
   new Date(`${new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10)}T00:00:00Z`);
@@ -409,4 +410,60 @@ export async function seedDemoTravel(db: PrismaClient, pmId: string) {
   await approveTrip(pm, trip.id);
   await confirmBooking(pm, flight.id);
   await db.travelRequest.update({ where: { id: trip.id }, data: { isDemo: true } });
+}
+
+/** DEMO logistics: a truck taking the set to the venue, booked and on the road. */
+export async function seedDemoShipments(db: PrismaClient, pmId: string) {
+  if (await db.shipment.findFirst({ where: { isDemo: true } })) return;
+  const india = await db.legalEntity.findUniqueOrThrow({ where: { code: "DEMO-IN" } });
+  const project = await db.project.findFirst({
+    where: { isDemo: true, legalEntityId: india.id, baselineLockedAt: { not: null } },
+    include: { budgetLines: { orderBy: { position: "desc" } } },
+  });
+  const vendor = await db.vendor.findFirst({ where: { isDemo: true, kind: "COMPANY" } });
+  if (!project || !vendor) return;
+  const user = await db.user.findUniqueOrThrow({ where: { id: pmId } });
+  const pm = { id: pmId, name: user.name, email: user.email, grants: await loadGrants(db, pmId) };
+  const line =
+    project.budgetLines.find((l) => l.category === "LOGISTICS") ??
+    (await db.projectBudgetLine.create({
+      data: {
+        projectId: project.id,
+        position: (project.budgetLines[0]?.position ?? 0) + 1,
+        category: "LOGISTICS",
+        description: "DEMO trucking",
+        quantity: 1,
+        days: 1,
+        costMinor: 0n,
+        revenueMinor: 0n,
+      },
+    }));
+  const start = project.eventStartDate ?? day(30);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const pickup = new Date(start.getTime() - 3 * 86_400_000);
+  const truck = await createShipment(pm, {
+    projectId: project.id,
+    kind: "FREIGHT",
+    title: "DEMO stage set to the venue",
+    vendorId: vendor.id,
+    reference: "DEMO-LR-1001",
+    vehicle: "32 ft container",
+    vehicleRegistration: "AS01DM0001",
+    driverName: "DEMO driver",
+    driverPhone: "+91 90000 00000",
+    fromAddress: "DEMO warehouse, Guwahati",
+    toAddress: "DEMO venue, Mumbai",
+    pickupLocal: `${iso(pickup)}T20:00`,
+    pickupTimeZone: "Asia/Kolkata",
+    deliverLocal: `${iso(new Date(start.getTime() - 86_400_000))}T08:00`,
+    deliverTimeZone: "Asia/Kolkata",
+    packages: "14",
+    weightKg: "3200",
+    contents: "Stage decks, truss and soft goods",
+    cost: "85000",
+    budgetLineId: line.id,
+  });
+  await bookShipment(pm, truck.id);
+  await dispatchShipment(pm, truck.id, { note: "Left the warehouse on time" });
+  await db.shipment.update({ where: { id: truck.id }, data: { isDemo: true } });
 }

@@ -23,6 +23,8 @@ import {
   Wrench,
   Bookmark,
   PencilLine,
+  Truck,
+  PackageCheck,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -77,6 +79,10 @@ export const STATUSES = {
   reserved: { label: "Reserved", icon: Bookmark, tone: "info" },
   amending: { label: "Being amended", icon: PencilLine, tone: "warning" },
   held: { label: "Held", icon: Bookmark, tone: "info" },
+  planned: { label: "Planned", icon: CalendarRange, tone: "neutral" },
+  booked: { label: "Booked", icon: CircleCheck, tone: "info" },
+  in_transit: { label: "In transit", icon: Truck, tone: "warning" },
+  delivered: { label: "Delivered", icon: PackageCheck, tone: "success" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon; tone: Tone }>;
 
 export type StatusKey = keyof typeof STATUSES;

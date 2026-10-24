@@ -70,7 +70,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       });
     });
 
-    test("travel pages meet WCAG 2.2 AA", async ({ page }) => {
+    test("travel and logistics pages meet WCAG 2.2 AA", async ({ page }) => {
       test.setTimeout(120_000);
       await signIn(page, DEMO.owner);
       for (const path of ["/logistics", "/logistics/travel/new"]) {
@@ -91,6 +91,19 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goBack();
         await page.getByRole("link", { name: "Flight", exact: true }).click();
         await expect(page.getByLabel("Airline")).toBeVisible();
+        await expectNoViolations(page);
+      });
+      for (const path of ["/logistics/shipments", "/logistics/shipments/new"]) {
+        await test.step(path, async () => {
+          await page.goto(path);
+          await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+          await expectNoViolations(page);
+        });
+      }
+      await test.step("the demo movement", async () => {
+        await page.goto("/logistics/shipments");
+        await page.getByRole("link", { name: "DEMO stage set to the venue" }).first().click();
+        await expect(page.getByRole("heading", { level: 2, name: "Tracking" })).toBeVisible();
         await expectNoViolations(page);
       });
     });

@@ -472,7 +472,8 @@ export type CostSource =
   | "expense_claim_line"
   | "crew_assignment"
   | "purchase_order_line"
-  | "travel_booking";
+  | "travel_booking"
+  | "shipment";
 
 type DocumentCostInput = {
   projectId: string;

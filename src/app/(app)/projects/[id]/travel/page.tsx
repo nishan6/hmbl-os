@@ -1,21 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plane, Plus } from "lucide-react";
+import { Plane, Plus, Truck } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { listTrips } from "@/server/logistics/travel";
+import { listShipments, SHIPMENT_KINDS } from "@/server/logistics/shipments";
 import { canSeeProjectCosts, getProject } from "@/server/projects/projects";
 import { isLocked } from "@/server/projects/lifecycle";
 import { AppError } from "@/lib/errors";
 import { formatDate, formatMoney } from "@/lib/format";
+import { formatZoned } from "@/lib/time-zone";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Section } from "@/components/ui/page";
 import { StatusBadge } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { ProjectHeader } from "../../_components/project-header";
-import { TRIP_STATUS } from "../../../logistics/_components/logistics-tabs";
+import { SHIPMENT_STATUS, TRIP_STATUS } from "../../../logistics/_components/logistics-tabs";
 
-export const metadata = { title: "Project travel" };
+export const metadata = { title: "Project travel and logistics" };
 
 export default async function ProjectTravelPage({ params }: PageProps<"/projects/[id]/travel">) {
   const { id } = await params;
@@ -26,7 +28,12 @@ export default async function ProjectTravelPage({ params }: PageProps<"/projects
   });
   const scope = { legalEntityId: p.legalEntityId };
   const canView = can(actor, "logistics.view", scope);
-  const trips = canView ? await listTrips(actor, { projectId: id }) : [];
+  const [trips, shipments] = canView
+    ? await Promise.all([
+        listTrips(actor, { projectId: id }),
+        listShipments(actor, { projectId: id }),
+      ])
+    : [[], []];
   const canPlan = can(actor, "logistics.edit", scope) && !isLocked(p.status);
 
   return (
@@ -97,6 +104,67 @@ export default async function ProjectTravelPage({ params }: PageProps<"/projects
           />
         )}
       </Section>
+      {canView ? (
+        <Section
+          title="Logistics"
+          description="Freight, equipment movements, and vehicles with drivers for this project."
+          actions={
+            canPlan ? (
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`/logistics/shipments/new?project=${id}`}>
+                  <Plus aria-hidden />
+                  New movement
+                </Link>
+              </Button>
+            ) : null
+          }
+        >
+          {shipments.length ? (
+            <Table dense>
+              <THead>
+                <tr>
+                  <TH>Movement</TH>
+                  <TH>Pick-up</TH>
+                  <TH>Carrier</TH>
+                  <TH>Status</TH>
+                  <TH align="right">Cost</TH>
+                </tr>
+              </THead>
+              <TBody>
+                {shipments.map((s) => (
+                  <TR key={s.id}>
+                    <TD>
+                      <Link
+                        href={`/logistics/shipments/${s.id}`}
+                        className="text-accent hover:underline"
+                      >
+                        {s.title}
+                      </Link>
+                      <span className="text-muted ml-1 text-xs">{SHIPMENT_KINDS[s.kind]}</span>
+                    </TD>
+                    <TD className="tabular text-secondary text-sm whitespace-nowrap">
+                      {formatZoned(s.pickupAt, s.pickupTimeZone)}
+                    </TD>
+                    <TD className="text-secondary">{s.vendor?.name ?? s.carrier ?? "—"}</TD>
+                    <TD>
+                      <StatusBadge status={SHIPMENT_STATUS[s.status]} />
+                    </TD>
+                    <TD align="right">
+                      {s.costMinor === null ? "—" : formatMoney(s.costMinor, s.currency)}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          ) : (
+            <EmptyState
+              icon={Truck}
+              title="No movements for this project"
+              description="Plan freight, an equipment movement, or a vehicle with a driver."
+            />
+          )}
+        </Section>
+      ) : null}
     </>
   );
 }
