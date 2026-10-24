@@ -31,7 +31,7 @@ Approval numbers the bill (`VB/{FYY}/{SEQ:5}`) and posts it on the bill date:
 | TDS payable (2200), party: vendor           |                                                  | TDS withheld |
 | Trade payables (2000), party: vendor        |                                                  | What is owed |
 
-Foreign-currency bills are converted at the bill's rate, and payables balance the journal so rounding never unbalances it. Each project line is recorded as an **actual cost** on its budget line, in the project's currency, with the bill as its source. That cost can only be undone by voiding the bill.
+Foreign-currency bills are converted at the bill's rate, and payables balance the journal so rounding never unbalances it. Each project line is recorded as an **actual cost** on its budget line, in the project's currency, with the bill as its source. That cost can only be undone by voiding the bill. A line can also name a commitment on its budget line, such as a crew booking's; its actual cost then draws that commitment down, so the cost isn't counted twice. Crew settlements draft bills like this (see [crew.md](crew.md)).
 
 An approved bill with nothing paid on it can be voided (`finance.void`) on a date with a reason: its journal is reversed and its project costs voided. A database trigger refuses any other change to an approved bill or its lines.
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
@@ -8,6 +9,7 @@ import {
   CREW_KINDS,
   CREW_RATE_TYPES,
 } from "@/server/crew/members";
+import { crewMemberAssignments } from "@/server/crew/assignments";
 import { AppError } from "@/lib/errors";
 import { certificationState, rateValidOn } from "@/lib/crew";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -15,6 +17,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { DetailList, PageHeader, Panel, Section } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { ASSIGNMENT_STATUS } from "../../projects/_components/status";
 import {
   addCertificationAction,
   addRateAction,
@@ -43,6 +46,7 @@ export default async function CrewMemberPage({ params }: PageProps<"/crew/[id]">
     throw error;
   });
   const edit = can(actor, "crew.edit");
+  const bookings = await crewMemberAssignments(actor, id);
   const [links, skills] = edit
     ? await Promise.all([crewLinkOptions(actor, id), crewSkills(actor)])
     : [{ users: [], vendors: [] }, []];
@@ -190,6 +194,42 @@ export default async function CrewMemberPage({ params }: PageProps<"/crew/[id]">
           ) : null}
         </Section>
       ) : null}
+
+      <Section title="Bookings" description="Projects they are proposed for or booked on.">
+        {bookings.length ? (
+          <Table dense>
+            <THead>
+              <tr>
+                <TH>Project</TH>
+                <TH>Role</TH>
+                <TH>Dates</TH>
+                <TH>Status</TH>
+              </tr>
+            </THead>
+            <TBody>
+              {bookings.map((b) => (
+                <TR key={b.id}>
+                  <TD>
+                    <Link
+                      href={`/projects/${b.project.id}/resources/crew/${b.id}`}
+                      className="text-accent hover:underline"
+                    >
+                      <span className="tabular">{b.project.number}</span> {b.project.name}
+                    </Link>
+                  </TD>
+                  <TD>{b.role}</TD>
+                  <TD className="tabular whitespace-nowrap">{range(b.startDate, b.endDate)}</TD>
+                  <TD>
+                    <StatusBadge status={ASSIGNMENT_STATUS[b.status]} />
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        ) : (
+          <p className="text-secondary text-sm">No bookings yet.</p>
+        )}
+      </Section>
 
       <Section title="Certifications" description="Tickets and qualifications, with expiry dates.">
         {m.certifications.length ? (

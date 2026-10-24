@@ -20,7 +20,7 @@ From then on the original amounts never change. A database trigger refuses any u
 - **Committed:** something ordered or booked that hasn't been billed yet.
 - **Actual:** a bill, an expense or a settlement. An actual cost can name the commitment it draws down.
 
-Until Finance (Stage 4) brings purchase orders, vendor bills and expenses, project managers enter these by hand (`projects.edit`). Stage 4 will create the same entries automatically.
+Project managers can also enter these by hand (`projects.edit`). Some entries come from other records instead: approved bills and expense claims post actual costs, and confirmed freelance crew bookings post commitments (see [crew.md](crew.md)). A commitment that came from a record is closed or voided only through that record, such as cancelling the booking, never by hand.
 
 Entries are append-only, and a database trigger enforces this. Only two changes are allowed, each once: **closing** a commitment, which releases whatever won't be billed, and **voiding** an entry with a reason. Nothing is deleted. A commitment can't be voided while live actual costs draw against it. Every entry, closure and void is audited.
 

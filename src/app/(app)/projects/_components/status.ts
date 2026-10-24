@@ -1,4 +1,5 @@
 import type { StatusKey } from "@/components/ui/status";
+import type { CrewAssignmentStatus } from "@/generated/prisma/enums";
 import type { ProjectStatus } from "@/server/projects/lifecycle";
 
 export const PROJECT_STATUS: Record<ProjectStatus, StatusKey> = {
@@ -19,4 +20,11 @@ export const CHANGE_ORDER_STATUS: Record<"DRAFT" | "APPROVED" | "WITHDRAWN", Sta
   DRAFT: "draft",
   APPROVED: "approved",
   WITHDRAWN: "withdrawn",
+};
+
+export const ASSIGNMENT_STATUS: Record<CrewAssignmentStatus, StatusKey> = {
+  PROPOSED: "proposed",
+  CONFIRMED: "confirmed",
+  DECLINED: "declined",
+  CANCELLED: "cancelled",
 };

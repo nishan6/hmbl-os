@@ -408,6 +408,9 @@ async function loadEntry(actor: Actor, entryId: string) {
 export async function closeCommitment(actor: Actor, entryId: string) {
   const { entry, project } = await loadEntry(actor, entryId);
   if (entry.kind !== "COMMITMENT") throw new ConflictError("Only a commitment can be closed.");
+  if (entry.sourceType) {
+    throw new ConflictError("This commitment came from a booking or order. Close it there.");
+  }
   if (entry.voidedAt || entry.closedAt)
     throw new ConflictError("This commitment is already closed or void.");
   return db.$transaction(async (tx) => {
@@ -460,28 +463,30 @@ export async function voidCostEntry(
   });
 }
 
-// ─── Costs posted by finance documents ───────────────────────────────────────
+// ─── Costs posted by documents ───────────────────────────────────────────────
 
-/**
- * Records an actual cost from a finance document (a vendor bill line, an
- * expense claim) inside the document's transaction. The amount is in the
- * project's currency. Voided only through the document.
- */
-export async function postDocumentCost(
+/** Documents that post cost entries; such entries are changed only through them. */
+export type CostSource =
+  "vendor_bill_line" | "expense_claim_line" | "crew_assignment" | "purchase_order_line";
+
+type DocumentCostInput = {
+  projectId: string;
+  budgetLineId: string;
+  amountMinor: bigint;
+  entryDate: Date;
+  description: string;
+  supplier: string;
+  reference: string;
+  sourceType: CostSource;
+  sourceId: string;
+  createdById: string;
+};
+
+async function documentEntry(
   tx: Tx,
   caller: Caller,
-  input: {
-    projectId: string;
-    budgetLineId: string;
-    amountMinor: bigint;
-    entryDate: Date;
-    description: string;
-    supplier: string;
-    reference: string;
-    sourceType: "vendor_bill_line" | "expense_claim_line";
-    sourceId: string;
-    createdById: string;
-  },
+  kind: "ACTUAL" | "COMMITMENT",
+  input: DocumentCostInput & { commitmentId?: string | null },
 ) {
   const project = await lockProject(tx, input.projectId);
   assertChangeable(project);
@@ -494,23 +499,37 @@ export async function postDocumentCost(
   if (!line || line.projectId !== project.id) {
     throw new ValidationError(`Choose a budget line of project ${project.number}.`);
   }
+  if (input.commitmentId) {
+    const commitment = await tx.projectCostEntry.findUnique({ where: { id: input.commitmentId } });
+    if (
+      !commitment ||
+      commitment.kind !== "COMMITMENT" ||
+      commitment.budgetLineId !== line.id ||
+      commitment.voidedAt
+    ) {
+      throw new ValidationError(
+        `The commitment this cost draws down isn't open on that budget line of ${project.number}.`,
+      );
+    }
+  }
   const entry = await tx.projectCostEntry.create({
     data: {
       projectId: project.id,
       budgetLineId: line.id,
-      kind: "ACTUAL",
+      kind,
       amountMinor: input.amountMinor,
       entryDate: input.entryDate,
       description: input.description,
       supplier: input.supplier,
       reference: input.reference,
+      commitmentId: input.commitmentId ?? null,
       sourceType: input.sourceType,
       sourceId: input.sourceId,
       createdById: input.createdById,
     },
   });
   await recordAudit(tx, caller, {
-    action: "project_cost.actual_recorded",
+    action: kind === "ACTUAL" ? "project_cost.actual_recorded" : "project_cost.committed",
     targetType: "project",
     targetId: project.id,
     legalEntityId: project.legalEntityId,
@@ -520,12 +539,63 @@ export async function postDocumentCost(
       amountMinor: input.amountMinor.toString(),
       source: input.sourceType,
       reference: input.reference,
+      ...(input.commitmentId ? { commitmentId: input.commitmentId } : {}),
     },
   });
   return entry;
 }
 
-/** Voids costs a finance document posted, when the document is voided. */
+/**
+ * Records an actual cost from a document (a vendor bill line, an expense
+ * claim) inside the document's transaction. The amount is in the project's
+ * currency. When the document bills a commitment, the cost draws it down so
+ * it isn't counted twice. Voided only through the document.
+ */
+export async function postDocumentCost(
+  tx: Tx,
+  caller: Caller,
+  input: DocumentCostInput & { commitmentId?: string | null },
+) {
+  return documentEntry(tx, caller, "ACTUAL", input);
+}
+
+/** Records a commitment from a booking or a purchase order line, in its transaction. */
+export async function postDocumentCommitment(tx: Tx, caller: Caller, input: DocumentCostInput) {
+  return documentEntry(tx, caller, "COMMITMENT", input);
+}
+
+/**
+ * Ends a document's commitment: voided when nothing has been billed against
+ * it, otherwise closed so what wasn't billed is released.
+ */
+export async function endDocumentCommitment(
+  tx: Tx,
+  caller: Caller,
+  entryId: string,
+  reason: string,
+) {
+  const entry = await tx.projectCostEntry.findUniqueOrThrow({ where: { id: entryId } });
+  if (entry.voidedAt || entry.closedAt) return entry;
+  const live = await tx.projectCostEntry.count({
+    where: { commitmentId: entryId, voidedAt: null },
+  });
+  if (!live) return voidDocumentCost(tx, caller, entryId, reason);
+  const project = await lockProject(tx, entry.projectId);
+  const after = await tx.projectCostEntry.update({
+    where: { id: entryId },
+    data: { closedAt: new Date() },
+  });
+  await recordAudit(tx, caller, {
+    action: "project_cost.commitment_closed",
+    targetType: "project",
+    targetId: project.id,
+    legalEntityId: project.legalEntityId,
+    metadata: { entryId, reason },
+  });
+  return after;
+}
+
+/** Voids costs a document posted, when the document is voided. */
 export async function voidDocumentCost(tx: Tx, caller: Caller, entryId: string, reason: string) {
   const entry = await tx.projectCostEntry.findUniqueOrThrow({ where: { id: entryId } });
   if (entry.voidedAt) return entry;

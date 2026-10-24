@@ -73,6 +73,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/finance/advances",
         "/finance/advances/new",
         "/finance/staff-balances",
+        "/finance/crew-settlements",
         "/expenses",
         "/expenses/new",
         "/finance/vendors",
@@ -166,6 +167,9 @@ for (const colorScheme of ["light", "dark"] as const) {
         await expectNoViolations(page);
         await page.goto(`${projectUrl}/resources`);
         await expect(page.getByRole("heading", { level: 2, name: "Crew plan" })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goto(`${projectUrl}/resources/call-sheet`);
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
         await expectNoViolations(page);
         await page.goto(`${projectUrl}/documents`);
         await expect(page.getByRole("heading", { level: 2, name: "Documents" })).toBeVisible();

@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  bookingCostMinor,
+  bookingDays,
   certificationState,
+  formatMinutes,
   overtimeHourMinor,
+  parseOvertime,
   parseSkills,
   rangesOverlap,
   rateFor,
   type RateRow,
+  workAmounts,
 } from "@/lib/crew";
 
 const d = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -88,5 +93,55 @@ describe("skills", () => {
       "grandMA3",
     ]);
     expect(parseSkills(null)).toEqual([]);
+  });
+});
+
+describe("work amounts", () => {
+  const rates = { dayRateMinor: 3_000_00n, halfDayRateMinor: null, overtimeRateMinor: null };
+
+  it("pays full days, half days at half the rate, overtime and expenses", () => {
+    const a = workAmounts(
+      [
+        { day: "FULL", overtimeMinutes: 150, expensesMinor: 0n },
+        { day: "FULL", overtimeMinutes: 0, expensesMinor: 450_00n },
+        { day: "HALF", overtimeMinutes: 0, expensesMinor: 0n },
+      ],
+      rates,
+    );
+    expect(a).toMatchObject({
+      fullDays: 2,
+      halfDays: 1,
+      feesMinor: 7_500_00n,
+      // 3,000 ÷ 10 × 1.5 = 450 an hour, for 2.5 hours.
+      overtimeMinor: 1_125_00n,
+      expensesMinor: 450_00n,
+      totalMinor: 9_075_00n,
+    });
+  });
+
+  it("uses the booking's half-day and overtime rates when set", () => {
+    const a = workAmounts([{ day: "HALF", overtimeMinutes: 20, expensesMinor: 0n }], {
+      dayRateMinor: 3_000_00n,
+      halfDayRateMinor: 1_800_00n,
+      overtimeRateMinor: 500_00n,
+    });
+    // 20 minutes at 500 an hour is 166.666…, rounded once to 166.67.
+    expect(a).toMatchObject({ feesMinor: 1_800_00n, overtimeMinor: 166_67n });
+  });
+
+  it("reads overtime typed as hours or h:mm", () => {
+    expect(parseOvertime("")).toBe(0);
+    expect(parseOvertime("2.5")).toBe(150);
+    expect(parseOvertime("1:45")).toBe(105);
+    expect(parseOvertime("two")).toBeNull();
+    expect(formatMinutes(150)).toBe("2 h 30 min");
+    expect(formatMinutes(60)).toBe("1 h");
+  });
+
+  it("counts both ends of a booking", () => {
+    expect(bookingDays(d("2099-03-10"), d("2099-03-12"))).toBe(3);
+    expect(
+      bookingCostMinor({ startDate: d("2099-03-10"), endDate: d("2099-03-10"), dayRateMinor: 5n }),
+    ).toBe(5n);
   });
 });
