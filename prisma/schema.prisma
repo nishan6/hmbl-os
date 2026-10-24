@@ -1628,6 +1628,7 @@ model JournalLine {
   partyId       String?       @db.Uuid
   projectId     String?       @db.Uuid
   project       Project?      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  bankMatch     BankMatch?
 
   @@unique([journalId, position])
   @@index([accountId])
@@ -1808,26 +1809,30 @@ model CreditNoteLine {
 /// A bank account of an entity, with its own ledger account (heading Bank).
 /// Its details print on invoices so clients know where to pay.
 model BankAccount {
-  id              String        @id @default(uuid()) @db.Uuid
-  legalEntityId   String        @db.Uuid
-  legalEntity     LegalEntity   @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
-  ledgerAccountId String        @unique @db.Uuid
-  ledgerAccount   LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
-  bankName        String
-  branch          String?
-  accountName     String
-  accountNumber   String
+  id                   String                @id @default(uuid()) @db.Uuid
+  legalEntityId        String                @db.Uuid
+  legalEntity          LegalEntity           @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  ledgerAccountId      String                @unique @db.Uuid
+  ledgerAccount        LedgerAccount         @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+  bankName             String
+  branch               String?
+  accountName          String
+  accountNumber        String
   // IFSC for Indian accounts; SWIFT/BIC and IBAN for others.
-  ifsc            String?
-  swift           String?
-  iban            String?
-  currency        String        @db.Char(3)
+  ifsc                 String?
+  swift                String?
+  iban                 String?
+  currency             String                @db.Char(3)
   // Printed on invoices in this currency.
-  showOnInvoices  Boolean       @default(false)
-  status          RecordStatus  @default(ACTIVE)
-  isDemo          Boolean       @default(false)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  showOnInvoices       Boolean               @default(false)
+  status               RecordStatus          @default(ACTIVE)
+  isDemo               Boolean               @default(false)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  bankStatementImports BankStatementImport[]
+  bankStatementLines   BankStatementLine[]
+  bankMatches          BankMatch[]
+  bankReconciliations  BankReconciliation[]
 
   @@index([legalEntityId])
   @@map("bank_accounts")
@@ -2337,4 +2342,98 @@ model ExpenseSettlement {
   @@index([claimId])
   @@index([advanceId])
   @@map("expense_settlements")
+}
+
+// ─── Finance: bank statements and reconciliation ─────────────────────────────
+// Statement lines are imported from the bank's CSV or typed in, matched to
+// ledger lines on the bank account, and locked by completed reconciliations
+// (docs/banking.md). Amounts are signed in the bank account's currency.
+
+enum BankStatementSource {
+  CSV
+  MANUAL
+}
+
+enum BankMatchKind {
+  STATEMENT
+  // Cleared as part of the opening balance of the first statement.
+  OPENING
+}
+
+enum BankReconciliationStatus {
+  COMPLETED
+  REOPENED
+}
+
+model BankStatementImport {
+  id            String              @id @default(uuid()) @db.Uuid
+  bankAccountId String              @db.Uuid
+  bankAccount   BankAccount         @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  source        BankStatementSource
+  fileName      String?
+  sha256        String?
+  lineCount     Int
+  skippedCount  Int                 @default(0)
+  importedById  String              @db.Uuid
+  createdAt     DateTime            @default(now())
+  lines         BankStatementLine[]
+
+  @@index([bankAccountId])
+  @@map("bank_statement_imports")
+}
+
+model BankStatementLine {
+  id            String              @id @default(uuid()) @db.Uuid
+  bankAccountId String              @db.Uuid
+  bankAccount   BankAccount         @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  importId      String              @db.Uuid
+  import        BankStatementImport @relation(fields: [importId], references: [id], onDelete: Restrict)
+  date          DateTime            @db.Date
+  description   String
+  reference     String?
+  amountMinor   BigInt
+  balanceMinor  BigInt?
+  dedupeKey     String
+  createdAt     DateTime            @default(now())
+  matches       BankMatch[]
+
+  @@unique([bankAccountId, dedupeKey])
+  @@index([bankAccountId, date])
+  @@map("bank_statement_lines")
+}
+
+model BankMatch {
+  id              String             @id @default(uuid()) @db.Uuid
+  bankAccountId   String             @db.Uuid
+  bankAccount     BankAccount        @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  kind            BankMatchKind
+  statementLineId String?            @db.Uuid
+  statementLine   BankStatementLine? @relation(fields: [statementLineId], references: [id], onDelete: Restrict)
+  // A ledger line clears once.
+  journalLineId   String             @unique @db.Uuid
+  journalLine     JournalLine        @relation(fields: [journalLineId], references: [id], onDelete: Restrict)
+  amountMinor     BigInt
+  createdById     String             @db.Uuid
+  createdAt       DateTime           @default(now())
+
+  @@index([bankAccountId])
+  @@index([statementLineId])
+  @@map("bank_matches")
+}
+
+model BankReconciliation {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  bankAccountId         String                   @db.Uuid
+  bankAccount           BankAccount              @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  statementDate         DateTime                 @db.Date
+  statementBalanceMinor BigInt
+  status                BankReconciliationStatus @default(COMPLETED)
+  completedById         String                   @db.Uuid
+  completedAt           DateTime                 @default(now())
+  reopenedById          String?                  @db.Uuid
+  reopenedAt            DateTime?
+  reopenReason          String?
+
+  @@index([bankAccountId, statementDate])
+  @@map("bank_reconciliations")
 }

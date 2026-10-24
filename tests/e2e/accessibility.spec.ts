@@ -101,6 +101,17 @@ for (const colorScheme of ["light", "dark"] as const) {
           await expectNoViolations(page);
         });
       }
+      await test.step("a bank reconciliation", async () => {
+        await page.goto("/finance/bank-accounts");
+        await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+        await page.getByRole("button", { name: "Show" }).first().click();
+        await page
+          .getByRole("link", { name: /^Reconcile / })
+          .first()
+          .click();
+        await expect(page.getByRole("heading", { level: 1, name: /^Reconcile / })).toBeVisible();
+        await expectNoViolations(page);
+      });
       await test.step("a project", async () => {
         await page.goto("/projects");
         await page.getByRole("link", { name: /^P-/ }).first().click();
