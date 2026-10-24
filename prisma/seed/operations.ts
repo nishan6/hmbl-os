@@ -194,3 +194,34 @@ export async function seedDemoEquipment(db: PrismaClient, reportedById: string) 
     },
   });
 }
+
+/** DEMO equipment reservation: two moving spots and cable on the demo gala project's show days. */
+export async function seedDemoEquipmentBookings(db: PrismaClient, createdById: string) {
+  const project = await db.project.findFirst({
+    where: { isDemo: true, name: { contains: "New Year gala" } },
+  });
+  const [spot, cable] = await Promise.all([
+    db.equipmentItem.findUnique({ where: { sku: "DEMO-ML-SPOT" } }),
+    db.equipmentItem.findUnique({ where: { sku: "DEMO-CBL-16A" } }),
+  ]);
+  if (!project || !spot || !cable) return;
+  if (await db.equipmentBooking.findFirst({ where: { projectId: project.id } })) return;
+  const startDate = project.eventStartDate ?? day(60);
+  const endDate = project.eventEndDate ?? startDate;
+  for (const [itemId, quantity] of [
+    [spot.id, 2],
+    [cable.id, 8],
+  ] as const) {
+    await db.equipmentBooking.create({
+      data: {
+        projectId: project.id,
+        itemId,
+        quantity,
+        startDate,
+        endDate,
+        notes: "Demo reservation (DEMO)",
+        createdById,
+      },
+    });
+  }
+}

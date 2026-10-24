@@ -19,10 +19,13 @@ import { RequirementForm, type LineOption } from "./resource-forms";
 import { bookableCrew, projectCrew } from "@/server/crew/assignments";
 import { CREW_KINDS } from "@/server/crew/members";
 import { StatusBadge } from "@/components/ui/status";
-import { ASSIGNMENT_STATUS } from "../../_components/status";
+import { ASSIGNMENT_STATUS, BOOKING_STATUS } from "../../_components/status";
 import { BookingForm, ConfirmForm } from "./crew-forms";
 import { confirmCrewAction, proposeCrewAction } from "./actions";
 import Link from "next/link";
+import { bookableEquipment, projectEquipment } from "@/server/equipment/bookings";
+import { reserveEquipmentAction } from "./equipment-actions";
+import { ReserveForm } from "./equipment-forms";
 
 export const metadata = { title: "Crew and equipment" };
 
@@ -44,6 +47,10 @@ export default async function ProjectResourcesPage({
   const [crew, people] = crewView
     ? await Promise.all([projectCrew(actor, id), bookableCrew(actor)])
     : [null, []];
+  const equipmentView = can(actor, "equipment.view");
+  const [gear, bookable] = equipmentView
+    ? await Promise.all([projectEquipment(actor, id), bookableEquipment(actor)])
+    : [null, { items: [], kits: [] }];
   const canEdit =
     can(actor, "projects.edit", { legalEntityId: p.legalEntityId }) && !isLocked(p.status);
   const money = (minor: bigint) => formatMoney(minor, p.currency);
@@ -302,6 +309,93 @@ export default async function ProjectResourcesPage({
                     : c.name,
                 }))}
                 showCosts={crew.showCosts}
+              />
+            </Panel>
+          ) : null}
+        </Section>
+      ) : null}
+
+      {gear ? (
+        <Section
+          title="Equipment bookings"
+          description="Equipment reserved for this project. Reserving more than is free needs equipment approval."
+        >
+          {gear.bookings.length ? (
+            <Table dense>
+              <THead>
+                <tr>
+                  <TH>Equipment</TH>
+                  <TH>Dates</TH>
+                  <TH align="right">Booked</TH>
+                  <TH align="right">Out</TH>
+                  <TH align="right">Back</TH>
+                  <TH>Status</TH>
+                </tr>
+              </THead>
+              <TBody>
+                {gear.bookings.map((b) => {
+                  const back = b.returnedQuantity + b.damagedQuantity + b.lostQuantity;
+                  return (
+                    <TR key={b.id}>
+                      <TD className="py-1.5">
+                        <Link
+                          href={`/projects/${p.id}/resources/equipment/${b.id}`}
+                          className="text-accent hover:underline"
+                        >
+                          {b.item.name}
+                        </Link>
+                        {b.kit ? (
+                          <span className="text-muted text-xs"> · in {b.kit.name}</span>
+                        ) : null}
+                        {b.shortfall ? (
+                          <p className="text-warning flex items-center gap-1 text-xs">
+                            <TriangleAlert className="size-3" aria-hidden />
+                            {b.shortfall} short when reserved: {b.overrideReason}
+                          </p>
+                        ) : null}
+                      </TD>
+                      <TD className="tabular whitespace-nowrap">
+                        {b.endDate.getTime() === b.startDate.getTime()
+                          ? date(b.startDate)
+                          : `${date(b.startDate)} – ${date(b.endDate)}`}
+                      </TD>
+                      <TD align="right">{b.quantity}</TD>
+                      <TD align="right">{b.dispatchedQuantity - back}</TD>
+                      <TD align="right">
+                        {back}
+                        {b.damagedQuantity || b.lostQuantity ? (
+                          <span className="text-danger block text-xs">
+                            {b.damagedQuantity ? `${b.damagedQuantity} damaged` : ""}
+                            {b.damagedQuantity && b.lostQuantity ? ", " : ""}
+                            {b.lostQuantity ? `${b.lostQuantity} lost` : ""}
+                          </span>
+                        ) : null}
+                      </TD>
+                      <TD>
+                        <StatusBadge status={BOOKING_STATUS[b.status]} />
+                      </TD>
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </Table>
+          ) : (
+            <EmptyState title="No equipment reserved yet" />
+          )}
+          {gear.canBook && !isLocked(p.status) ? (
+            <Panel className="mt-4">
+              <h3 className="text-text mb-3 text-sm font-semibold">Reserve equipment</h3>
+              <ReserveForm
+                action={reserveEquipmentAction.bind(null, p.id)}
+                requirements={requirements
+                  .filter((r) => r.kind === "EQUIPMENT")
+                  .map((r) => ({
+                    id: r.id,
+                    label: `${r.name} × ${r.quantity}, ${date(r.startDate)}`,
+                  }))}
+                items={bookable.items.map((i) => ({ id: i.id, label: `${i.name} (${i.sku})` }))}
+                kits={bookable.kits.map((k) => ({ id: k.id, label: `${k.name} (${k.code})` }))}
+                canOverride={gear.canOverride}
               />
             </Panel>
           ) : null}

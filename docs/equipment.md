@@ -2,7 +2,7 @@
 
 Equipment covers what HMBL owns or leases: fixtures, audio, video, staging, power and stock (spec §13). Like crew, it is group-wide. Each asset can record which company owns it. Code: `src/server/equipment/` and `src/lib/equipment.ts`. Screens: **Equipment** in the sidebar.
 
-This page covers the inventory and maintenance. Booking equipment onto projects, dispatch and return come next (Stage 5, PR 4). Rentals from vendors and purchase orders come with procurement (PR 5).
+This page covers the inventory, maintenance, and booking equipment onto projects with dispatch and return. Rentals from vendors and purchase orders come with procurement (Stage 5, PR 5).
 
 ## Categories
 
@@ -101,6 +101,38 @@ Stock held out of service comes back one finished job at a time. The approver co
 
 A cancelled job still holds what it took out of service until that equipment is returned.
 
+## Bookings
+
+A booking reserves a quantity of one item for a project over a run of days, usually against one of the project's equipment needs (see [resources.md](resources.md)). A kit is booked as one booking per item in it, each for the kit's quantity times the number of kits. Whoever runs the project (`projects.edit`) or keeps equipment (`equipment.edit`) in its entity can reserve, change and end bookings.
+
+**Availability.** Reserving checks the busiest day in the booking's range. What can be promised is:
+
+- for serialised items, every **available** asset;
+- for stock, everything **in service** in a store, plus what is out on bookings and coming back.
+
+Each day's demand is every other live booking still holding equipment (what isn't back yet), plus **planned downtime** on maintenance jobs. Reserving more than is free is a **shortfall**. It needs `equipment.approve` and a reason, usually renting the rest in. The reason and the shortfall are kept on the booking. Items are locked while they are checked, so two reservations can't both take the last unit.
+
+**Named assets.** Before serialised equipment goes out, the warehouse names the assets on the booking. A database exclusion constraint (`btree_gist`) stops an asset being held by two bookings on any shared day. An asset that is out of service can't be named.
+
+**Dispatch.** Checking out needs `equipment.edit`:
+
+- for assets, the named ones going out. An asset out of service or overdue an inspection can't go out;
+- for stock, a quantity from one store, which leaves that store's count.
+
+**Check-in.** Each asset comes back good, fair, damaged or lost. Stock comes back as a count of good, damaged and lost, to a store:
+
+- good equipment is available again at once;
+- damaged equipment comes back **out of service**, with a fault job opened for it. It goes out again only once it is returned to service (see above);
+- lost assets are marked lost, and lost stock is not added back.
+
+A booking with everything back is closed. A booking can be extended while out, but its first day can't move once anything has gone out. With nothing out, it can be cancelled (if nothing ever went out) or closed, which releases the rest.
+
+**Counts.** A booking keeps its quantity, and how many were dispatched, returned, damaged and lost. Database checks keep what is back within what went out, and what went out within the quantity. Each dispatch and check-in is kept as a movement.
+
+**Utilisation.** **Equipment › Utilisation** shows, per item over a period, unit-days on bookings (cancelled ones left out) against unit-days held. Held is what is held today.
+
+Owned equipment's internal cost is not posted to the project (see [decisions.md](decisions.md)).
+
 ## Permissions
 
 | Action                                                               | Needs                 |
@@ -121,4 +153,5 @@ Every change is audited:
 - stock: `equipment_stock.added`, `.removed`, `.transferred`, `.returned_to_service`, `.written_off`;
 - jobs: `equipment_maintenance.opened`, `.completed`, `.cancelled`;
 - categories: `equipment_category.*`;
-- kits: `equipment_kit.*`.
+- kits: `equipment_kit.*`;
+- bookings, against the project: `equipment_booking.reserved`, `.changed`, `.assets_allocated`, `.asset_released`, `.dispatched`, `.returned`, `.closed`, `.cancelled`.

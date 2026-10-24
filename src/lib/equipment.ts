@@ -77,3 +77,69 @@ export function readChecklist(value: unknown): ChecklistResult[] {
 export function inServiceQuantity(stock: { quantity: number; outOfServiceQuantity: number }) {
   return stock.quantity - stock.outOfServiceQuantity;
 }
+
+export type Demand = { startDate: Date; endDate: Date; quantity: number };
+
+/** What a live booking still holds: everything not yet back. */
+export function bookingDemand(b: {
+  status: string;
+  quantity: number;
+  returnedQuantity: number;
+  damagedQuantity: number;
+  lostQuantity: number;
+}) {
+  if (b.status !== "RESERVED") return 0;
+  return b.quantity - b.returnedQuantity - b.damagedQuantity - b.lostQuantity;
+}
+
+/** Still out with the project: dispatched and not yet back. */
+export function outstanding(b: {
+  dispatchedQuantity: number;
+  returnedQuantity: number;
+  damagedQuantity: number;
+  lostQuantity: number;
+}) {
+  return b.dispatchedQuantity - b.returnedQuantity - b.damagedQuantity - b.lostQuantity;
+}
+
+/**
+ * The fewest units free on any day of a range: the pool less every demand
+ * (bookings and planned downtime) overlapping that day. Below zero means a
+ * shortfall. Returns the tightest day too.
+ */
+export function freeOverRange(
+  pool: number,
+  demands: Demand[],
+  range: { startDate: Date; endDate: Date },
+) {
+  let free = pool;
+  let tightest = range.startDate;
+  // Only days where a demand starts, and the first day, can lower the count.
+  const days = new Set([range.startDate.getTime()]);
+  for (const d of demands) {
+    const start = Math.max(d.startDate.getTime(), range.startDate.getTime());
+    if (start <= Math.min(d.endDate.getTime(), range.endDate.getTime())) days.add(start);
+  }
+  for (const t of days) {
+    const used = demands.reduce(
+      (s, d) => (d.startDate.getTime() <= t && d.endDate.getTime() >= t ? s + d.quantity : s),
+      0,
+    );
+    if (pool - used < free) {
+      free = pool - used;
+      tightest = new Date(t);
+    }
+  }
+  return { free, tightest };
+}
+
+/** Unit-days in a period: how many units for how many days, both ends counted. */
+export function unitDays(
+  b: { startDate: Date; endDate: Date; quantity: number },
+  period: { startDate: Date; endDate: Date },
+) {
+  const start = Math.max(b.startDate.getTime(), period.startDate.getTime());
+  const end = Math.min(b.endDate.getTime(), period.endDate.getTime());
+  if (end < start) return 0;
+  return (Math.round((end - start) / DAY) + 1) * b.quantity;
+}

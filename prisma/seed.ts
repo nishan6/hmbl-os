@@ -21,7 +21,7 @@ import {
   seedDemoInvoice,
   seedDemoPayables,
 } from "./seed/finance";
-import { seedDemoCrew, seedDemoEquipment } from "./seed/operations";
+import { seedDemoCrew, seedDemoEquipment, seedDemoEquipmentBookings } from "./seed/operations";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
 export const DEMO_USERS = [
@@ -83,6 +83,7 @@ async function main() {
   await seedDemoCrew(db, pm.id, financeIndia.id);
   console.log("Demo crew");
   await seedDemoEquipment(db, pm.id);
+  await seedDemoEquipmentBookings(db, pm.id);
   console.log("Demo equipment");
   await seedDemoTwoFactor(
     db,
