@@ -16,15 +16,15 @@ const PENDING_BILL = ["DRAFT", "SUBMITTED"] as const;
 
 /**
  * The closeout items that the records can check (docs/closeout.md, "Checked
- * from the records"): crew settled, equipment back, and every purchase order and
- * vendor bill finished. An item with blockers can't be marked done or not
+ * from the records"): crew settled, equipment back, and every purchase order,
+ * vendor bill, trip and logistics movement finished. An item with blockers can't be marked done or not
  * applicable, and closing the project over it is an override.
  */
 export async function closeoutBlockers(
   reader: Reader,
   projectId: string,
 ): Promise<CloseoutBlockers> {
-  const [assignments, work, bookings, orders, bills] = await Promise.all([
+  const [assignments, work, bookings, orders, bills, trips, shipments] = await Promise.all([
     reader.crewAssignment.findMany({
       where: { projectId, status: "PROPOSED" },
       include: { crewMember: { select: { name: true } } },
@@ -63,6 +63,14 @@ export async function closeoutBlockers(
       },
       include: { vendor: { select: { name: true } } },
       orderBy: { billDate: "asc" },
+    }),
+    reader.travelRequest.findMany({
+      where: { projectId, status: { in: ["DRAFT", "SUBMITTED", "APPROVED"] } },
+      orderBy: { startDate: "asc" },
+    }),
+    reader.shipment.findMany({
+      where: { projectId, status: { in: ["PLANNED", "BOOKED", "IN_TRANSIT"] } },
+      orderBy: { pickupAt: "asc" },
     }),
   ]);
 
@@ -125,6 +133,20 @@ export async function closeoutBlockers(
     vendorBills.push({
       text: `${b.vendor.name}'s bill${b.vendorInvoiceNumber ? ` ${b.vendorInvoiceNumber}` : ""} isn't approved yet.`,
       href: `/finance/bills/${b.id}`,
+    });
+  }
+
+  // Travel and logistics are billed by vendors too: open trips and movements hold it open.
+  for (const t of trips) {
+    vendorBills.push({
+      text: `Trip ${t.number ?? t.title} is still open. Complete or cancel it.`,
+      href: `/logistics/travel/${t.id}`,
+    });
+  }
+  for (const m of shipments) {
+    vendorBills.push({
+      text: `${m.title} isn't delivered yet. Deliver or cancel it.`,
+      href: `/logistics/shipments/${m.id}`,
     });
   }
 

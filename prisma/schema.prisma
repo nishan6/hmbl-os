@@ -238,6 +238,7 @@ model LegalEntity {
   purchaseOrders   PurchaseOrder[]
   procurement      ProcurementSettings?
   travelRequests   TravelRequest[]
+  shipments        Shipment[]
 
   @@map("legal_entities")
 }
@@ -1091,6 +1092,7 @@ model Project {
 
   equipmentBookings EquipmentBooking[]
   travelRequests    TravelRequest[]
+  shipments         Shipment[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -2061,6 +2063,7 @@ model Vendor {
   equipmentMaintenance EquipmentMaintenance[]
   purchaseOrders       PurchaseOrder[]
   travelBookings       TravelBooking[]
+  shipments            Shipment[]
 
   @@index([normalizedName])
   @@index([status, name])
@@ -3052,6 +3055,7 @@ model EquipmentBooking {
 
   allocations EquipmentAllocation[]
   movements   EquipmentBookingMovement[]
+  shipments   ShipmentEquipment[]
 
   @@index([itemId, startDate])
   @@index([projectId])
@@ -3461,4 +3465,108 @@ model TravelBookingChange {
 
   @@index([bookingId])
   @@map("travel_booking_changes")
+}
+
+// ─── Logistics (spec §15) ────────────────────────────────────────────────────
+
+enum ShipmentKind {
+  // Equipment going to or from a show.
+  EQUIPMENT
+  // Freight: sets, materials, merchandise.
+  FREIGHT
+  // A vehicle and driver for local movement.
+  LOCAL_TRANSFER
+}
+
+enum ShipmentStatus {
+  PLANNED
+  BOOKED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+/// A movement of equipment or freight, or a vehicle with a driver, for a
+/// project. Booking it commits its cost to a budget line; every status
+/// change is kept in its tracking log.
+model Shipment {
+  id                   String         @id @default(uuid()) @db.Uuid
+  legalEntityId        String         @db.Uuid
+  legalEntity          LegalEntity    @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  projectId            String         @db.Uuid
+  project              Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  kind                 ShipmentKind
+  status               ShipmentStatus @default(PLANNED)
+  title                String
+  vendorId             String?        @db.Uuid
+  vendor               Vendor?        @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  // Transport company or driver's agency, when not a vendor on file.
+  carrier              String?
+  // Consignment note, LR or tracking number.
+  reference            String?
+  vehicle              String?
+  vehicleRegistration  String?
+  driverName           String?
+  driverPhone          String?
+  fromAddress          String
+  toAddress            String
+  pickupAt             DateTime
+  pickupTimeZone       String
+  deliverBy            DateTime?
+  deliverTimeZone      String?
+  packages             Int?
+  weightKg             Decimal?       @db.Decimal(10, 2)
+  contents             String?
+  // Before tax, in the project's currency.
+  currency             String         @db.Char(3)
+  costMinor            BigInt         @default(0)
+  budgetLineId         String?        @db.Uuid
+  commitmentId         String?        @unique @db.Uuid
+  dispatchedAt         DateTime?
+  deliveredAt          DateTime?
+  receivedBy           String?
+  cancelledAt          DateTime?
+  cancelReason         String?
+  cancellationFeeMinor BigInt?
+  notes                String?
+  createdById          String         @db.Uuid
+  isDemo               Boolean        @default(false)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  equipment ShipmentEquipment[]
+  events    ShipmentEvent[]
+
+  @@index([projectId])
+  @@index([legalEntityId, status])
+  @@map("shipments")
+}
+
+/// An equipment booking carried by a shipment.
+model ShipmentEquipment {
+  shipmentId String           @db.Uuid
+  shipment   Shipment         @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  bookingId  String           @db.Uuid
+  booking    EquipmentBooking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  @@id([shipmentId, bookingId])
+  @@index([bookingId])
+  @@map("shipment_equipment")
+}
+
+/// The tracking log of a shipment: each status change, cost change and note. Append-only.
+model ShipmentEvent {
+  id            String         @id @default(uuid()) @db.Uuid
+  shipmentId    String         @db.Uuid
+  shipment      Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  status        ShipmentStatus
+  note          String?
+  // Set when the cost changed.
+  fromCostMinor BigInt?
+  toCostMinor   BigInt?
+  createdById   String         @db.Uuid
+  createdAt     DateTime       @default(now())
+
+  @@index([shipmentId])
+  @@map("shipment_events")
 }

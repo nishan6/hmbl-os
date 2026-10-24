@@ -3,7 +3,18 @@
 import { redirect } from "next/navigation";
 import { refresh } from "next/cache";
 import { requireActor } from "@/server/auth/session";
-import { draftBillFromTrip } from "@/server/logistics/billing";
+import { draftBillFromShipment, draftBillFromTrip } from "@/server/logistics/billing";
+import {
+  addShipmentNote,
+  bookShipment,
+  cancelShipment,
+  changeShipmentCost,
+  createShipment,
+  deliverShipment,
+  dispatchShipment,
+  updateShipment,
+  type ShipmentInput,
+} from "@/server/logistics/shipments";
 import { attempt, formValues, toFormState, type FormState } from "@/server/http/action-result";
 import {
   addBooking,
@@ -248,4 +259,110 @@ export async function billTripAction(tripId: string, _: FormState, formData: For
     return toFormState(error, values);
   }
   redirect(`/finance/bills/${id}/edit`);
+}
+
+function shipmentFields(formData: FormData): ShipmentInput {
+  const v = formValues(formData);
+  return {
+    kind: (v.kind ?? "") as ShipmentInput["kind"],
+    title: v.title ?? "",
+    vendorId: v.vendorId,
+    carrier: v.carrier,
+    reference: v.reference,
+    vehicle: v.vehicle,
+    vehicleRegistration: v.vehicleRegistration,
+    driverName: v.driverName,
+    driverPhone: v.driverPhone,
+    fromAddress: v.fromAddress ?? "",
+    toAddress: v.toAddress ?? "",
+    pickupLocal: v.pickupLocal ?? "",
+    pickupTimeZone: v.pickupTimeZone ?? "",
+    deliverLocal: v.deliverLocal,
+    deliverTimeZone: v.deliverTimeZone,
+    packages: v.packages,
+    weightKg: v.weightKg,
+    contents: v.contents,
+    cost: v.cost,
+    budgetLineId: v.budgetLineId,
+    bookingIds: formData.getAll("bookingIds").filter((x): x is string => typeof x === "string"),
+    notes: v.notes,
+  };
+}
+
+export async function createShipmentAction(_: FormState, formData: FormData) {
+  const values = formValues(formData);
+  let id: string;
+  try {
+    ({ id } = await createShipment(await requireActor(), {
+      projectId: values.projectId ?? "",
+      ...shipmentFields(formData),
+    }));
+  } catch (error) {
+    return toFormState(error, values);
+  }
+  redirect(`/logistics/shipments/${id}`);
+}
+
+export async function updateShipmentAction(id: string, _: FormState, formData: FormData) {
+  const values = formValues(formData);
+  try {
+    await updateShipment(await requireActor(), id, shipmentFields(formData));
+  } catch (error) {
+    return toFormState(error, values);
+  }
+  redirect(`/logistics/shipments/${id}`);
+}
+
+export async function shipmentCommandAction(id: string, _: FormState, formData: FormData) {
+  return run(formData, async ({ command = "" }) => {
+    const actor = await requireActor();
+    if (command === "book") return bookShipment(actor, id);
+    if (command === "dispatch") return dispatchShipment(actor, id);
+    throw new Error(`Unknown command ${command}`);
+  });
+}
+
+export async function deliverShipmentAction(id: string, _: FormState, formData: FormData) {
+  return run(
+    formData,
+    async ({ receivedBy = "", note }) =>
+      deliverShipment(await requireActor(), id, { receivedBy, note }),
+    "Delivered",
+  );
+}
+
+export async function shipmentCostAction(id: string, _: FormState, formData: FormData) {
+  return run(
+    formData,
+    async ({ cost = "", reason = "" }) =>
+      changeShipmentCost(await requireActor(), id, { cost, reason }),
+    "Cost changed",
+  );
+}
+
+export async function shipmentNoteAction(id: string, _: FormState, formData: FormData) {
+  return run(
+    formData,
+    async ({ reason = "" }) => addShipmentNote(await requireActor(), id, { note: reason }),
+    "Noted",
+  );
+}
+
+export async function cancelShipmentAction(id: string, _: FormState, formData: FormData) {
+  return run(
+    formData,
+    async ({ reason = "", fee }) => cancelShipment(await requireActor(), id, { reason, fee }),
+    "Cancelled",
+  );
+}
+
+export async function billShipmentAction(id: string, _: FormState, formData: FormData) {
+  const values = formValues(formData);
+  let billId: string;
+  try {
+    ({ id: billId } = await draftBillFromShipment(await requireActor(), id));
+  } catch (error) {
+    return toFormState(error, values);
+  }
+  redirect(`/finance/bills/${billId}/edit`);
 }

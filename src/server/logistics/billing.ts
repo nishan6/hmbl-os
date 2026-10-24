@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupplyType } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { recordAudit } from "@/server/audit/record";
 import { MSME_MAX_DAYS, vendorSupply } from "@/server/finance/bills";
@@ -15,6 +16,7 @@ import { tdsOn } from "@/lib/tds";
  * starts on. Finance can change it, and sets the GST rate, before submitting.
  */
 const ACCOUNT_BY_KIND = { HOTEL: "5040", OTHER: "5030" } as const;
+const FREIGHT_ACCOUNT = "5050";
 
 const DAY = 86_400_000;
 
@@ -35,8 +37,7 @@ export async function draftBillFromTrip(actor: Actor, tripId: string, vendorId: 
   const vendor = await db.vendor.findUnique({ where: { id: vendorId } });
   if (!vendor) throw new NotFoundError();
   const commitmentIds = trip.bookings.map((b) => b.commitmentId).filter((x): x is string => !!x);
-  const [entity, accounts, billed, liveCommitments] = await Promise.all([
-    db.legalEntity.findUniqueOrThrow({ where: { id: trip.legalEntityId } }),
+  const [accounts, billed, liveCommitments] = await Promise.all([
     db.ledgerAccount.findMany({
       where: {
         legalEntityId: trip.legalEntityId,
@@ -71,7 +72,7 @@ export async function draftBillFromTrip(actor: Actor, tripId: string, vendorId: 
     }
     return account.id;
   };
-  const supplyType = vendorSupply(await entityTaxPosition(db, entity.id), vendor);
+  const supplyType = vendorSupply(await entityTaxPosition(db, trip.legalEntityId), vendor);
   const lines = toBill.map((b) => {
     const amount = bookingCharge(b);
     const what = b.fromPlace ? `${b.fromPlace} → ${b.toPlace}` : (b.provider ?? "");
@@ -99,12 +100,60 @@ export async function draftBillFromTrip(actor: Actor, tripId: string, vendorId: 
       ),
     };
   });
-  const totals = documentTotals(lines);
+  return draftLogisticsBill(actor, {
+    legalEntityId: trip.legalEntityId,
+    vendor,
+    currency: trip.currency,
+    supplyType,
+    lines,
+    notes: `Travel for trip ${trip.number ?? trip.title}.`,
+    source: { source: "travel_request", travelRequestId: trip.id },
+  });
+}
+
+type BillLine = ReturnType<typeof priceInvoiceLine> & {
+  description: string;
+  sacCode: null;
+  quantity: string;
+  unitPriceMinor: bigint;
+  taxRateId: null;
+  taxCode: null;
+  taxRateBps: number;
+  itcEligible: boolean;
+  accountId: string;
+  projectId: string;
+  budgetLineId: string | null;
+  commitmentId: string | null;
+};
+
+/** Creates the draft bill with TDS and due date from the vendor, and records it. */
+async function draftLogisticsBill(
+  actor: Actor,
+  input: {
+    legalEntityId: string;
+    vendor: {
+      id: string;
+      gstin: string | null;
+      tdsRateBps: number | null;
+      tdsSection: string | null;
+      msmeNumber: string | null;
+      paymentTermsDays: number;
+    };
+    currency: string;
+    supplyType: SupplyType;
+    lines: BillLine[];
+    notes: string;
+    source: Record<string, string>;
+  },
+) {
+  const { vendor } = input;
+  const entity = await db.legalEntity.findUniqueOrThrow({ where: { id: input.legalEntityId } });
+  const totals = documentTotals(input.lines);
   const tdsRateBps =
-    entity.countryCode === "IN" && trip.currency === entity.baseCurrency
+    entity.countryCode === "IN" && input.currency === entity.baseCurrency
       ? (vendor.tdsRateBps ?? 0)
       : 0;
-  const tdsMinor = tdsOn(totals.subtotalMinor, tdsRateBps, trip.currency);
+  const tdsMinor = tdsOn(totals.subtotalMinor, tdsRateBps, input.currency);
   const terms = vendor.msmeNumber
     ? Math.min(vendor.paymentTermsDays, MSME_MAX_DAYS)
     : vendor.paymentTermsDays;
@@ -113,33 +162,116 @@ export async function draftBillFromTrip(actor: Actor, tripId: string, vendorId: 
   return db.$transaction(async (tx) => {
     const bill = await tx.vendorBill.create({
       data: {
-        legalEntityId: trip.legalEntityId,
+        legalEntityId: input.legalEntityId,
         vendorId: vendor.id,
         vendorInvoiceNumber: "",
         billDate: today,
         dueDate: new Date(today.getTime() + terms * DAY),
-        currency: trip.currency,
-        supplyType,
+        currency: input.currency,
+        supplyType: input.supplyType,
         vendorGstin: vendor.gstin,
-        notes: `Travel for trip ${trip.number ?? trip.title}.`,
+        notes: input.notes,
         tdsSection: tdsRateBps ? vendor.tdsSection : null,
         tdsRateBps,
         tdsMinor,
         payableMinor: totals.totalMinor - tdsMinor,
         ...totals,
         createdById: actor.id,
-        lines: { create: lines.map((l, position) => ({ ...l, position })) },
+        lines: { create: input.lines.map((l, position) => ({ ...l, position })) },
       },
     });
     await recordAudit(tx, actor, {
       action: "vendor_bill.drafted",
       targetType: "vendor_bill",
       targetId: bill.id,
-      legalEntityId: trip.legalEntityId,
-      metadata: { vendorId: vendor.id, source: "travel_request", travelRequestId: trip.id },
+      legalEntityId: input.legalEntityId,
+      metadata: { vendorId: vendor.id, ...input.source },
     });
     return bill;
   });
+}
+
+/** Whether a commitment is on a bill that isn't discarded or voided. */
+async function billedCommitments(ids: string[]) {
+  const lines = await db.vendorBillLine.findMany({
+    where: { commitmentId: { in: ids }, bill: LIVE_BILL },
+    select: { commitmentId: true },
+  });
+  return new Set(lines.map((l) => l.commitmentId));
+}
+
+/**
+ * Drafts the carrier's bill for a booked shipment: one line on its budget
+ * line drawing down its commitment, on account 5050 (Logistics and freight).
+ */
+export async function draftBillFromShipment(actor: Actor, shipmentId: string) {
+  const shipment = await db.shipment.findUnique({
+    where: { id: shipmentId },
+    include: { vendor: true },
+  });
+  if (!shipment) throw new NotFoundError();
+  authorize(actor, "finance.create", { legalEntityId: shipment.legalEntityId });
+  const vendor = shipment.vendor;
+  if (!vendor) throw new ConflictError("Choose the vendor who carries it before billing.");
+  const commitment = shipment.commitmentId
+    ? await db.projectCostEntry.findFirst({ where: { id: shipment.commitmentId, voidedAt: null } })
+    : null;
+  if (!commitment || (await billedCommitments([commitment.id])).has(commitment.id)) {
+    throw new ConflictError("Nothing on this shipment is left to bill.");
+  }
+  const account = await db.ledgerAccount.findFirst({
+    where: { legalEntityId: shipment.legalEntityId, code: FREIGHT_ACCOUNT, status: "ACTIVE" },
+  });
+  if (!account) {
+    throw new ConflictError(
+      `Account ${FREIGHT_ACCOUNT} is missing from the chart, so the bill can't be drafted.`,
+    );
+  }
+  const supplyType = vendorSupply(await entityTaxPosition(db, shipment.legalEntityId), vendor);
+  const amount =
+    shipment.status === "CANCELLED" ? (shipment.cancellationFeeMinor ?? 0n) : shipment.costMinor;
+  return draftLogisticsBill(actor, {
+    legalEntityId: shipment.legalEntityId,
+    vendor,
+    currency: shipment.currency,
+    supplyType,
+    notes: `Logistics: ${shipment.title}.`,
+    source: { source: "shipment", shipmentId: shipment.id },
+    lines: [
+      {
+        description: [
+          `${shipment.title}${shipment.status === "CANCELLED" ? " (cancellation)" : ""}`,
+          shipment.reference,
+        ]
+          .filter(Boolean)
+          .join(", "),
+        sacCode: null,
+        quantity: "1",
+        unitPriceMinor: amount,
+        taxRateId: null,
+        taxCode: null,
+        taxRateBps: 0,
+        itcEligible: true,
+        accountId: account.id,
+        projectId: shipment.projectId,
+        budgetLineId: shipment.budgetLineId,
+        commitmentId: commitment.id,
+        ...priceInvoiceLine(
+          { quantityMilli: 1000n, unitPriceMinor: amount, taxRateBps: 0 },
+          supplyType,
+        ),
+      },
+    ],
+  });
+}
+
+/** Whether a shipment has a commitment not yet on a bill, for its page. */
+export async function shipmentToBill(shipment: { commitmentId: string | null }) {
+  if (!shipment.commitmentId) return false;
+  const live = await db.projectCostEntry.count({
+    where: { id: shipment.commitmentId, voidedAt: null },
+  });
+  return live > 0 && !(await billedCommitments([shipment.commitmentId])).has(shipment.commitmentId);
 }
 
 /** Vendors on a trip with bookings still to bill, for the trip page. */

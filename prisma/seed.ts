@@ -26,6 +26,7 @@ import {
   seedDemoEquipment,
   seedDemoEquipmentBookings,
   seedDemoProcurement,
+  seedDemoShipments,
   seedDemoTravel,
 } from "./seed/operations";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
@@ -98,7 +99,8 @@ async function main() {
   await seedDemoProcurement(db, procurement.id, financeIndia.id);
   console.log("Demo purchase orders");
   await seedDemoTravel(db, pm.id);
-  console.log("Demo travel");
+  await seedDemoShipments(db, pm.id);
+  console.log("Demo travel and logistics");
   await seedDemoTwoFactor(
     db,
     DEMO_USERS.map((u) => u.email).filter((email) => !email.startsWith("new.")),

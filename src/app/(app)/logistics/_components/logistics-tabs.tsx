@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import type { TravelBookingStatus, TravelRequestStatus } from "@/generated/prisma/enums";
+import type {
+  ShipmentStatus,
+  TravelBookingStatus,
+  TravelRequestStatus,
+} from "@/generated/prisma/enums";
 import type { StatusKey } from "@/components/ui/status";
 
-export const LOGISTICS_TABS = [{ path: "/logistics", label: "Travel" }] as const;
+export const LOGISTICS_TABS = [
+  { path: "/logistics", label: "Travel" },
+  { path: "/logistics/shipments", label: "Logistics" },
+] as const;
 
 export const TRIP_STATUS: Record<TravelRequestStatus, StatusKey> = {
   DRAFT: "draft",
@@ -16,6 +23,14 @@ export const TRIP_STATUS: Record<TravelRequestStatus, StatusKey> = {
 export const BOOKING_STATUS: Record<TravelBookingStatus, StatusKey> = {
   HELD: "held",
   CONFIRMED: "confirmed",
+  CANCELLED: "cancelled",
+};
+
+export const SHIPMENT_STATUS: Record<ShipmentStatus, StatusKey> = {
+  PLANNED: "planned",
+  BOOKED: "booked",
+  IN_TRANSIT: "in_transit",
+  DELIVERED: "delivered",
   CANCELLED: "cancelled",
 };
 
