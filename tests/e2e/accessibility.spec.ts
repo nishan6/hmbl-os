@@ -70,6 +70,31 @@ for (const colorScheme of ["light", "dark"] as const) {
       });
     });
 
+    test("travel pages meet WCAG 2.2 AA", async ({ page }) => {
+      test.setTimeout(120_000);
+      await signIn(page, DEMO.owner);
+      for (const path of ["/logistics", "/logistics/travel/new"]) {
+        await test.step(path, async () => {
+          await page.goto(path);
+          await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+          await expectNoViolations(page);
+        });
+      }
+      await test.step("the demo trip, its hotel and a new booking", async () => {
+        await page.goto("/logistics");
+        await page.getByRole("link", { name: "DEMO crew to the venue" }).first().click();
+        await expect(page.getByRole("heading", { level: 2, name: "Itinerary" })).toBeVisible();
+        await expectNoViolations(page);
+        await page.getByRole("link", { name: "Open Hotel booking" }).first().click();
+        await expect(page.getByRole("heading", { level: 2, name: "Rooms" })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goBack();
+        await page.getByRole("link", { name: "Flight", exact: true }).click();
+        await expect(page.getByLabel("Airline")).toBeVisible();
+        await expectNoViolations(page);
+      });
+    });
+
     test("app pages meet WCAG 2.2 AA", async ({ page }) => {
       // Many pages, each scanned by axe.
       test.setTimeout(240_000);

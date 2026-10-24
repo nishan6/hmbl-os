@@ -468,7 +468,11 @@ export async function voidCostEntry(
 
 /** Documents that post cost entries; such entries are changed only through them. */
 export type CostSource =
-  "vendor_bill_line" | "expense_claim_line" | "crew_assignment" | "purchase_order_line";
+  | "vendor_bill_line"
+  | "expense_claim_line"
+  | "crew_assignment"
+  | "purchase_order_line"
+  | "travel_booking";
 
 type DocumentCostInput = {
   projectId: string;

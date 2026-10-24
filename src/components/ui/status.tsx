@@ -76,6 +76,7 @@ export const STATUSES = {
   retired: { label: "Retired", icon: Archive, tone: "neutral" },
   reserved: { label: "Reserved", icon: Bookmark, tone: "info" },
   amending: { label: "Being amended", icon: PencilLine, tone: "warning" },
+  held: { label: "Held", icon: Bookmark, tone: "info" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon; tone: Tone }>;
 
 export type StatusKey = keyof typeof STATUSES;

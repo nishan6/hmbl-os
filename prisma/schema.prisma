@@ -237,6 +237,7 @@ model LegalEntity {
   equipmentAssets  EquipmentAsset[]
   purchaseOrders   PurchaseOrder[]
   procurement      ProcurementSettings?
+  travelRequests   TravelRequest[]
 
   @@map("legal_entities")
 }
@@ -1089,6 +1090,7 @@ model Project {
   expenseClaimLines ExpenseClaimLine[]
 
   equipmentBookings EquipmentBooking[]
+  travelRequests    TravelRequest[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -2058,6 +2060,7 @@ model Vendor {
   equipmentPurchases   EquipmentAsset[]
   equipmentMaintenance EquipmentMaintenance[]
   purchaseOrders       PurchaseOrder[]
+  travelBookings       TravelBooking[]
 
   @@index([normalizedName])
   @@index([status, name])
@@ -2588,6 +2591,7 @@ model CrewMember {
   unavailability CrewUnavailability[]
   assignments    CrewAssignment[]
   settlements    CrewSettlement[]
+  travel         TravelTraveller[]
 
   @@index([normalizedName])
   @@index([status, name])
@@ -3274,4 +3278,187 @@ model GoodsReceiptLine {
 
   @@index([lineId])
   @@map("goods_receipt_lines")
+}
+
+// ─── Travel and accommodation (spec §15) ─────────────────────────────────────
+
+enum TravelRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  COMPLETED
+  CANCELLED
+}
+
+/// A trip for a project: who travels, when, the estimate it was approved at,
+/// and the budget line its bookings are paid from.
+model TravelRequest {
+  id             String              @id @default(uuid()) @db.Uuid
+  legalEntityId  String              @db.Uuid
+  legalEntity    LegalEntity         @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  projectId      String              @db.Uuid
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  // Given on approval.
+  number         String?
+  title          String
+  status         TravelRequestStatus @default(DRAFT)
+  startDate      DateTime            @db.Date
+  endDate        DateTime            @db.Date
+  // Where from and to, e.g. "Guwahati → Mumbai → Guwahati".
+  route          String?
+  // The travel budget for this trip, before tax, in the project's currency.
+  currency       String              @db.Char(3)
+  estimateMinor  BigInt              @default(0)
+  budgetLineId   String?             @db.Uuid
+  notes          String?
+  rejectedReason String?
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  approvedById   String?             @db.Uuid
+  completedAt    DateTime?
+  cancelledAt    DateTime?
+  cancelReason   String?
+  createdById    String              @db.Uuid
+  isDemo         Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  travellers TravelTraveller[]
+  bookings   TravelBooking[]
+
+  @@unique([legalEntityId, number])
+  @@index([projectId])
+  @@index([legalEntityId, status])
+  @@map("travel_requests")
+}
+
+/// Someone on a trip: a crew member, or a named guest such as an artist.
+/// Identity document fields are sensitive (logistics.view_sensitive).
+model TravelTraveller {
+  id             String        @id @default(uuid()) @db.Uuid
+  requestId      String        @db.Uuid
+  request        TravelRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  crewMemberId   String?       @db.Uuid
+  crewMember     CrewMember?   @relation(fields: [crewMemberId], references: [id], onDelete: Restrict)
+  name           String
+  phone          String?
+  email          String?
+  // Seat, meal and other preferences.
+  preferences    String?
+  // Sensitive: passport or ID, visa.
+  documentType   String?
+  documentNumber String?
+  documentExpiry DateTime?     @db.Date
+  nationality    String?       @db.Char(2)
+  visaReference  String?
+  createdById    String        @db.Uuid
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  bookings TravelBookingTraveller[]
+
+  @@unique([requestId, crewMemberId])
+  @@index([crewMemberId])
+  @@map("travel_travellers")
+}
+
+enum TravelBookingKind {
+  FLIGHT
+  RAIL
+  HOTEL
+  GROUND
+  OTHER
+}
+
+enum TravelBookingStatus {
+  // Quoted or on hold, not paid for: commits nothing.
+  HELD
+  CONFIRMED
+  CANCELLED
+}
+
+/// A flight, train, hotel stay or ground transfer. Times are stored in UTC
+/// with the zone they happen in. A confirmed booking commits its cost to the
+/// trip's budget line; a cancelled one keeps only its cancellation charge.
+model TravelBooking {
+  id                   String              @id @default(uuid()) @db.Uuid
+  requestId            String              @db.Uuid
+  request              TravelRequest       @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  kind                 TravelBookingKind
+  status               TravelBookingStatus @default(HELD)
+  vendorId             String?             @db.Uuid
+  vendor               Vendor?             @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  // Airline, rail operator, hotel or transport company.
+  provider             String?
+  // PNR, confirmation or voucher number.
+  reference            String?
+  // Flight or train number, room type, vehicle type and registration.
+  serviceDetails       String?
+  fromPlace            String?
+  toPlace              String?
+  departAt             DateTime?
+  departTimeZone       String?
+  arriveAt             DateTime?
+  arriveTimeZone       String?
+  // Hotel nights, as calendar days in the hotel's zone.
+  checkIn              DateTime?           @db.Date
+  checkOut             DateTime?           @db.Date
+  rooms                Int?
+  address              String?
+  driverName           String?
+  driverPhone          String?
+  // Before tax, in the trip's currency; includes change fees.
+  costMinor            BigInt              @default(0)
+  commitmentId         String?             @unique @db.Uuid
+  confirmedAt          DateTime?
+  cancelledAt          DateTime?
+  cancelReason         String?
+  cancellationFeeMinor BigInt?
+  notes                String?
+  createdById          String              @db.Uuid
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  travellers TravelBookingTraveller[]
+  changes    TravelBookingChange[]
+
+  @@index([requestId])
+  @@map("travel_bookings")
+}
+
+/// Who a booking is for. A hotel booking also says which room.
+model TravelBookingTraveller {
+  bookingId   String          @db.Uuid
+  booking     TravelBooking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  travellerId String          @db.Uuid
+  traveller   TravelTraveller @relation(fields: [travellerId], references: [id], onDelete: Cascade)
+  room        String?
+
+  @@id([bookingId, travellerId])
+  @@index([travellerId])
+  @@map("travel_booking_travellers")
+}
+
+enum TravelChangeKind {
+  CHANGED
+  CANCELLED
+}
+
+/// A change to a confirmed booking, with what it cost. Append-only.
+model TravelBookingChange {
+  id            String           @id @default(uuid()) @db.Uuid
+  bookingId     String           @db.Uuid
+  booking       TravelBooking    @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  kind          TravelChangeKind
+  reason        String
+  // The change or cancellation charge, already inside the new cost.
+  feeMinor      BigInt           @default(0)
+  fromCostMinor BigInt
+  toCostMinor   BigInt
+  summary       String?
+  createdById   String           @db.Uuid
+  createdAt     DateTime         @default(now())
+
+  @@index([bookingId])
+  @@map("travel_booking_changes")
 }
