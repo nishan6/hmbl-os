@@ -56,4 +56,5 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 | Travel and accommodation                     | Built — see [travel.md](travel.md)                             |
 | Logistics: freight, equipment, vehicles      | Built — see [logistics.md](logistics.md)                       |
 | Notifications and approvals inbox            | Built — see [notifications.md](notifications.md)               |
+| Portal accounts, invitations and access      | Built — see [portal.md](portal.md)                             |
 | Other business modules                       | Not started; listed in the navigation as "Planned"             |

@@ -18,6 +18,14 @@ enum UserStatus {
   DISABLED
 }
 
+// STAFF sign in to HMBL OS. EXTERNAL people (client contacts, vendors and
+// freelancers) sign in to the portal only and can never hold a role
+// (docs/portal.md); a database trigger enforces both.
+enum UserKind {
+  STAFF
+  EXTERNAL
+}
+
 model User {
   id               String     @id @default(uuid()) @db.Uuid
   name             String
@@ -26,6 +34,7 @@ model User {
   image            String?
   // DISABLED users cannot start a session; existing sessions are revoked on disable.
   status           UserStatus @default(ACTIVE)
+  kind             UserKind   @default(STAFF)
   // Set by Better Auth once an authenticator app is verified.
   twoFactorEnabled Boolean    @default(false)
   createdAt        DateTime   @default(now())
@@ -57,6 +66,9 @@ model User {
   expenseClaims          ExpenseClaim[]               @relation("ExpenseClaimant")
   staffAdvances          StaffAdvance[]               @relation("StaffAdvancePerson")
   crewMember             CrewMember?                  @relation("CrewMemberUser")
+  portalAccount          PortalAccount?               @relation("PortalAccountUser")
+  portalInvitesSent      PortalInvitation[]           @relation("PortalInvitedBy")
+  portalAccountsRevoked  PortalAccount[]              @relation("PortalAccountRevokedBy")
 
   @@map("users")
 }
@@ -595,6 +607,9 @@ model Client {
   salesInvoices SalesInvoice[]
   receipts      Receipt[]
 
+  portalInvitations PortalInvitation[]
+  portalAccounts    PortalAccount[]
+
   @@unique([taxIdType, taxId], map: "clients_tax_id_key", where: raw("\"taxId\" IS NOT NULL AND status = 'ACTIVE'"))
   @@unique([invoiceCode], map: "clients_invoice_code_key", where: raw("\"invoiceCode\" IS NOT NULL AND status = 'ACTIVE'"))
   @@index([normalizedName])
@@ -620,6 +635,9 @@ model Contact {
 
   opportunities Opportunity[]
   quoteVersions QuoteVersion[]
+
+  portalInvitations PortalInvitation[]
+  portalAccounts    PortalAccount[]
 
   @@unique([clientId], map: "contacts_one_primary_key", where: raw("\"isPrimary\" AND status = 'ACTIVE'"))
   @@index([clientId])
@@ -2110,6 +2128,9 @@ model Vendor {
   travelBookings       TravelBooking[]
   shipments            Shipment[]
 
+  portalInvitations PortalInvitation[]
+  portalAccounts    PortalAccount[]
+
   @@index([normalizedName])
   @@index([status, name])
   @@map("vendors")
@@ -2640,6 +2661,9 @@ model CrewMember {
   assignments    CrewAssignment[]
   settlements    CrewSettlement[]
   travel         TravelTraveller[]
+
+  portalInvitations PortalInvitation[]
+  portalAccounts    PortalAccount[]
 
   @@index([normalizedName])
   @@index([status, name])
@@ -3687,4 +3711,84 @@ model NotificationPreference {
 
   @@unique([userId, kind])
   @@map("notification_preferences")
+}
+
+// ─── Portal access ────────────────────────────────────────────────────────────
+// Invitations and accounts for people outside HMBL (docs/portal.md). An
+// account belongs to exactly one organisation: a client (through one of its
+// contacts), a vendor, or a freelancer's crew record. Everything the portal
+// shows is filtered by that organisation on the server.
+
+enum PortalKind {
+  CLIENT
+  VENDOR
+  FREELANCER
+}
+
+enum PortalAccountStatus {
+  ACTIVE
+  REVOKED
+}
+
+model PortalInvitation {
+  id           String         @id @default(uuid()) @db.Uuid
+  kind         PortalKind
+  clientId     String?        @db.Uuid
+  client       Client?        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  contactId    String?        @db.Uuid
+  contact      Contact?       @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  vendorId     String?        @db.Uuid
+  vendor       Vendor?        @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  crewMemberId String?        @db.Uuid
+  crewMember   CrewMember?    @relation(fields: [crewMemberId], references: [id], onDelete: Restrict)
+  name         String
+  // Lower case. Accepting needs this address as well as the link.
+  email        String
+  // What the account may do in the portal (src/server/portal/permissions.ts).
+  permissions  String[]
+  // SHA-256 of the secret in the link; the secret itself is never stored.
+  tokenHash    String         @unique
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  accountId    String?        @unique @db.Uuid
+  account      PortalAccount? @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  revokedAt    DateTime?
+  createdById  String         @db.Uuid
+  createdBy    User           @relation("PortalInvitedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt    DateTime       @default(now())
+
+  @@index([clientId])
+  @@index([vendorId])
+  @@index([crewMemberId])
+  @@map("portal_invitations")
+}
+
+model PortalAccount {
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String              @unique @db.Uuid
+  user         User                @relation("PortalAccountUser", fields: [userId], references: [id], onDelete: Restrict)
+  kind         PortalKind
+  clientId     String?             @db.Uuid
+  client       Client?             @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  contactId    String?             @db.Uuid
+  contact      Contact?            @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  vendorId     String?             @db.Uuid
+  vendor       Vendor?             @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  crewMemberId String?             @db.Uuid
+  crewMember   CrewMember?         @relation(fields: [crewMemberId], references: [id], onDelete: Restrict)
+  permissions  String[]
+  status       PortalAccountStatus @default(ACTIVE)
+  revokedAt    DateTime?
+  revokedById  String?             @db.Uuid
+  revokedBy    User?               @relation("PortalAccountRevokedBy", fields: [revokedById], references: [id], onDelete: Restrict)
+  revokeReason String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  invitation PortalInvitation?
+
+  @@index([clientId])
+  @@index([vendorId])
+  @@index([crewMemberId])
+  @@map("portal_accounts")
 }

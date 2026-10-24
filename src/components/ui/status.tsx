@@ -25,6 +25,8 @@ import {
   PencilLine,
   Truck,
   PackageCheck,
+  Mail,
+  TimerOff,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -83,6 +85,9 @@ export const STATUSES = {
   booked: { label: "Booked", icon: CircleCheck, tone: "info" },
   in_transit: { label: "In transit", icon: Truck, tone: "warning" },
   delivered: { label: "Delivered", icon: PackageCheck, tone: "success" },
+  invited: { label: "Invited", icon: Mail, tone: "info" },
+  expired: { label: "Expired", icon: TimerOff, tone: "neutral" },
+  revoked: { label: "Revoked", icon: Ban, tone: "neutral" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon; tone: Tone }>;
 
 export type StatusKey = keyof typeof STATUSES;

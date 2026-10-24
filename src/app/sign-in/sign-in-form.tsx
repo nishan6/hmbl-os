@@ -8,7 +8,7 @@ import { Alert } from "@/components/ui/page";
 
 type Step = "password" | "code" | "backup";
 
-export function SignInForm({ next }: { next: string }) {
+export function SignInForm({ next, email }: { next: string; email?: string }) {
   const [step, setStep] = useState<Step>("password");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -72,7 +72,14 @@ export function SignInForm({ next }: { next: string }) {
       <form onSubmit={onPassword} className="mt-6 flex flex-col gap-4" noValidate>
         <Field label="Email">
           {(props) => (
-            <Input {...props} name="email" type="email" autoComplete="username" required />
+            <Input
+              {...props}
+              name="email"
+              type="email"
+              autoComplete="username"
+              defaultValue={email}
+              required
+            />
           )}
         </Field>
         <Field label="Password">

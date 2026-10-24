@@ -29,6 +29,7 @@ import {
   seedDemoShipments,
   seedDemoTravel,
 } from "./seed/operations";
+import { seedDemoPortal } from "./seed/portal";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
 export const DEMO_USERS = [
@@ -101,6 +102,7 @@ async function main() {
   await seedDemoTravel(db, pm.id);
   await seedDemoShipments(db, pm.id);
   console.log("Demo travel and logistics");
+  for (const email of await seedDemoPortal(db)) console.log(`Demo portal user: ${email}`);
   await seedDemoTwoFactor(
     db,
     DEMO_USERS.map((u) => u.email).filter((email) => !email.startsWith("new.")),
