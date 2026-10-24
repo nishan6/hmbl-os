@@ -54,6 +54,7 @@ model User {
   journalsCreated        Journal[]                    @relation("JournalCreatedBy")
   expenseClaims          ExpenseClaim[]               @relation("ExpenseClaimant")
   staffAdvances          StaffAdvance[]               @relation("StaffAdvancePerson")
+  crewMember             CrewMember?                  @relation("CrewMemberUser")
 
   @@map("users")
 }
@@ -2030,6 +2031,7 @@ model Vendor {
 
   bills    VendorBill[]
   payments VendorPayment[]
+  crew     CrewMember[]
 
   @@index([normalizedName])
   @@index([status, name])
@@ -2499,4 +2501,111 @@ model BankReconciliation {
 
   @@index([bankAccountId, statementDate])
   @@map("bank_reconciliations")
+}
+
+// ─── Crew and freelancers (docs/crew.md) ────────────────────────────────────
+// Group-wide, like clients and vendors: the same people work for every entity.
+// Rates, emergency contacts and payment links need crew.view_sensitive.
+
+enum CrewKind {
+  EMPLOYEE
+  FREELANCER
+}
+
+enum CrewRateType {
+  DAY
+  HALF_DAY
+  OVERTIME_HOUR
+}
+
+/// Someone HMBL puts on projects: a member of staff or a freelancer.
+model CrewMember {
+  id                       String       @id @default(uuid()) @db.Uuid
+  name                     String
+  normalizedName           String
+  kind                     CrewKind
+  // Staff who sign in to HMBL OS.
+  userId                   String?      @unique @db.Uuid
+  user                     User?        @relation("CrewMemberUser", fields: [userId], references: [id], onDelete: Restrict)
+  // The vendor record a freelancer is paid through (bank details, PAN, TDS).
+  vendorId                 String?      @db.Uuid
+  vendor                   Vendor?      @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  email                    String?
+  phone                    String?
+  // Where they are based, and where else they will work, one per line.
+  baseCity                 String?
+  preferredLocations       String?
+  // Roles and skills, such as "Lighting operator" or "Rigging".
+  skills                   String[]
+  // Contract, NDA or agreement reference, kept with the documents.
+  contractRef              String?
+  notes                    String?
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  emergencyContactRelation String?
+  status                   RecordStatus @default(ACTIVE)
+  isDemo                   Boolean      @default(false)
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+
+  rates          CrewRate[]
+  certifications CrewCertification[]
+  unavailability CrewUnavailability[]
+
+  @@index([normalizedName])
+  @@index([status, name])
+  @@map("crew_members")
+}
+
+/// What a crew member is paid, before tax. A rate for a role beats a rate for
+/// any role; rates are replaced by ending the old one, never edited.
+model CrewRate {
+  id           String       @id @default(uuid()) @db.Uuid
+  crewMemberId String       @db.Uuid
+  crewMember   CrewMember   @relation(fields: [crewMemberId], references: [id], onDelete: Cascade)
+  // Null applies to every role.
+  role         String?
+  type         CrewRateType
+  currency     String       @db.Char(3)
+  amountMinor  BigInt
+  validFrom    DateTime     @db.Date
+  validTo      DateTime?    @db.Date
+  notes        String?
+  createdById  String       @db.Uuid
+  createdAt    DateTime     @default(now())
+
+  @@index([crewMemberId])
+  @@map("crew_rates")
+}
+
+/// A licence, ticket or qualification, such as working at height or a rigging card.
+model CrewCertification {
+  id           String     @id @default(uuid()) @db.Uuid
+  crewMemberId String     @db.Uuid
+  crewMember   CrewMember @relation(fields: [crewMemberId], references: [id], onDelete: Cascade)
+  name         String
+  issuer       String?
+  reference    String?
+  issuedOn     DateTime?  @db.Date
+  expiresOn    DateTime?  @db.Date
+  createdById  String     @db.Uuid
+  createdAt    DateTime   @default(now())
+
+  @@index([crewMemberId])
+  @@map("crew_certifications")
+}
+
+/// Days a crew member can't work: leave, another job, travel.
+model CrewUnavailability {
+  id           String     @id @default(uuid()) @db.Uuid
+  crewMemberId String     @db.Uuid
+  crewMember   CrewMember @relation(fields: [crewMemberId], references: [id], onDelete: Cascade)
+  startDate    DateTime   @db.Date
+  endDate      DateTime   @db.Date
+  reason       String?
+  createdById  String     @db.Uuid
+  createdAt    DateTime   @default(now())
+
+  @@index([crewMemberId, startDate])
+  @@map("crew_unavailability")
 }

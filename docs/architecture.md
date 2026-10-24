@@ -50,4 +50,5 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 | Bank statements and reconciliation           | Built — see [banking.md](banking.md)                           |
 | Financial reports and finance dashboard      | Built — see [financial-reports.md](financial-reports.md)       |
 | Period close                                 | Built — see [period-close.md](period-close.md)                 |
+| Crew and freelancers                         | Built — see [crew.md](crew.md)                                 |
 | Other business modules                       | Not started; listed in the navigation as "Planned"             |

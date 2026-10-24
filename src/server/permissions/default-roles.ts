@@ -92,6 +92,20 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
       ],
     },
     {
+      key: "crew_coordinator",
+      name: "Crew coordinator",
+      description: "Keeps crew records, rates and availability, and books crew onto projects.",
+      permissions: [
+        ...all("crew"),
+        ...all("expenses"),
+        ...only("projects", ["view"]),
+        ...only("logistics", ["view"]),
+        ...only("documents", ["view", "create"]),
+        ...only("reports", ["view"]),
+        ...only("organisation", ["view"]),
+      ],
+    },
+    {
       key: "viewer",
       name: "Viewer",
       description: "Read-only access to non-sensitive records.",
