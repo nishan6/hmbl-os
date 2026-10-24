@@ -58,7 +58,12 @@ export const NAV: NavGroup[] = [
         permission: "procurement.view",
         href: "/procurement",
       },
-      { label: "Travel & Logistics", icon: Plane, permission: "logistics.view" },
+      {
+        label: "Travel & Logistics",
+        icon: Plane,
+        permission: "logistics.view",
+        href: "/logistics",
+      },
     ],
   },
   {

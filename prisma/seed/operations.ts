@@ -8,6 +8,14 @@ import {
   saveOrder,
   submitOrder,
 } from "@/server/procurement/orders";
+import {
+  addBooking,
+  addTraveller,
+  approveTrip,
+  confirmBooking,
+  createTrip,
+  submitTrip,
+} from "@/server/logistics/travel";
 
 const day = (offset: number) =>
   new Date(`${new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10)}T00:00:00Z`);
@@ -322,4 +330,83 @@ export async function seedDemoProcurement(
     where: { id: { in: [hire.id, tape.id] } },
     data: { isDemo: true },
   });
+}
+
+/**
+ * DEMO travel: a crew trip to the demo project's event, approved by its
+ * project manager, with a confirmed flight and a held hotel on a travel line.
+ */
+export async function seedDemoTravel(db: PrismaClient, pmId: string) {
+  if (await db.travelRequest.findFirst({ where: { isDemo: true } })) return;
+  const india = await db.legalEntity.findUniqueOrThrow({ where: { code: "DEMO-IN" } });
+  const project = await db.project.findFirst({
+    where: { isDemo: true, legalEntityId: india.id, baselineLockedAt: { not: null } },
+    include: { budgetLines: { orderBy: { position: "desc" } } },
+  });
+  const crew = await db.crewMember.findFirst({ where: { isDemo: true, kind: "FREELANCER" } });
+  if (!project || !crew) return;
+  const user = await db.user.findUniqueOrThrow({ where: { id: pmId } });
+  const pm = { id: pmId, name: user.name, email: user.email, grants: await loadGrants(db, pmId) };
+  // Lines added after approval start with a zero baseline.
+  const line =
+    project.budgetLines.find((l) => l.category === "TRAVEL") ??
+    (await db.projectBudgetLine.create({
+      data: {
+        projectId: project.id,
+        position: (project.budgetLines[0]?.position ?? 0) + 1,
+        category: "TRAVEL",
+        description: "DEMO crew travel and stay",
+        quantity: 1,
+        days: 1,
+        costMinor: 0n,
+        revenueMinor: 0n,
+      },
+    }));
+  const start = project.eventStartDate ?? day(30);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const before = new Date(start.getTime() - 86_400_000);
+  const after = new Date((project.eventEndDate ?? start).getTime() + 86_400_000);
+
+  const trip = await createTrip(pm, {
+    projectId: project.id,
+    title: "DEMO crew to the venue",
+    startDate: iso(before),
+    endDate: iso(after),
+    route: "Guwahati → Mumbai → Guwahati",
+    estimate: "45000",
+    budgetLineId: line.id,
+  });
+  const traveller = await addTraveller(pm, trip.id, {
+    crewMemberId: crew.id,
+    preferences: "Aisle",
+  });
+  const guest = await addTraveller(pm, trip.id, { name: "DEMO guest artist" });
+  const flight = await addBooking(pm, trip.id, {
+    kind: "FLIGHT",
+    provider: "DEMO Air",
+    serviceDetails: "DA 101",
+    reference: "DEMO7Q",
+    fromPlace: "Guwahati (GAU)",
+    toPlace: "Mumbai (BOM)",
+    departLocal: `${iso(before)}T06:10`,
+    departTimeZone: "Asia/Kolkata",
+    arriveLocal: `${iso(before)}T09:40`,
+    arriveTimeZone: "Asia/Kolkata",
+    cost: "16500",
+    travellerIds: [traveller.id, guest.id],
+  });
+  await addBooking(pm, trip.id, {
+    kind: "HOTEL",
+    provider: "DEMO Seaside Inn",
+    checkIn: iso(before),
+    checkOut: iso(after),
+    rooms: "2",
+    address: "Juhu, Mumbai",
+    cost: "21000",
+    travellerIds: [traveller.id, guest.id],
+  });
+  await submitTrip(pm, trip.id);
+  await approveTrip(pm, trip.id);
+  await confirmBooking(pm, flight.id);
+  await db.travelRequest.update({ where: { id: trip.id }, data: { isDemo: true } });
 }

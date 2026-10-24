@@ -16,6 +16,7 @@ export const DOCUMENT_TYPES = {
   vendor_payment: { label: "Vendor payment", scope: "entity" },
   expense_claim: { label: "Expense claim", scope: "entity" },
   staff_advance: { label: "Staff advance", scope: "entity" },
+  travel_request: { label: "Travel request", scope: "entity" },
   journal: { label: "Journal", scope: "entity" },
 } as const satisfies Record<
   string,
@@ -55,5 +56,6 @@ export const DEFAULT_SCHEMES: Record<
   vendor_payment: { pattern: "PAY/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
   expense_claim: { pattern: "EXP/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
   staff_advance: { pattern: "ADV/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
+  travel_request: { pattern: "TRV/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
   journal: { pattern: "JV/{FYY}/{SEQ:5}", resetPolicy: "FISCAL_YEARLY" },
 };

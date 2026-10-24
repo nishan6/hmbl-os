@@ -9,6 +9,7 @@ const TABS = [
   { path: "", label: "Overview" },
   { path: "/schedule", label: "Schedule" },
   { path: "/resources", label: "Crew and equipment" },
+  { path: "/travel", label: "Travel" },
   { path: "/budget", label: "Budget", costs: true },
   { path: "/changes", label: "Change orders" },
   { path: "/documents", label: "Documents" },
