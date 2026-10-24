@@ -1,6 +1,6 @@
 # Production and show day
 
-The show day (spec §16) is what the people at a venue need on one screen, without the rest of the project: venue and dates, the running order, crew calls, equipment, travel, movements, contacts, notes, documents and what is happening now. Screens are under **Production** (`/production`), one show per project (`/production/[projectId]`). The services are in `src/server/production/`, and the pure rules (venue times, show days, call-sheet comparison) in `src/lib/production.ts`.
+The show day (spec §16) is what the people at a venue need on one screen, without the rest of the project: venue and dates, the running order, crew calls, equipment, travel, movements, contacts, notes, documents and what is happening now. Screens are under **Production** (`/production`), one show per project (`/production/[projectId]`). The services are in `src/server/production/`, and the pure rules (venue times, show days, call-sheet comparison) in `src/lib/production.ts`. The **field app** (`/field`) keeps the shows a person works on, on their device, so they open without a connection: see [offline.md](offline.md).
 
 ## Who sees what
 

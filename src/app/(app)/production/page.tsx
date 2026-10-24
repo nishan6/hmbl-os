@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Theater } from "lucide-react";
+import { CloudDownload, Theater } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { listShows } from "@/server/production/workspace";
 import { cn } from "@/lib/cn";
+import { buttonClasses } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
 import { EmptyState, PageHeader } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
@@ -31,6 +32,14 @@ export default async function ProductionPage({ searchParams }: PageProps<"/produ
       <PageHeader
         title="Production"
         description="Show days: what the people at the venue need to know, and what is happening now."
+        actions={
+          // A full page load, not a client navigation: the field app runs
+          // on its own so it can open offline (docs/offline.md).
+          <a href="/field" className={buttonClasses("secondary")}>
+            <CloudDownload aria-hidden className="size-4" />
+            Field app (works offline)
+          </a>
+        }
       />
       <nav aria-label="Shows" className="border-separator mb-6 flex gap-4 border-b">
         {[

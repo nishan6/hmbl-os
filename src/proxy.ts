@@ -15,10 +15,12 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except sign-in, portal invitations, the auth, health and
-  // upload APIs, and static assets. Uploads stream large bodies the proxy would buffer and cut off;
-  // their route handler checks the session itself.
+  // Everything except sign-in, portal invitations, the auth, health, upload
+  // and offline show-pack APIs, the field app's service worker, and static
+  // assets. Uploads stream large bodies the proxy would buffer and cut off;
+  // the field app must get a 401, not a sign-in page, to know to wipe its
+  // offline data. Their route handlers check the session themselves.
   matcher: [
-    "/((?!sign-in|invite/|api/auth|api/health|api/uploads|_next/static|_next/image|favicon.ico).*)",
+    "/((?!sign-in|invite/|api/auth|api/health|api/uploads|api/production|sw\\.js|_next/static|_next/image|favicon.ico).*)",
   ],
 };
