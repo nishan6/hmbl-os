@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireActorOrRedirect } from "@/server/auth/session";
-import { getTrip } from "@/server/logistics/travel";
+import { getTrip, tripBudgetLines } from "@/server/logistics/travel";
 import { LINE_CATEGORIES } from "@/server/commercial/schemas";
-import { db } from "@/server/db";
 import { AppError } from "@/lib/errors";
 import { minorToInput } from "@/lib/money";
 import { PageHeader } from "@/components/ui/page";
@@ -21,13 +20,7 @@ export default async function EditTripPage({ params }: PageProps<"/logistics/tra
     throw error;
   });
   if (!actions.edit) notFound();
-  const lines = actions.editEstimate
-    ? await db.projectBudgetLine.findMany({
-        where: { projectId: trip.projectId },
-        select: { id: true, description: true, category: true },
-        orderBy: { position: "asc" },
-      })
-    : [];
+  const lines = actions.editEstimate ? await tripBudgetLines(actor, id) : [];
   return (
     <>
       <PageHeader

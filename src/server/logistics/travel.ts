@@ -385,6 +385,16 @@ export async function getTrip(actor: Actor, id: string) {
 }
 
 /** Crew who can be added to a trip, and vendors bookings can be made with. */
+/** The project's budget lines a trip can be paid from, for its edit form. */
+export async function tripBudgetLines(actor: Actor, tripId: string) {
+  const trip = await loadTrip(actor, tripId);
+  return db.projectBudgetLine.findMany({
+    where: { projectId: trip.projectId },
+    select: { id: true, description: true, category: true },
+    orderBy: { position: "asc" },
+  });
+}
+
 export async function travelPickers(actor: Actor) {
   authorize(actor, "logistics.edit");
   const [crew, vendors] = await Promise.all([
