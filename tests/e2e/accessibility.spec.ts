@@ -52,6 +52,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/quotes/new",
         "/projects",
         "/projects/new",
+        "/crew",
+        "/crew/new",
         "/finance",
         "/finance/accounts",
         "/finance/journals",
@@ -112,6 +114,14 @@ for (const colorScheme of ["light", "dark"] as const) {
           await expectNoViolations(page);
         });
       }
+      await test.step("a crew member", async () => {
+        await page.goto("/crew");
+        await page.getByRole("link", { name: "Demo Ravi Lights (DEMO)" }).click();
+        await expect(
+          page.getByRole("heading", { level: 1, name: "Demo Ravi Lights (DEMO)" }),
+        ).toBeVisible();
+        await expectNoViolations(page);
+      });
       await test.step("a period's close checklist", async () => {
         await page.goto("/finance/periods");
         await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });

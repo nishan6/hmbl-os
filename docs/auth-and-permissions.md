@@ -45,6 +45,7 @@ Created once if missing by `pnpm db:seed` or `pnpm user:create`, then editable. 
 | Finance          | Finance and reports in full, sensitive commercial/project/crew figures, procurement approval |
 | Sales            | CRM, quotations up to submit and issue (not approve), project view                           |
 | Project manager  | Projects up to submit, production, crew, equipment, procurement and logistics requests       |
+| Crew coordinator | Crew records, rates and availability in full; project view                                   |
 | Viewer           | View-only, no sensitive data, no users or audit                                              |
 
 ## Entity scope

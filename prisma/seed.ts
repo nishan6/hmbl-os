@@ -21,6 +21,7 @@ import {
   seedDemoInvoice,
   seedDemoPayables,
 } from "./seed/finance";
+import { seedDemoCrew } from "./seed/operations";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
 export const DEMO_USERS = [
@@ -30,6 +31,7 @@ export const DEMO_USERS = [
   { name: "Demo Sales", email: "sales@demo.hmbl.test", roleKeys: ["sales"] },
   { name: "Demo Project Manager", email: "pm@demo.hmbl.test", roleKeys: ["project_manager"] },
   { name: "Demo Viewer", email: "viewer@demo.hmbl.test", roleKeys: ["viewer"] },
+  { name: "Demo Crew Coordinator", email: "crew@demo.hmbl.test", roleKeys: ["crew_coordinator"] },
   // Finance for the Indian demo entity only, to show entity scoping.
   { name: "Demo Finance India", email: "finance.in@demo.hmbl.test", roleKeys: [] },
   // Finance without two-factor yet: shows the forced setup screen on sign-in.
@@ -77,6 +79,8 @@ async function main() {
   console.log("Demo vendors and a bill awaiting approval");
   await seedDemoExpenses(db, financeIndia.id, sales.id);
   console.log("Demo advance and an expense claim awaiting approval");
+  await seedDemoCrew(db, pm.id, financeIndia.id);
+  console.log("Demo crew");
   await seedDemoTwoFactor(
     db,
     DEMO_USERS.map((u) => u.email).filter((email) => !email.startsWith("new.")),
