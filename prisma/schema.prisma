@@ -51,6 +51,8 @@ model User {
   scheduleItemsCompleted ProjectScheduleItem[]        @relation("ScheduleItemCompletedBy")
   resourcesCreated       ProjectResourceRequirement[] @relation("ResourceCreatedBy")
   documentsUploaded      RecordDocument[]             @relation("DocumentUploadedBy")
+  notifications          Notification[]               @relation("Notifications")
+  notificationPrefs      NotificationPreference[]     @relation("NotificationPreferences")
   journalsCreated        Journal[]                    @relation("JournalCreatedBy")
   expenseClaims          ExpenseClaim[]               @relation("ExpenseClaimant")
   staffAdvances          StaffAdvance[]               @relation("StaffAdvancePerson")
@@ -3612,4 +3614,77 @@ model ShipmentEvent {
 
   @@index([shipmentId])
   @@map("shipment_events")
+}
+
+// ─── Notifications (docs/notifications.md) ─────────────────────────────────
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  // Retried until the attempts run out, then FAILED.
+  RETRYING
+  FAILED
+  // The channel isn't set up, so nothing was sent. Never shown as delivered.
+  NOT_CONFIGURED
+}
+
+/// Something a person should know: an approval waiting, a decision, a date
+/// coming up. Informational only; a notification never approves anything.
+/// `dedupeKey` stops the same event notifying the same person twice.
+model Notification {
+  id            String                 @id @default(uuid()) @db.Uuid
+  userId        String                 @db.Uuid
+  user          User                   @relation("Notifications", fields: [userId], references: [id], onDelete: Cascade)
+  kind          String
+  title         String
+  body          String?
+  href          String?
+  legalEntityId String?                @db.Uuid
+  targetType    String?
+  targetId      String?                @db.Uuid
+  dedupeKey     String
+  createdAt     DateTime               @default(now())
+  readAt        DateTime?
+  deliveries    NotificationDelivery[]
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+/// One channel's attempt to deliver a notification, with its state.
+model NotificationDelivery {
+  id             String                     @id @default(uuid()) @db.Uuid
+  notificationId String                     @db.Uuid
+  notification   Notification               @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  channel        NotificationChannel
+  status         NotificationDeliveryStatus @default(PENDING)
+  attempts       Int                        @default(0)
+  lastError      String?
+  nextAttemptAt  DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@unique([notificationId, channel])
+  @@index([status, nextAttemptAt])
+  @@map("notification_deliveries")
+}
+
+/// A person's choice for one kind of notification. No row: in-app on, email off.
+model NotificationPreference {
+  id     String  @id @default(uuid()) @db.Uuid
+  userId String  @db.Uuid
+  user   User    @relation("NotificationPreferences", fields: [userId], references: [id], onDelete: Cascade)
+  kind   String
+  inApp  Boolean @default(true)
+  email  Boolean @default(false)
+
+  @@unique([userId, kind])
+  @@map("notification_preferences")
 }

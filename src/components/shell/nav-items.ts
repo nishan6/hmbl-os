@@ -8,6 +8,7 @@ import {
   HardHat,
   Hash,
   Home,
+  Inbox,
   Landmark,
   LineChart,
   Plane,
@@ -37,7 +38,12 @@ export type NavGroup = { label?: string; items: NavItem[] };
  * yet are shown as planned rather than linking to empty pages.
  */
 export const NAV: NavGroup[] = [
-  { items: [{ label: "Home", icon: Home, href: "/" }] },
+  {
+    items: [
+      { label: "Home", icon: Home, href: "/" },
+      { label: "Approvals", icon: Inbox, href: "/approvals" },
+    ],
+  },
   {
     label: "Operations",
     items: [

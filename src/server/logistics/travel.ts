@@ -1377,3 +1377,27 @@ export async function allocateRooms(actor: Actor, id: string, raw: z.input<typeo
     });
   });
 }
+
+/** Trips waiting for this actor's approval, for the approvals inbox. */
+export async function tripsAwaitingApproval(actor: Actor) {
+  if (!can(actor, "logistics.view")) return [];
+  return db.travelRequest.findMany({
+    where: {
+      status: "SUBMITTED",
+      OR: [
+        ...(can(actor, "logistics.approve") ? [entityFilter(actor, "logistics.approve")] : []),
+        { project: { projectManagerId: actor.id }, ...entityFilter(actor, "logistics.view") },
+      ],
+    },
+    select: {
+      id: true,
+      title: true,
+      submittedAt: true,
+      estimateMinor: true,
+      currency: true,
+      project: { select: { number: true } },
+      legalEntity: { select: { code: true } },
+    },
+    orderBy: { submittedAt: "asc" },
+  });
+}

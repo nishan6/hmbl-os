@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import type { Caller } from "@/server/permissions/authorize";
+import { notifyForAudit } from "@/server/notifications/rules";
 import type { Changes } from "./diff";
 
 export type AuditInput = {
@@ -12,11 +13,13 @@ export type AuditInput = {
   metadata?: Record<string, unknown>;
 };
 
-type Writer = Pick<Prisma.TransactionClient, "auditEvent">;
+type Writer = Prisma.TransactionClient;
 
 /**
  * Appends one audit event. Call it with the same transaction client as the
  * change it describes, so the change and its record commit or fail together.
+ * Changes that concern someone else (an approval waiting, a decision) also
+ * notify them here, in the same transaction (docs/notifications.md).
  */
 export async function recordAudit(tx: Writer, caller: Caller, event: AuditInput) {
   const actor =
@@ -30,7 +33,7 @@ export async function recordAudit(tx: Writer, caller: Caller, event: AuditInput)
   const request = caller === "system" ? undefined : caller.request;
   const metadata = { ...event.metadata, ...(request ?? {}) };
 
-  return tx.auditEvent.create({
+  const created = await tx.auditEvent.create({
     data: {
       ...actor,
       action: event.action,
@@ -41,4 +44,14 @@ export async function recordAudit(tx: Writer, caller: Caller, event: AuditInput)
       metadata: Object.keys(metadata).length ? (metadata as Prisma.InputJsonValue) : undefined,
     },
   });
+  await notifyForAudit(tx, {
+    id: created.id,
+    action: created.action,
+    targetType: created.targetType,
+    targetId: created.targetId,
+    legalEntityId: created.legalEntityId,
+    actorId: created.actorId,
+    metadata,
+  });
+  return created;
 }
