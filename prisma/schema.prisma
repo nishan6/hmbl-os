@@ -1129,6 +1129,11 @@ model Project {
   portalShares      PortalShare[]
   portalSubmissions PortalSubmission[]
 
+  runOfShow     RunOfShowItem[]
+  callSheets    CallSheet[]
+  showNotes     ProductionNote[]
+  statusUpdates ShowStatusUpdate[]
+
   @@unique([legalEntityId, number])
   @@index([clientId])
   @@index([status])
@@ -3988,4 +3993,91 @@ model PortalDetailsRequest {
   @@index([vendorId])
   @@index([crewMemberId])
   @@map("portal_details_requests")
+}
+
+// ─── Production and show day (docs/production.md) ───────────────────────────
+
+/// One timed entry in a show day's running order, such as doors, a set or a
+/// changeover. The time is the venue's wall-clock time ("19:30").
+model RunOfShowItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String   @db.Uuid
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  day             DateTime @db.Date
+  startTime       String
+  durationMinutes Int?
+  title           String
+  // Who runs it: a department or a person.
+  owner           String?
+  location        String?
+  notes           String?
+  createdById     String   @db.Uuid
+  updatedById     String   @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId, day, startTime])
+  @@map("run_of_show_items")
+}
+
+/// A day's call sheet as published to the crew: a frozen copy of who is
+/// called when, so the crew works from one agreed version. Republishing adds
+/// a revision; revisions are never changed.
+model CallSheet {
+  id            String   @id @default(uuid()) @db.Uuid
+  projectId     String   @db.Uuid
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  day           DateTime @db.Date
+  revision      Int
+  // General call information: parking, catering, safety briefing.
+  notes         String?
+  // { venue, crew: [{ name, role, callTime, reportTo, phone }] }
+  snapshot      Json
+  publishedById String   @db.Uuid
+  publishedAt   DateTime @default(now())
+
+  @@unique([projectId, day, revision])
+  @@map("call_sheets")
+}
+
+/// Production notes for the people at the venue: access, power, parking,
+/// client preferences. Pinned notes come first.
+model ProductionNote {
+  id           String    @id @default(uuid()) @db.Uuid
+  projectId    String    @db.Uuid
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  body         String
+  pinned       Boolean   @default(false)
+  createdById  String    @db.Uuid
+  updatedById  String    @db.Uuid
+  archivedAt   DateTime?
+  archivedById String?   @db.Uuid
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([projectId, createdAt])
+  @@map("production_notes")
+}
+
+enum ShowUpdateStatus {
+  INFO
+  ON_TRACK
+  DELAYED
+  ISSUE
+  DONE
+}
+
+/// What is happening at the show now, as posted by the people there. The
+/// newest update is the show's current status. Updates are never changed.
+model ShowStatusUpdate {
+  id          String           @id @default(uuid()) @db.Uuid
+  projectId   String           @db.Uuid
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  status      ShowUpdateStatus
+  message     String
+  createdById String           @db.Uuid
+  createdAt   DateTime         @default(now())
+
+  @@index([projectId, createdAt])
+  @@map("show_status_updates")
 }

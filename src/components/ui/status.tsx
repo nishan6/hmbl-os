@@ -27,6 +27,7 @@ import {
   PackageCheck,
   Mail,
   TimerOff,
+  Info,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -88,6 +89,10 @@ export const STATUSES = {
   invited: { label: "Invited", icon: Mail, tone: "info" },
   expired: { label: "Expired", icon: TimerOff, tone: "neutral" },
   revoked: { label: "Revoked", icon: Ban, tone: "neutral" },
+  on_track: { label: "On track", icon: CircleCheck, tone: "success" },
+  delayed: { label: "Delayed", icon: Clock, tone: "warning" },
+  issue: { label: "Issue", icon: TriangleAlert, tone: "danger" },
+  information: { label: "Information", icon: Info, tone: "neutral" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon; tone: Tone }>;
 
 export type StatusKey = keyof typeof STATUSES;

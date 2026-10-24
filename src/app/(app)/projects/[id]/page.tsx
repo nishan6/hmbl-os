@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Pencil, Theater } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { getProject } from "@/server/projects/projects";
@@ -81,14 +81,24 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
         current=""
         showCosts={p.showCosts}
         actions={
-          canEdit ? (
-            <Button asChild>
-              <Link href={`/projects/${p.id}/edit`}>
-                <Pencil aria-hidden />
-                Edit details
-              </Link>
-            </Button>
-          ) : null
+          <>
+            {can(actor, "production.view", scope) && !isLocked(p.status) ? (
+              <Button asChild>
+                <Link href={`/production/${p.id}`}>
+                  <Theater aria-hidden />
+                  Show day
+                </Link>
+              </Button>
+            ) : null}
+            {canEdit ? (
+              <Button asChild>
+                <Link href={`/projects/${p.id}/edit`}>
+                  <Pencil aria-hidden />
+                  Edit details
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
       {query.created ? (

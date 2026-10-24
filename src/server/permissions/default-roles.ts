@@ -107,6 +107,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
         ...all("expenses"),
         ...all("portal"),
         ...only("projects", ["view"]),
+        ...only("production", ["view"]),
         ...only("logistics", ["view"]),
         ...only("documents", ["view", "create"]),
         ...only("reports", ["view"]),
@@ -122,6 +123,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
         ...all("equipment"),
         ...all("expenses"),
         ...only("projects", ["view"]),
+        ...only("production", ["view", "create"]),
         ...only("logistics", ["view"]),
         ...only("procurement", ["view"]),
         ...only("documents", ["view", "create"]),
@@ -144,6 +146,18 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
         ...only("documents", ["view", "create"]),
         ...only("reports", ["view"]),
         ...only("organisation", ["view"]),
+      ],
+    },
+    {
+      key: "show_crew",
+      name: "Show crew",
+      description:
+        "Works at the venue: sees the show day, posts status updates and notes, ticks checklists and reports incidents.",
+      permissions: [
+        ...only("production", ["view", "create"]),
+        ...all("expenses"),
+        ...only("projects", ["view"]),
+        ...only("documents", ["view"]),
       ],
     },
     {

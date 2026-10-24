@@ -8,6 +8,7 @@ export const DEMO = {
   owner: "owner@demo.hmbl.test",
   sales: "sales@demo.hmbl.test",
   viewer: "viewer@demo.hmbl.test",
+  showCrew: "show@demo.hmbl.test",
   // Only the two-factor spec uses this one, since it changes the account.
   projectManager: "pm@demo.hmbl.test",
   newFinance: "new.finance@demo.hmbl.test",
