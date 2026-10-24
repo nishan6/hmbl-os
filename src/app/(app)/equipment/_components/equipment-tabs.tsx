@@ -7,6 +7,7 @@ export const EQUIPMENT_TABS = [
   { path: "/equipment", label: "Items" },
   { path: "/equipment/kits", label: "Kits" },
   { path: "/equipment/maintenance", label: "Maintenance" },
+  { path: "/equipment/utilisation", label: "Utilisation" },
   { path: "/equipment/categories", label: "Categories" },
 ] as const;
 

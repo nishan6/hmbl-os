@@ -348,6 +348,8 @@ model Location {
   equipmentMovements   EquipmentStockMovement[]
   equipmentMaintenance EquipmentMaintenance[]
 
+  equipmentBookingMovements EquipmentBookingMovement[]
+
   @@map("locations")
 }
 
@@ -1079,6 +1081,8 @@ model Project {
   staffAdvances     StaffAdvance[]
   expenseClaimLines ExpenseClaimLine[]
 
+  equipmentBookings EquipmentBooking[]
+
   @@unique([legalEntityId, number])
   @@index([clientId])
   @@index([status])
@@ -1367,6 +1371,8 @@ model ProjectResourceRequirement {
   updatedAt    DateTime           @updatedAt
 
   crewAssignments CrewAssignment[]
+
+  equipmentBookings EquipmentBooking[]
 
   @@index([projectId, kind])
   @@map("project_resource_requirements")
@@ -2784,6 +2790,8 @@ enum EquipmentStockMovementKind {
   TRANSFERRED
   OUT_OF_SERVICE
   RETURNED_TO_SERVICE
+  DISPATCHED
+  RETURNED
 }
 
 model EquipmentCategory {
@@ -2832,6 +2840,8 @@ model EquipmentItem {
   kitComponents  EquipmentKitComponent[]
   maintenance    EquipmentMaintenance[]
 
+  bookings EquipmentBooking[]
+
   @@index([categoryId])
   @@index([status, name])
   @@map("equipment_items")
@@ -2868,6 +2878,8 @@ model EquipmentAsset {
   updatedAt         DateTime            @updatedAt
 
   maintenance EquipmentMaintenance[]
+
+  allocations EquipmentAllocation[]
 
   @@unique([itemId, serialNumber])
   @@index([itemId, state])
@@ -2921,6 +2933,8 @@ model EquipmentKit {
   updatedAt   DateTime     @updatedAt
 
   components EquipmentKitComponent[]
+
+  bookings EquipmentBooking[]
 
   @@map("equipment_kits")
 }
@@ -2976,4 +2990,103 @@ model EquipmentMaintenance {
   @@index([itemId, status])
   @@index([status, kind])
   @@map("equipment_maintenance")
+}
+
+enum EquipmentBookingStatus {
+  RESERVED
+  CLOSED
+  CANCELLED
+}
+
+/// Equipment reserved for a project: a quantity of one item over a run of
+/// days, usually against one of the project's equipment requirements. What
+/// went out and came back is counted on the booking; serialised items also
+/// name each asset (EquipmentAllocation).
+model EquipmentBooking {
+  id                 String                      @id @default(uuid()) @db.Uuid
+  projectId          String                      @db.Uuid
+  project            Project                     @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  requirementId      String?                     @db.Uuid
+  requirement        ProjectResourceRequirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  itemId             String                      @db.Uuid
+  item               EquipmentItem               @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  // Booked as part of a kit.
+  kitId              String?                     @db.Uuid
+  kit                EquipmentKit?               @relation(fields: [kitId], references: [id], onDelete: Restrict)
+  quantity           Int
+  startDate          DateTime                    @db.Date
+  endDate            DateTime                    @db.Date
+  status             EquipmentBookingStatus      @default(RESERVED)
+  dispatchedQuantity Int                         @default(0)
+  returnedQuantity   Int                         @default(0)
+  damagedQuantity    Int                         @default(0)
+  lostQuantity       Int                         @default(0)
+  // Reserved beyond what is free, approved with equipment.approve.
+  shortfall          Int                         @default(0)
+  overrideReason     String?
+  overrideById       String?                     @db.Uuid
+  notes              String?
+  closedReason       String?
+  closedAt           DateTime?
+  createdById        String                      @db.Uuid
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  allocations EquipmentAllocation[]
+  movements   EquipmentBookingMovement[]
+
+  @@index([itemId, startDate])
+  @@index([projectId])
+  @@map("equipment_bookings")
+}
+
+/// One asset given to a booking. A database exclusion constraint stops the
+/// same asset being held by two bookings on the same day.
+model EquipmentAllocation {
+  id              String              @id @default(uuid()) @db.Uuid
+  bookingId       String              @db.Uuid
+  booking         EquipmentBooking    @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  assetId         String              @db.Uuid
+  asset           EquipmentAsset      @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  startDate       DateTime            @db.Date
+  endDate         DateTime            @db.Date
+  dispatchedAt    DateTime?
+  dispatchedById  String?             @db.Uuid
+  returnedAt      DateTime?
+  returnedById    String?             @db.Uuid
+  returnCondition EquipmentCondition?
+  lost            Boolean             @default(false)
+  returnNotes     String?
+  // Set once it stops holding the asset: returned, lost or taken off the booking.
+  releasedAt      DateTime?
+  createdAt       DateTime            @default(now())
+
+  @@index([assetId])
+  @@index([bookingId])
+  @@map("equipment_allocations")
+}
+
+enum EquipmentBookingMovementKind {
+  DISPATCHED
+  RETURNED
+}
+
+/// Each dispatch or return of a booking's equipment: how many, from or to
+/// where, and in what state they came back.
+model EquipmentBookingMovement {
+  id          String                       @id @default(uuid()) @db.Uuid
+  bookingId   String                       @db.Uuid
+  booking     EquipmentBooking             @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  kind        EquipmentBookingMovementKind
+  locationId  String?                      @db.Uuid
+  location    Location?                    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  quantity    Int                          @default(0)
+  damaged     Int                          @default(0)
+  lost        Int                          @default(0)
+  notes       String?
+  createdById String                       @db.Uuid
+  createdAt   DateTime                     @default(now())
+
+  @@index([bookingId])
+  @@map("equipment_booking_movements")
 }

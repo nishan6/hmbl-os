@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  bookingDemand,
+  freeOverRange,
   inServiceQuantity,
+  outstanding,
+  unitDays,
   inspectionState,
   nextInspectionDue,
   parseChecklist,
@@ -67,5 +71,42 @@ describe("equipment rules", () => {
 
   it("counts stock in service", () => {
     expect(inServiceQuantity({ quantity: 10, outOfServiceQuantity: 3 })).toBe(7);
+  });
+
+  it("finds the tightest day across overlapping demands", () => {
+    const range = { startDate: d("2099-03-10"), endDate: d("2099-03-14") };
+    const demands = [
+      { startDate: d("2099-03-08"), endDate: d("2099-03-11"), quantity: 2 },
+      { startDate: d("2099-03-11"), endDate: d("2099-03-12"), quantity: 3 },
+      { startDate: d("2099-03-13"), endDate: d("2099-03-20"), quantity: 1 },
+      { startDate: d("2099-03-20"), endDate: d("2099-03-22"), quantity: 9 },
+    ];
+    expect(freeOverRange(6, demands, range)).toEqual({ free: 1, tightest: d("2099-03-11") });
+    expect(freeOverRange(4, [], range)).toEqual({ free: 4, tightest: d("2099-03-10") });
+    expect(freeOverRange(4, demands, range).free).toBe(-1);
+  });
+
+  it("counts what a booking still holds and what is still out", () => {
+    const b = {
+      status: "RESERVED",
+      quantity: 10,
+      dispatchedQuantity: 8,
+      returnedQuantity: 3,
+      damagedQuantity: 1,
+      lostQuantity: 1,
+    };
+    expect(bookingDemand(b)).toBe(5);
+    expect(outstanding(b)).toBe(3);
+    expect(bookingDemand({ ...b, status: "CLOSED" })).toBe(0);
+  });
+
+  it("counts unit-days inside a period", () => {
+    const period = { startDate: d("2099-03-01"), endDate: d("2099-03-31") };
+    expect(
+      unitDays({ startDate: d("2099-02-27"), endDate: d("2099-03-02"), quantity: 4 }, period),
+    ).toBe(8);
+    expect(
+      unitDays({ startDate: d("2099-04-01"), endDate: d("2099-04-02"), quantity: 4 }, period),
+    ).toBe(0);
   });
 });

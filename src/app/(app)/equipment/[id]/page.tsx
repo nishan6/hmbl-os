@@ -10,6 +10,7 @@ import {
   EQUIPMENT_TRACKING,
 } from "@/server/equipment/inventory";
 import { MAINTENANCE_KINDS } from "@/server/equipment/maintenance";
+import { itemBookings } from "@/server/equipment/bookings";
 import { AppError } from "@/lib/errors";
 import { inServiceQuantity, inspectionState } from "@/lib/equipment";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -46,6 +47,8 @@ const MOVEMENTS = {
   TRANSFERRED: "Moved",
   OUT_OF_SERVICE: "Out of service",
   RETURNED_TO_SERVICE: "Back in service",
+  DISPATCHED: "Out to a project",
+  RETURNED: "Back from a project",
 } as const;
 
 export default async function ItemPage({ params }: PageProps<"/equipment/[id]">) {
@@ -61,7 +64,10 @@ export default async function ItemPage({ params }: PageProps<"/equipment/[id]">)
     approve: can(actor, "equipment.approve"),
     archive: can(actor, "equipment.archive"),
   };
-  const options = await equipmentFormOptions(actor);
+  const [options, bookings] = await Promise.all([
+    equipmentFormOptions(actor),
+    itemBookings(actor, id),
+  ]);
   const locations = options.locations.map((l) => ({ id: l.id, label: `${l.code} · ${l.name}` }));
   const vendors = options.vendors.map((v) => ({ id: v.id, label: v.name }));
   const archived = item.status === "ARCHIVED";
@@ -287,6 +293,44 @@ export default async function ItemPage({ params }: PageProps<"/equipment/[id]">)
           ) : null}
         </Section>
       )}
+
+      <Section title="Bookings" description="Current and upcoming reservations on projects.">
+        {bookings.length ? (
+          <Table dense>
+            <THead>
+              <tr>
+                <TH>Project</TH>
+                <TH>Dates</TH>
+                <TH align="right">Booked</TH>
+                <TH align="right">Out</TH>
+              </tr>
+            </THead>
+            <TBody>
+              {bookings.map((b) => (
+                <TR key={b.id}>
+                  <TD>
+                    <Link
+                      href={`/projects/${b.project.id}/resources/equipment/${b.id}`}
+                      className="text-accent hover:underline"
+                    >
+                      <span className="tabular">{b.project.number}</span> {b.project.name}
+                    </Link>
+                  </TD>
+                  <TD className="tabular whitespace-nowrap">
+                    {date(b.startDate)} – {date(b.endDate)}
+                  </TD>
+                  <TD align="right">{b.quantity}</TD>
+                  <TD align="right">
+                    {b.dispatchedQuantity - b.returnedQuantity - b.damagedQuantity - b.lostQuantity}
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        ) : (
+          <p className="text-secondary text-sm">Nothing booked.</p>
+        )}
+      </Section>
 
       <Section
         title="Maintenance"

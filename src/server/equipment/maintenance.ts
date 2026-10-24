@@ -87,7 +87,7 @@ const openInput = z
 export type MaintenanceInput = z.input<typeof openInput>;
 
 /** Takes a quantity of stock out of service, recording why. */
-async function stockOutOfService(
+export async function stockOutOfService(
   tx: Tx,
   actor: Actor,
   job: { id: string; itemId: string; locationId: string; quantity: number; title: string },

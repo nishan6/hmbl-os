@@ -59,6 +59,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/equipment/kits",
         "/equipment/kits/new",
         "/equipment/maintenance",
+        "/equipment/utilisation",
         "/equipment/categories",
         "/finance",
         "/finance/accounts",
@@ -214,6 +215,20 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.getByRole("link", { name: "Change orders", exact: true }).click();
         await page.getByRole("link", { name: /^CO-01/ }).click();
         await expect(page.getByRole("heading", { level: 2, name: "Budget changes" })).toBeVisible();
+        await expectNoViolations(page);
+        // It also has demo equipment reserved.
+        await page.goto("/projects");
+        await page
+          .getByRole("row", { name: /New Year gala/ })
+          .getByRole("link", { name: /^P-/ })
+          .click();
+        await page.waitForURL(/\/projects\/[0-9a-f-]{36}$/);
+        await page.goto(`${page.url()}/resources`);
+        await page
+          .getByRole("region", { name: "Equipment bookings" })
+          .getByRole("link", { name: "Demo moving spot (DEMO)" })
+          .click();
+        await expect(page.getByRole("heading", { level: 2, name: "Assets" })).toBeVisible();
         await expectNoViolations(page);
       });
       await test.step("an invoice, its editor and its print view", async () => {

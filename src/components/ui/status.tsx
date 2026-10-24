@@ -21,6 +21,7 @@ import {
   Calculator,
   Lock,
   Wrench,
+  Bookmark,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -72,6 +73,7 @@ export const STATUSES = {
   available: { label: "Available", icon: CircleCheck, tone: "success" },
   out_of_service: { label: "Out of service", icon: Wrench, tone: "warning" },
   retired: { label: "Retired", icon: Archive, tone: "neutral" },
+  reserved: { label: "Reserved", icon: Bookmark, tone: "info" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon; tone: Tone }>;
 
 export type StatusKey = keyof typeof STATUSES;
