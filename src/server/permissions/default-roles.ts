@@ -38,7 +38,13 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
       key: "administrator",
       name: "Administrator",
       description: "Manages users, roles and organisation settings. Can view, not transact.",
-      permissions: [...viewEverything, ...all("users"), ...all("organisation"), ...all("audit")],
+      permissions: [
+        ...viewEverything,
+        ...all("users"),
+        ...all("organisation"),
+        ...all("audit"),
+        ...all("portal"),
+      ],
     },
     {
       key: "finance",
@@ -65,6 +71,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
       permissions: [
         ...all("crm", ["configure"]),
         ...all("expenses"),
+        ...all("portal"),
         ...only("commercial", ["view", "create", "edit", "submit", "issue", "export"]),
         ...only("projects", ["view"]),
         ...only("documents", ["view", "create", "edit"]),
@@ -98,6 +105,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
       permissions: [
         ...all("crew"),
         ...all("expenses"),
+        ...all("portal"),
         ...only("projects", ["view"]),
         ...only("logistics", ["view"]),
         ...only("documents", ["view", "create"]),
@@ -129,6 +137,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
       permissions: [
         ...all("procurement", ["approve", "reject", "configure", "view_sensitive"]),
         ...all("expenses"),
+        ...all("portal"),
         ...only("projects", ["view"]),
         ...only("equipment", ["view"]),
         ...only("logistics", ["view"]),

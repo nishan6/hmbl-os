@@ -176,6 +176,7 @@ async function checkReferences(data: {
       where: {
         id: { in: [data.projectManagerId, data.producerId].filter((v): v is string => !!v) },
         status: "ACTIVE",
+        kind: "STAFF",
       },
       select: { id: true },
     }),

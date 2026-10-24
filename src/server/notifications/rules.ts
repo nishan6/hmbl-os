@@ -147,6 +147,31 @@ const bookingChanged: Rule = async (tx, e) => {
 };
 
 export const AUDIT_RULES: Record<string, Rule> = {
+  "portal_invitation.accepted": async (tx, e) => {
+    const i = await tx.portalInvitation.findUniqueOrThrow({
+      where: { id: e.targetId },
+      select: {
+        name: true,
+        createdById: true,
+        clientId: true,
+        vendorId: true,
+        crewMemberId: true,
+      },
+    });
+    const href = i.clientId
+      ? `/crm/clients/${i.clientId}`
+      : i.vendorId
+        ? `/procurement/vendors/${i.vendorId}`
+        : `/crew/${i.crewMemberId}`;
+    return {
+      userIds: [i.createdById],
+      kind: "portal.invitation_accepted",
+      title: `${i.name} accepted your portal invitation`,
+      body: typeof e.metadata.organisation === "string" ? e.metadata.organisation : null,
+      href,
+    };
+  },
+
   "quote.submitted": async (tx, e) => {
     const q = await tx.quote.findUniqueOrThrow({
       where: { id: e.targetId },

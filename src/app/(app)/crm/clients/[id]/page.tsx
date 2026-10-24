@@ -29,6 +29,7 @@ import { ActivityFeed } from "../../_components/activity-feed";
 import { ActivityForm } from "../../_components/activity-form";
 import { STAGE_STATUS } from "../../_components/stage";
 import { RecordDocuments } from "../../../documents/_components/record-documents";
+import { PortalAccess } from "../../../admin/portal-access/_components/portal-access";
 
 export const metadata = { title: "Client" };
 
@@ -326,6 +327,7 @@ export default async function ClientPage({ params, searchParams }: PageProps<"/c
         </Section>
       ) : null}
       <RecordDocuments actor={actor} type="CLIENT" id={client.id} />
+      <PortalAccess actor={actor} kind="CLIENT" id={client.id} />
     </>
   );
 }

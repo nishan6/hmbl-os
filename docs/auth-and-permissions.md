@@ -50,6 +50,10 @@ Created once if missing by `pnpm db:seed` or `pnpm user:create`, then editable. 
 | Procurement      | Vendors (not bank details or TDS), purchase orders up to submit, amendments and receipts                  |
 | Viewer           | View-only, no sensitive data, no users or audit                                                           |
 
+## Portal users
+
+People outside HMBL sign in to the portal only. They are external users, hold no role and are never actors inside HMBL OS; see [portal.md](portal.md).
+
 ## Entity scope
 
 A role can be granted for all legal entities or for one. `authorize(actor, perm, { legalEntityId })` checks a specific entity; `entityFilter(actor, perm)` narrows a query to the entities the actor reaches; `authorizeEverywhere` demands an all-entities grant for group-wide changes. Details in [organisation.md](organisation.md).

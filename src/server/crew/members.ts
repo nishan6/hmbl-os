@@ -169,6 +169,7 @@ export async function crewLinkOptions(actor: Actor, currentId?: string) {
     db.user.findMany({
       where: {
         status: "ACTIVE",
+        kind: "STAFF",
         OR: [{ crewMember: null }, ...(currentId ? [{ crewMember: { id: currentId } }] : [])],
       },
       select: { id: true, name: true, email: true },
@@ -200,7 +201,9 @@ async function toData(actor: Actor, raw: CrewMemberInput, before?: { id: string 
       where: { id: data.userId },
       include: { crewMember: { select: { id: true, name: true } } },
     });
-    if (!user || user.status !== "ACTIVE") throw invalid("userId", "Choose an active user");
+    if (!user || user.status !== "ACTIVE" || user.kind !== "STAFF") {
+      throw invalid("userId", "Choose an active user");
+    }
     if (user.crewMember && user.crewMember.id !== before?.id) {
       throw invalid("userId", `${user.crewMember.name} is already linked to this user`);
     }

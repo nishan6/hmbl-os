@@ -57,6 +57,8 @@ export const MODULES = {
   },
   users: { label: "Users and roles", actions: ["view", "create", "edit", "archive", "configure"] },
   audit: { label: "Audit log", actions: ["view", "export"] },
+  // Inviting clients, vendors and freelancers to the portal (docs/portal.md).
+  portal: { label: "Portal access", actions: ["view", "create", "edit", "archive"] },
 } as const satisfies Record<string, { label: string; actions: readonly Action[] }>;
 
 export type Module = keyof typeof MODULES;
