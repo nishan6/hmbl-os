@@ -8,7 +8,7 @@ import {
   getChangeOrder,
 } from "@/server/projects/change-orders";
 import { listCostCodes } from "@/server/projects/cost-codes";
-import { ACCEPTANCE_METHODS } from "@/server/commercial/acceptance";
+import { ACCEPTANCE_METHOD_LABELS, ACCEPTANCE_METHODS } from "@/server/commercial/acceptance";
 import { LINE_CATEGORIES } from "@/server/commercial/schemas";
 import { AppError } from "@/lib/errors";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
@@ -229,7 +229,7 @@ export default async function ChangeOrderPage({
                 {
                   label: "How",
                   value: order.clientApprovalMethod
-                    ? ACCEPTANCE_METHODS[order.clientApprovalMethod]
+                    ? ACCEPTANCE_METHOD_LABELS[order.clientApprovalMethod]
                     : null,
                 },
                 { label: "Reference", value: order.clientApprovalReference },

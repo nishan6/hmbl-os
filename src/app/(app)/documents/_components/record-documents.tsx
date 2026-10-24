@@ -1,15 +1,18 @@
-import { Lock } from "lucide-react";
+import { Lock, Share2 } from "lucide-react";
 import type { DocumentRecordType } from "@/generated/prisma/enums";
 import type { Actor } from "@/server/permissions/authorize";
 import { listRecordDocuments } from "@/server/documents/documents";
+import { documentSharing } from "@/server/portal/sharing";
 import { canPreview, DOCUMENT_CATEGORIES } from "@/server/projects/document-rules";
 import { AppError } from "@/lib/errors";
 import { formatBytes, formatDate } from "@/lib/format";
+import { ActionButton } from "@/components/ui/action-button";
 import { EmptyState, Panel, Section } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { CommandForm } from "../../projects/[id]/changes/change-forms";
 import { archiveDocumentAction } from "../actions";
+import { shareAction, stopSharingAction } from "../../admin/portal-access/sharing-actions";
 import { UploadForm } from "./upload-form";
 
 const href = (docId: string) => `/api/documents/${docId}`;
@@ -38,11 +41,13 @@ export async function RecordDocuments({
     throw error;
   });
   if (!view) return null;
-  const { documents, canUpload, canArchive, canRestrict, hidden } = view;
+  const { documents, canUpload, canArchive, canRestrict, hidden, record } = view;
+  const current = documents.filter((d) => !d.archivedAt);
+  const portal = await documentSharing(actor, record, current);
+  const canShare = portal?.canShare ?? false;
   const categories: Record<string, string> = canRestrict
     ? DOCUMENT_CATEGORIES
     : Object.fromEntries(Object.entries(DOCUMENT_CATEGORIES).filter(([k]) => k !== "IDENTITY"));
-  const current = documents.filter((d) => !d.archivedAt);
   const archived = documents.filter((d) => d.archivedAt);
   const tz = timeZone;
 
@@ -62,7 +67,7 @@ export async function RecordDocuments({
               <TH>Category</TH>
               <TH>Uploaded</TH>
               <TH align="right">Size</TH>
-              {canUpload || canArchive ? <TH>Actions</TH> : null}
+              {canUpload || canArchive || canShare ? <TH>Actions</TH> : null}
             </tr>
           </THead>
           <TBody>
@@ -78,6 +83,12 @@ export async function RecordDocuments({
                       <Tag tone="warning">
                         <Lock aria-hidden className="size-3" />
                         Restricted
+                      </Tag>
+                    ) : null}
+                    {portal?.shared.has(d.id) ? (
+                      <Tag tone="info">
+                        <Share2 aria-hidden className="size-3" />
+                        Shared with the client
                       </Tag>
                     ) : null}
                     {canPreview(d.fileName) ? (
@@ -120,9 +131,26 @@ export async function RecordDocuments({
                   {d.uploadedBy.name} · {formatDate(d.uploadedAt, tz)}
                 </TD>
                 <TD align="right">{formatBytes(d.sizeBytes)}</TD>
-                {canUpload || canArchive ? (
+                {canUpload || canArchive || canShare ? (
                   <TD>
                     <div className="flex flex-col items-start gap-1">
+                      {canShare && d.access === "STANDARD" ? (
+                        portal?.shared.has(d.id) ? (
+                          <ActionButton
+                            action={stopSharingAction.bind(null, "DOCUMENT", d.id)}
+                            fields={{}}
+                          >
+                            Stop sharing<span className="sr-only"> {d.title}</span>
+                          </ActionButton>
+                        ) : (
+                          <ActionButton
+                            action={shareAction.bind(null, "DOCUMENT", d.id)}
+                            fields={{}}
+                          >
+                            Share with the client<span className="sr-only"> {d.title}</span>
+                          </ActionButton>
+                        )
+                      ) : null}
                       {canUpload ? (
                         <details className="text-sm">
                           <summary className="text-accent cursor-pointer text-xs">

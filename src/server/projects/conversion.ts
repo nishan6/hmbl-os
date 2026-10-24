@@ -45,7 +45,10 @@ export async function createProjectFromVersion(
     deliverables: string | null;
   },
   acceptance: { acceptedOn: Date; clientPoNumber: string | null },
+  /** Who the project is recorded as created by, when not the actor (a portal acceptance). */
+  options: { createdById?: string } = {},
 ) {
+  const createdById = options.createdById ?? actor.id;
   const { number } = await allocateNumber(tx, {
     documentType: "project",
     legalEntityId: quote.legalEntityId,
@@ -77,7 +80,7 @@ export async function createProjectFromVersion(
       venue: version.venue,
       scope: version.scope,
       deliverables: version.deliverables,
-      createdById: actor.id,
+      createdById,
       isDemo: quote.isDemo,
     },
   });
@@ -117,7 +120,7 @@ export async function createProjectFromVersion(
         startDate: version.eventStartDate,
         endDate: end && end.getTime() !== version.eventStartDate.getTime() ? end : null,
         location: version.venue,
-        createdById: actor.id,
+        createdById,
       },
     });
   }

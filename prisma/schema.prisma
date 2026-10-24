@@ -69,6 +69,9 @@ model User {
   portalAccount          PortalAccount?               @relation("PortalAccountUser")
   portalInvitesSent      PortalInvitation[]           @relation("PortalInvitedBy")
   portalAccountsRevoked  PortalAccount[]              @relation("PortalAccountRevokedBy")
+  portalShares           PortalShare[]                @relation("PortalSharedBy")
+  portalSharesRevoked    PortalShare[]                @relation("PortalShareRevokedBy")
+  quotePortalResponses   QuotePortalResponse[]        @relation("QuotePortalResponder")
 
   @@map("users")
 }
@@ -610,6 +613,8 @@ model Client {
   portalInvitations PortalInvitation[]
   portalAccounts    PortalAccount[]
 
+  portalShares PortalShare[]
+
   @@unique([taxIdType, taxId], map: "clients_tax_id_key", where: raw("\"taxId\" IS NOT NULL AND status = 'ACTIVE'"))
   @@unique([invoiceCode], map: "clients_invoice_code_key", where: raw("\"invoiceCode\" IS NOT NULL AND status = 'ACTIVE'"))
   @@index([normalizedName])
@@ -828,6 +833,8 @@ model Quote {
   versions QuoteVersion[]
   projects Project[]
 
+  portalShares PortalShare[]
+
   @@unique([legalEntityId, number])
   @@index([clientId])
   @@index([opportunityId])
@@ -903,6 +910,8 @@ model QuoteVersion {
   lines   QuoteLine[]
   steps   QuoteApprovalStep[]
   project Project?
+
+  portalResponse QuotePortalResponse?
 
   @@unique([quoteId, version])
   @@index([status])
@@ -990,6 +999,8 @@ enum AcceptanceMethod {
   EMAIL
   PURCHASE_ORDER
   OTHER
+  // Accepted by the client in the portal (quote_portal_responses has the evidence).
+  PORTAL
 }
 
 // ─── Projects ────────────────────────────────────────────────────────────────
@@ -1114,6 +1125,9 @@ model Project {
   equipmentBookings EquipmentBooking[]
   travelRequests    TravelRequest[]
   shipments         Shipment[]
+
+  portalShares      PortalShare[]
+  portalSubmissions PortalSubmission[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1487,6 +1501,8 @@ model RecordDocument {
   uploadedById      String             @db.Uuid
   uploadedBy        User               @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
   uploadedAt        DateTime           @default(now())
+
+  portalShares PortalShare[]
 
   @@index([recordType, recordId])
   @@index([projectId, category])
@@ -3787,8 +3803,97 @@ model PortalAccount {
 
   invitation PortalInvitation?
 
+  quoteResponses QuotePortalResponse[]
+  submissions    PortalSubmission[]
+
   @@index([clientId])
   @@index([vendorId])
   @@index([crewMemberId])
   @@map("portal_accounts")
+}
+
+// ─── Client portal ────────────────────────────────────────────────────────────
+// What HMBL has chosen to show a client in the portal (docs/client-portal.md).
+// Nothing is visible to a client's portal accounts until it is shared here.
+
+enum PortalShareKind {
+  PROJECT
+  QUOTE
+  DOCUMENT
+}
+
+model PortalShare {
+  id          String          @id @default(uuid()) @db.Uuid
+  clientId    String          @db.Uuid
+  client      Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  kind        PortalShareKind
+  projectId   String?         @db.Uuid
+  project     Project?        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  quoteId     String?         @db.Uuid
+  quote       Quote?          @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  documentId  String?         @db.Uuid
+  document    RecordDocument? @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  sharedById  String          @db.Uuid
+  sharedBy    User            @relation("PortalSharedBy", fields: [sharedById], references: [id], onDelete: Restrict)
+  createdAt   DateTime        @default(now())
+  revokedAt   DateTime?
+  revokedById String?         @db.Uuid
+  revokedBy   User?           @relation("PortalShareRevokedBy", fields: [revokedById], references: [id], onDelete: Restrict)
+  isDemo      Boolean         @default(false)
+
+  // One live share per record.
+  @@unique([projectId], map: "portal_shares_project_live_key", where: raw("\"revokedAt\" IS NULL AND \"projectId\" IS NOT NULL"))
+  @@unique([quoteId], map: "portal_shares_quote_live_key", where: raw("\"revokedAt\" IS NULL AND \"quoteId\" IS NOT NULL"))
+  @@unique([documentId], map: "portal_shares_document_live_key", where: raw("\"revokedAt\" IS NULL AND \"documentId\" IS NOT NULL"))
+  @@index([clientId])
+  @@map("portal_shares")
+}
+
+enum PortalResponse {
+  ACCEPTED
+  DECLINED
+}
+
+// The client's own answer to a quotation in the portal, with what they saw.
+// Append-only. This is a record of acceptance, not an electronic signature.
+model QuotePortalResponse {
+  id             String         @id @default(uuid()) @db.Uuid
+  versionId      String         @unique @db.Uuid
+  version        QuoteVersion   @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  accountId      String         @db.Uuid
+  account        PortalAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  userId         String         @db.Uuid
+  user           User           @relation("QuotePortalResponder", fields: [userId], references: [id], onDelete: Restrict)
+  response       PortalResponse
+  // The name they typed to confirm.
+  typedName      String
+  reason         String?
+  clientPoNumber String?
+  // What they were shown: the version's total, and a SHA-256 of its
+  // client-facing content (lines, totals, dates, terms).
+  currency       String         @db.Char(3)
+  totalMinor     BigInt
+  contentSha256  String
+  // The statement they confirmed, word for word.
+  statement      String
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime       @default(now())
+
+  @@map("quote_portal_responses")
+}
+
+// Information a client sent through the portal for a shared project.
+model PortalSubmission {
+  id        String        @id @default(uuid()) @db.Uuid
+  accountId String        @db.Uuid
+  account   PortalAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  projectId String        @db.Uuid
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  subject   String
+  body      String
+  createdAt DateTime      @default(now())
+
+  @@index([projectId])
+  @@map("portal_submissions")
 }

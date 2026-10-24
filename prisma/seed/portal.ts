@@ -73,3 +73,49 @@ export async function seedDemoPortal(db: PrismaClient) {
   }
   return created;
 }
+
+/**
+ * DEMO shares for the demo client's portal user: its projects, its issued
+ * quotations and the ordinary documents on them, so the portal has
+ * something to show. Restricted documents are never shared.
+ */
+export async function seedDemoShares(db: PrismaClient, sharedById: string) {
+  const account = await db.portalAccount.findFirst({
+    where: { kind: "CLIENT", user: { email: "client@demo.hmbl.test" } },
+  });
+  if (!account?.clientId) return 0;
+  const clientId = account.clientId;
+  if (await db.portalShare.count({ where: { clientId, isDemo: true } })) return 0;
+  const [projects, quotes] = await Promise.all([
+    db.project.findMany({
+      where: { clientId, isDemo: true, status: { not: "CANCELLED" } },
+      select: { id: true },
+    }),
+    db.quote.findMany({
+      where: { clientId, isDemo: true, versions: { some: { issuedAt: { not: null } } } },
+      select: { id: true },
+    }),
+  ]);
+  const documents = await db.recordDocument.findMany({
+    where: {
+      // Seeded files only, never ones people uploaded to demo records.
+      title: { endsWith: "(DEMO)" },
+      access: "STANDARD",
+      archivedAt: null,
+      supersededAt: null,
+      OR: [
+        { recordType: "CLIENT", recordId: clientId },
+        { recordType: "PROJECT", recordId: { in: projects.map((p) => p.id) } },
+        { recordType: "QUOTE", recordId: { in: quotes.map((q) => q.id) } },
+      ],
+    },
+    select: { id: true },
+  });
+  const data = [
+    ...projects.map((p) => ({ kind: "PROJECT" as const, projectId: p.id })),
+    ...quotes.map((q) => ({ kind: "QUOTE" as const, quoteId: q.id })),
+    ...documents.map((d) => ({ kind: "DOCUMENT" as const, documentId: d.id })),
+  ].map((d) => ({ ...d, clientId, sharedById, isDemo: true }));
+  await db.portalShare.createMany({ data });
+  return data.length;
+}

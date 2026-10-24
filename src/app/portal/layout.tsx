@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { requirePortalActorOrRedirect } from "@/server/portal/session";
+import { requirePortalActorOrRedirect, type PortalActor } from "@/server/portal/session";
 import { PORTAL_KIND_LABELS } from "@/server/portal/permissions";
 import { Brand } from "@/components/shell/brand";
+import { PortalNav, type PortalNavItem } from "@/components/portal/portal-nav";
 import { SignOutButton } from "@/components/portal/sign-out-button";
 import { Tag } from "@/components/ui/status";
 
@@ -9,6 +10,21 @@ export const metadata: Metadata = {
   title: { default: "Portal", template: "%s · HMBL portal" },
   robots: { index: false },
 };
+
+/** Sections this account has, by what it may do. */
+function navFor(actor: PortalActor): PortalNavItem[] {
+  const has = (p: string) => actor.permissions.has(p);
+  const items: (PortalNavItem | false)[] =
+    actor.kind === "CLIENT"
+      ? [
+          has("projects.view") && { href: "/portal/projects", label: "Projects" },
+          has("quotes.respond") && { href: "/portal/quotes", label: "Quotations" },
+          has("invoices.view") && { href: "/portal/invoices", label: "Invoices" },
+          has("documents.view") && { href: "/portal/documents", label: "Documents" },
+        ]
+      : [];
+  return [{ href: "/portal", label: "Home" }, ...items.filter((i) => i !== false)];
+}
 
 /**
  * The portal shell: for people outside HMBL. Deliberately separate from the
@@ -36,6 +52,7 @@ export default async function PortalLayout({ children }: LayoutProps<"/portal">)
           <SignOutButton />
         </div>
       </header>
+      <PortalNav items={navFor(actor)} />
       <main id="main" className="max-w-content mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-8">
         {children}
       </main>

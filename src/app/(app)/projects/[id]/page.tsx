@@ -14,7 +14,7 @@ import {
   PROJECT_STATUSES,
 } from "@/server/projects/lifecycle";
 import { REVENUE_MODELS } from "@/server/projects/schemas";
-import { ACCEPTANCE_METHODS } from "@/server/commercial/acceptance";
+import { ACCEPTANCE_METHOD_LABELS } from "@/server/commercial/acceptance";
 import { LINE_CATEGORIES } from "@/server/commercial/schemas";
 import { PAYMENT_TRIGGERS } from "@/server/master-data/schemas";
 import { NotFoundError } from "@/lib/errors";
@@ -29,6 +29,8 @@ import { ProjectHeader } from "../_components/project-header";
 import { PROJECT_STATUS } from "../_components/status";
 import { changeStatusAction } from "../actions";
 import { StatusForm } from "./status-form";
+import { PortalShare } from "../../admin/portal-access/_components/portal-share";
+import { projectPortalActivity } from "@/server/portal/sharing";
 
 export const metadata = { title: "Project" };
 
@@ -47,6 +49,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
     c.lines.some((l) => l.project?.id === p.id),
   );
   const canEdit = can(actor, "projects.edit", scope) && !isLocked(p.status);
+  const submissions = await projectPortalActivity(actor, p.id);
   const moves = nextStatuses(p.status, p.resumeStatus).flatMap((to) => {
     const move = checkMove(p.status, to, p.resumeStatus);
     return move.ok && can(actor, move.permission, scope)
@@ -197,7 +200,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                         value: source.acceptedOn
                           ? `${date(source.acceptedOn)}${
                               source.acceptanceMethod
-                                ? ` · ${ACCEPTANCE_METHODS[source.acceptanceMethod]}`
+                                ? ` · ${ACCEPTANCE_METHOD_LABELS[source.acceptanceMethod]}`
                                 : ""
                             }`
                           : null,
@@ -329,6 +332,28 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
               </Table>
             </Section>
           ) : null}
+
+          {submissions.length ? (
+            <Section
+              title="From the client portal"
+              description="Information the client sent through the portal. It can't be edited or deleted."
+            >
+              <ol className="flex flex-col gap-3">
+                {submissions.map((sub) => (
+                  <li key={sub.id}>
+                    <Panel className="flex flex-col gap-1 text-sm">
+                      <p className="text-text font-medium">{sub.subject}</p>
+                      <p className="text-muted text-xs">
+                        {sub.account.user.name} ({sub.account.user.email}) ·{" "}
+                        {formatDateTime(sub.createdAt, p.legalEntity.timezone)}
+                      </p>
+                      <p className="text-secondary whitespace-pre-line">{sub.body}</p>
+                    </Panel>
+                  </li>
+                ))}
+              </ol>
+            </Section>
+          ) : null}
         </div>
 
         <aside className="min-w-0">
@@ -363,6 +388,10 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
               ) : null}
             </Panel>
           </Section>
+
+          {p.clientId ? (
+            <PortalShare actor={actor} kind="PROJECT" id={p.id} timeZone={p.legalEntity.timezone} />
+          ) : null}
 
           <Section title="Figures">
             <Panel>
