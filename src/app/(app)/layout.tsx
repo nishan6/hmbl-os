@@ -7,6 +7,8 @@ import { SidebarNav } from "@/components/shell/sidebar";
 import { MobileNav } from "@/components/shell/mobile-nav";
 import { EntitySwitcher } from "@/components/shell/entity-switcher";
 import { UserMenu } from "@/components/shell/user-menu";
+import { NotificationsLink } from "@/components/shell/notifications-link";
+import { unreadCount } from "@/server/notifications/service";
 import { Brand } from "@/components/shell/brand";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import { TwoFactorRequired } from "@/components/account/two-factor-required";
@@ -15,9 +17,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const actor = await requireActorOrRedirect();
   // Until this is done the user holds no permissions, so nothing else is shown.
   if (actor.twoFactor?.setupRequired) return <TwoFactorRequired name={actor.name} />;
-  const [{ entities, selectedId }, cookieStore] = await Promise.all([
+  const [{ entities, selectedId }, cookieStore, unread] = await Promise.all([
     getEntityContext(actor),
     cookies(),
+    unreadCount(actor),
   ]);
   const theme = parseTheme(cookieStore.get(THEME_COOKIE)?.value);
   // Decided on the server: the client only renders what it's given.
@@ -47,6 +50,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </div>
           <div className="ml-auto flex items-center gap-3">
             <EntitySwitcher entities={entities} selectedId={selectedId} />
+            <NotificationsLink unread={unread} />
             <UserMenu name={actor.name} email={actor.email} theme={theme} />
           </div>
         </header>

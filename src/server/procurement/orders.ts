@@ -1219,3 +1219,22 @@ export async function recordReceipt(actor: Actor, id: string, raw: ReceiptInput)
     return receipt;
   });
 }
+
+/** Purchase orders waiting for this actor's approval, for the approvals inbox. */
+export async function ordersAwaitingApproval(actor: Actor) {
+  if (!can(actor, "procurement.approve")) return [];
+  return db.purchaseOrder.findMany({
+    where: { status: "SUBMITTED", ...entityFilter(actor, "procurement.approve") },
+    select: {
+      id: true,
+      number: true,
+      revision: true,
+      submittedAt: true,
+      subtotalMinor: true,
+      currency: true,
+      vendor: { select: { name: true } },
+      legalEntity: { select: { code: true } },
+    },
+    orderBy: { submittedAt: "asc" },
+  });
+}
