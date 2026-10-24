@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { db } from "@/server/db";
 import {
   archiveDocument,
-  listDocuments,
+  listRecordDocuments,
   openDocument,
   uploadDocument,
-} from "@/server/projects/documents";
+} from "@/server/documents/documents";
 import { setCloseoutItem } from "@/server/projects/closeout";
 import { changeProjectStatus } from "@/server/projects/projects";
 import { ConflictError, ForbiddenError } from "@/lib/errors";
@@ -24,7 +24,7 @@ describe("project documents", () => {
     const pm = await makeActor("project_manager");
     const v1 = await uploadDocument(
       pm,
-      project.id,
+      { type: "PROJECT", id: project.id },
       { category: "TECHNICAL", fileName: "rider.pdf", title: "Tech rider" },
       body("version one"),
     );
@@ -33,7 +33,7 @@ describe("project documents", () => {
 
     const v2 = await uploadDocument(
       pm,
-      project.id,
+      { type: "PROJECT", id: project.id },
       { category: "TECHNICAL", fileName: "rider-v2.pdf", previousVersionId: v1.id },
       body("version two!"),
     );
@@ -41,13 +41,13 @@ describe("project documents", () => {
     await expect(
       uploadDocument(
         pm,
-        project.id,
+        { type: "PROJECT", id: project.id },
         { category: "TECHNICAL", fileName: "x.pdf", previousVersionId: v1.id },
         body("again"),
       ),
     ).rejects.toBeInstanceOf(ConflictError);
 
-    const docs = await listDocuments(pm, project.id);
+    const { documents: docs } = await listRecordDocuments(pm, { type: "PROJECT", id: project.id });
     expect(docs).toHaveLength(1);
     expect(docs[0]!.earlier.map((d) => d.id)).toEqual([v1.id]);
     const viewer = await makeActor("viewer");
@@ -65,16 +65,28 @@ describe("project documents", () => {
     const pm = await makeActor("project_manager");
     const viewer = await makeActor("viewer");
     const meta = { category: "OTHER" as const, fileName: "tool.exe" };
-    await expect(uploadDocument(pm, project.id, meta, body("MZ"))).rejects.toMatchObject({
+    await expect(
+      uploadDocument(pm, { type: "PROJECT", id: project.id }, meta, body("MZ")),
+    ).rejects.toMatchObject({
       fieldErrors: { file: [expect.stringContaining("Programs")] },
     });
     await expect(
-      uploadDocument(pm, project.id, { ...meta, fileName: "empty.txt" }, body("")),
+      uploadDocument(
+        pm,
+        { type: "PROJECT", id: project.id },
+        { ...meta, fileName: "empty.txt" },
+        body(""),
+      ),
     ).rejects.toMatchObject({ fieldErrors: { file: ["The file is empty"] } });
     await expect(
-      uploadDocument(viewer, project.id, { ...meta, fileName: "a.txt" }, body("a")),
+      uploadDocument(
+        viewer,
+        { type: "PROJECT", id: project.id },
+        { ...meta, fileName: "a.txt" },
+        body("a"),
+      ),
     ).rejects.toBeInstanceOf(ForbiddenError);
-    expect(await db.projectDocument.count()).toBe(0);
+    expect(await db.recordDocument.count()).toBe(0);
   });
 
   it("archives with a reason and never deletes or rewrites", async () => {
@@ -82,7 +94,7 @@ describe("project documents", () => {
     const pm = await makeActor("project_manager");
     const doc = await uploadDocument(
       pm,
-      project.id,
+      { type: "PROJECT", id: project.id },
       { category: "CONTRACT", fileName: "contract.pdf" },
       body("signed"),
     );
@@ -92,9 +104,9 @@ describe("project documents", () => {
       ConflictError,
     );
     await expect(
-      db.projectDocument.update({ where: { id: doc.id }, data: { title: "Changed" } }),
+      db.recordDocument.update({ where: { id: doc.id }, data: { title: "Changed" } }),
     ).rejects.toThrow(/can't be changed/);
-    await expect(db.projectDocument.delete({ where: { id: doc.id } })).rejects.toThrow(
+    await expect(db.recordDocument.delete({ where: { id: doc.id } })).rejects.toThrow(
       /can't be deleted/,
     );
   });
@@ -137,7 +149,7 @@ describe("closeout", () => {
     ).rejects.toThrow(/closeout report/);
     await uploadDocument(
       pm,
-      project.id,
+      { type: "PROJECT", id: project.id },
       { category: "CLOSEOUT_REPORT", fileName: "report.pdf" },
       body("report"),
     );

@@ -19,6 +19,7 @@ import { FinanceHeader, withEntity } from "../../_components/finance-header";
 import { BILL_STATUS } from "../../_components/status";
 import { billCommandAction, rejectBillAction, voidBillAction } from "../actions";
 import { RejectBillForm, VoidBillForm } from "./bill-forms";
+import { RecordDocuments } from "../../../documents/_components/record-documents";
 
 export const metadata = { title: "Bill" };
 
@@ -381,6 +382,12 @@ export default async function BillPage({ params }: PageProps<"/finance/bills/[id
           </Panel>
         </Section>
       ) : null}
+      <RecordDocuments
+        actor={actor}
+        type="VENDOR_BILL"
+        id={id}
+        timeZone={bill.legalEntity.timezone}
+      />
     </>
   );
 }

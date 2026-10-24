@@ -25,8 +25,14 @@ export type CloseoutItemInput = z.input<typeof itemInput>;
 
 /** Whether the project has a current closeout report on file. */
 async function hasFinalReport(reader: Reader, projectId: string) {
-  const report = await reader.projectDocument.findFirst({
-    where: { projectId, category: "CLOSEOUT_REPORT", supersededAt: null, archivedAt: null },
+  const report = await reader.recordDocument.findFirst({
+    where: {
+      recordType: "PROJECT",
+      recordId: projectId,
+      category: "CLOSEOUT_REPORT",
+      supersededAt: null,
+      archivedAt: null,
+    },
     select: { id: true },
   });
   return report !== null;

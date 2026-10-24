@@ -1,19 +1,58 @@
 /*
- * Pure rules for project documents (docs/documents.md): which files are
+ * Pure rules for documents (docs/documents.md): which files are
  * refused, how names are cleaned, and which types may be previewed.
  */
 
 export const DOCUMENT_CATEGORIES = {
-  CONTRACT: "Contract or signed agreement",
+  CONTRACT: "Contract",
+  SIGNED_AGREEMENT: "Signed agreement",
+  QUOTATION: "Quotation or proposal",
   CLIENT_PO: "Client purchase order",
+  VENDOR_PO: "Vendor purchase order or quote",
+  INVOICE: "Invoice",
+  RECEIPT: "Receipt or proof of payment",
+  EXPENSE_EVIDENCE: "Expense evidence",
   TECHNICAL: "Technical document",
   CALL_SHEET: "Call sheet or run of show",
+  EQUIPMENT_CHECKLIST: "Equipment checklist",
   TRAVEL: "Travel document",
   DELIVERABLE: "Client deliverable",
   CLOSEOUT_REPORT: "Closeout report",
+  COMPLIANCE: "Registration, insurance or compliance",
+  IDENTITY: "Identity document",
   OTHER: "Other",
 } as const;
 export type DocumentCategory = keyof typeof DOCUMENT_CATEGORIES;
+
+/**
+ * Years a document is kept at least, by category (default, not yet confirmed:
+ * docs/decisions.md "Document retention"). Books of account and their
+ * vouchers are kept eight years (Companies Act 2013, s.128). Nothing is
+ * deleted in Version 1; the date is shown so nobody archives too early.
+ */
+const RETENTION_YEARS: Partial<Record<DocumentCategory, number>> = {
+  CONTRACT: 8,
+  SIGNED_AGREEMENT: 8,
+  CLIENT_PO: 8,
+  VENDOR_PO: 8,
+  INVOICE: 8,
+  RECEIPT: 8,
+  EXPENSE_EVIDENCE: 8,
+};
+
+/** The date a document must be kept until, or null when no period applies. */
+export function retainUntil(category: DocumentCategory, uploadedAt: Date) {
+  const years = RETENTION_YEARS[category];
+  if (!years) return null;
+  // To the end of the financial year (April to March), that many years on.
+  const yearEnd = uploadedAt.getUTCFullYear() + (uploadedAt.getUTCMonth() >= 3 ? 1 : 0);
+  return new Date(Date.UTC(yearEnd + years, 2, 31));
+}
+
+/** Identity documents are always restricted; the rest are standard unless chosen. */
+export function forcedRestricted(category: DocumentCategory) {
+  return category === "IDENTITY";
+}
 
 /** Programs and scripts: refused, because a download could run them. */
 const BLOCKED = new Set([

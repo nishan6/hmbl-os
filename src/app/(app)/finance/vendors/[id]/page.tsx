@@ -19,6 +19,7 @@ import { param } from "../../_components/load";
 import { BILL_STATUS } from "../../_components/status";
 import { archiveVendorAction, updateVendorAction } from "../actions";
 import { VendorForm } from "../vendor-form";
+import { RecordDocuments } from "../../../documents/_components/record-documents";
 
 export const metadata = { title: "Vendor" };
 
@@ -171,6 +172,7 @@ export default async function VendorPage({
           />
         )}
       </Section>
+      <RecordDocuments actor={actor} type="VENDOR" id={id} />
     </>
   );
 }

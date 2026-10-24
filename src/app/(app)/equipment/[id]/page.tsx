@@ -36,6 +36,7 @@ import {
   JobForm,
   TransferStockForm,
 } from "../equipment-forms";
+import { RecordDocuments } from "../../documents/_components/record-documents";
 
 export const metadata = { title: "Equipment item" };
 
@@ -375,6 +376,7 @@ export default async function ItemPage({ params }: PageProps<"/equipment/[id]">)
           </ul>
         </Section>
       ) : null}
+      <RecordDocuments actor={actor} type="EQUIPMENT_ITEM" id={id} />
     </>
   );
 }

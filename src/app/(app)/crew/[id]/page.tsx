@@ -30,6 +30,7 @@ import {
 } from "../actions";
 import { CrewForm } from "../crew-form";
 import { CertificationForm, EndRateForm, RateForm, UnavailabilityForm } from "./crew-forms";
+import { RecordDocuments } from "../../documents/_components/record-documents";
 
 export const metadata = { title: "Crew member" };
 
@@ -329,6 +330,7 @@ export default async function CrewMemberPage({ params }: PageProps<"/crew/[id]">
           </Panel>
         ) : null}
       </Section>
+      <RecordDocuments actor={actor} type="CREW_MEMBER" id={id} />
     </>
   );
 }

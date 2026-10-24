@@ -50,7 +50,7 @@ model User {
   scheduleItemsCreated   ProjectScheduleItem[]        @relation("ScheduleItemCreatedBy")
   scheduleItemsCompleted ProjectScheduleItem[]        @relation("ScheduleItemCompletedBy")
   resourcesCreated       ProjectResourceRequirement[] @relation("ResourceCreatedBy")
-  documentsUploaded      ProjectDocument[]            @relation("DocumentUploadedBy")
+  documentsUploaded      RecordDocument[]             @relation("DocumentUploadedBy")
   journalsCreated        Journal[]                    @relation("JournalCreatedBy")
   expenseClaims          ExpenseClaim[]               @relation("ExpenseClaimant")
   staffAdvances          StaffAdvance[]               @relation("StaffAdvancePerson")
@@ -239,6 +239,7 @@ model LegalEntity {
   procurement      ProcurementSettings?
   travelRequests   TravelRequest[]
   shipments        Shipment[]
+  documents        RecordDocument[]
 
   @@map("legal_entities")
 }
@@ -1080,7 +1081,7 @@ model Project {
   budgetVersions    ProjectBudgetVersion[]
   scheduleItems     ProjectScheduleItem[]
   resources         ProjectResourceRequirement[]
-  documents         ProjectDocument[]
+  documents         RecordDocument[]
   purchaseOrders    PurchaseOrder[]
   closeoutItems     ProjectCloseoutItem[]
   crewAssignments   CrewAssignment[]
@@ -1399,36 +1400,78 @@ enum DocumentCategory {
   DELIVERABLE
   CLOSEOUT_REPORT
   OTHER
+  QUOTATION
+  SIGNED_AGREEMENT
+  VENDOR_PO
+  INVOICE
+  RECEIPT
+  EXPENSE_EVIDENCE
+  EQUIPMENT_CHECKLIST
+  COMPLIANCE
+  IDENTITY
 }
 
-/// A file attached to a project. The bytes live on disk under STORAGE_DIR
-/// (`storageKey`); a new version is a new row and a new file, so files are
-/// never overwritten. Documents are archived, never deleted.
-model ProjectDocument {
-  id                String           @id @default(uuid()) @db.Uuid
-  projectId         String           @db.Uuid
-  project           Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+/// The kind of record a document belongs to (docs/documents.md).
+enum DocumentRecordType {
+  PROJECT
+  CLIENT
+  QUOTE
+  VENDOR
+  PURCHASE_ORDER
+  VENDOR_BILL
+  SALES_INVOICE
+  CREW_MEMBER
+  EQUIPMENT_ITEM
+  TRAVEL_REQUEST
+  SHIPMENT
+}
+
+/// RESTRICTED documents also need documents.view_sensitive to see or download.
+enum DocumentAccess {
+  STANDARD
+  RESTRICTED
+}
+
+/// A file attached to a business record (`recordType`, `recordId`). The bytes
+/// live on disk under STORAGE_DIR (`storageKey`); a new version is a new row
+/// and a new file, so files are never overwritten. Documents are archived,
+/// never deleted. `legalEntityId` is the record's entity, or null for records
+/// shared across entities (clients, vendors, crew, equipment).
+model RecordDocument {
+  id                String             @id @default(uuid()) @db.Uuid
+  recordType        DocumentRecordType
+  recordId          String             @db.Uuid
+  legalEntityId     String?            @db.Uuid
+  legalEntity       LegalEntity?       @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  // Set for project documents and for records that belong to a project.
+  projectId         String?            @db.Uuid
+  project           Project?           @relation(fields: [projectId], references: [id], onDelete: Restrict)
   category          DocumentCategory
+  access            DocumentAccess     @default(STANDARD)
   title             String
   fileName          String
   contentType       String
   sizeBytes         BigInt
-  sha256            String           @db.Char(64)
-  storageKey        String           @unique
-  version           Int              @default(1)
+  sha256            String             @db.Char(64)
+  storageKey        String             @unique
+  version           Int                @default(1)
   // The version this one replaces; that one gets `supersededAt`.
-  previousVersionId String?          @unique @db.Uuid
-  previousVersion   ProjectDocument? @relation("DocumentVersions", fields: [previousVersionId], references: [id], onDelete: Restrict)
-  nextVersion       ProjectDocument? @relation("DocumentVersions")
+  previousVersionId String?            @unique @db.Uuid
+  previousVersion   RecordDocument?    @relation("DocumentVersions", fields: [previousVersionId], references: [id], onDelete: Restrict)
+  nextVersion       RecordDocument?    @relation("DocumentVersions")
+  // Kept at least until this date; set from the category when uploaded.
+  retainUntil       DateTime?          @db.Date
   supersededAt      DateTime?
   archivedAt        DateTime?
   archiveReason     String?
-  uploadedById      String           @db.Uuid
-  uploadedBy        User             @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
-  uploadedAt        DateTime         @default(now())
+  uploadedById      String             @db.Uuid
+  uploadedBy        User               @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  uploadedAt        DateTime           @default(now())
 
+  @@index([recordType, recordId])
   @@index([projectId, category])
-  @@map("project_documents")
+  @@index([legalEntityId, uploadedAt])
+  @@map("documents")
 }
 
 enum CloseoutItemKey {

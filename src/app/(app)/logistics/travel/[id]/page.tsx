@@ -26,6 +26,7 @@ import {
 } from "../../actions";
 import { ReasonForm, TravellerForm } from "../../travel-forms";
 import { BOOKING_STATUS, TRIP_STATUS } from "../../_components/logistics-tabs";
+import { RecordDocuments } from "../../../documents/_components/record-documents";
 
 export const metadata = { title: "Trip" };
 
@@ -488,6 +489,7 @@ export default async function TripPage({ params }: PageProps<"/logistics/travel/
           </div>
         </Section>
       ) : null}
+      <RecordDocuments actor={actor} type="TRAVEL_REQUEST" id={id} />
     </>
   );
 }
