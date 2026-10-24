@@ -34,7 +34,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test("app pages meet WCAG 2.2 AA", async ({ page }) => {
       // Many pages, each scanned by axe.
-      test.setTimeout(90_000);
+      test.setTimeout(150_000);
       await signIn(page, DEMO.owner);
       for (const path of [
         "/",
@@ -63,6 +63,12 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/finance/payments",
         "/finance/payments/new",
         "/finance/payables",
+        "/finance/expense-claims",
+        "/finance/advances",
+        "/finance/advances/new",
+        "/finance/staff-balances",
+        "/expenses",
+        "/expenses/new",
         "/finance/vendors",
         "/finance/vendors/new",
         "/finance/bank-accounts",
@@ -77,6 +83,21 @@ for (const colorScheme of ["light", "dark"] as const) {
         await test.step(path, async () => {
           await page.goto(path);
           await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+          await expectNoViolations(page);
+        });
+      }
+      for (const [list, link] of [
+        ["/finance/expense-claims", /^EXP\//],
+        ["/finance/advances", /^ADV\//],
+      ] as const) {
+        await test.step(`one of ${list}`, async () => {
+          await page.goto(list);
+          await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
+          await page.getByRole("button", { name: "Show" }).first().click();
+          await page.getByRole("link", { name: link }).first().click();
+          await expect(
+            page.getByRole("heading", { level: 1, name: /^(Claim|Advance) / }),
+          ).toBeVisible();
           await expectNoViolations(page);
         });
       }

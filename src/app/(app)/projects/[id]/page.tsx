@@ -5,6 +5,7 @@ import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { getProject } from "@/server/projects/projects";
 import { billsAwaitingApproval } from "@/server/finance/bills";
+import { claimsAwaitingApproval } from "@/server/expenses/claims";
 import {
   checkMove,
   isLocked,
@@ -41,6 +42,9 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
   const scope = { legalEntityId: p.legalEntityId };
   const bills = (await billsAwaitingApproval(actor)).filter((b) =>
     b.lines.some((l) => l.project?.id === p.id),
+  );
+  const claims = (await claimsAwaitingApproval(actor)).filter((c) =>
+    c.lines.some((l) => l.project?.id === p.id),
   );
   const canEdit = can(actor, "projects.edit", scope) && !isLocked(p.status);
   const moves = nextStatuses(p.status, p.resumeStatus).flatMap((to) => {
@@ -127,6 +131,37 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                       <TD className="tabular">{b.vendorInvoiceNumber}</TD>
                       <TD className="tabular text-secondary">{formatDate(b.billDate, "UTC")}</TD>
                       <TD align="right">{formatMoney(b.totalMinor, b.currency)}</TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </Section>
+          ) : null}
+          {claims.length ? (
+            <Section
+              title="Expense claims awaiting your approval"
+              description="What the team spent on this project and wants back."
+            >
+              <Table dense>
+                <THead>
+                  <tr>
+                    <TH>Claim</TH>
+                    <TH>Claimant</TH>
+                    <TH>Title</TH>
+                    <TH align="right">Total</TH>
+                  </tr>
+                </THead>
+                <TBody>
+                  {claims.map((c) => (
+                    <TR key={c.id}>
+                      <TD className="tabular">
+                        <Link href={`/expenses/${c.id}`} className="text-accent hover:underline">
+                          {c.number}
+                        </Link>
+                      </TD>
+                      <TD>{c.claimant.name}</TD>
+                      <TD>{c.title}</TD>
+                      <TD align="right">{formatMoney(c.totalMinor, c.currency)}</TD>
                     </TR>
                   ))}
                 </TBody>

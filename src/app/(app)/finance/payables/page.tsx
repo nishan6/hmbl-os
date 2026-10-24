@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CircleCheck, Truck, TriangleAlert } from "lucide-react";
+import { TriangleAlert, Truck } from "lucide-react";
 import { payablesAgeing, tdsPayableReport } from "@/server/finance/payables";
 import { defaultFiscalYearStartMonth } from "@/server/numbering/defaults";
 import { fiscalYearOf, parseDateOnly, toDateOnly } from "@/lib/fiscal";
@@ -11,28 +11,10 @@ import { EmptyState, Section } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { FinanceHeader, withEntity } from "../_components/finance-header";
+import { Agreement } from "../_components/agreement";
 import { loadFinancePage, param } from "../_components/load";
 
 export const metadata = { title: "Payables" };
-
-/** Says whether a report agrees with its ledger account. */
-function Agreement({ difference, label }: { difference: bigint; label: React.ReactNode }) {
-  return (
-    <p className="mt-3 flex items-center gap-2 text-sm" role="status">
-      {difference === 0n ? (
-        <>
-          <CircleCheck aria-hidden className="text-success size-4" />
-          {label}
-        </>
-      ) : (
-        <>
-          <TriangleAlert aria-hidden className="text-danger size-4" />
-          {label}
-        </>
-      )}
-    </p>
-  );
-}
 
 export default async function PayablesPage({ searchParams }: PageProps<"/finance/payables">) {
   const { actor, params, entities, entity } = await loadFinancePage(searchParams);

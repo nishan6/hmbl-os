@@ -52,6 +52,8 @@ model User {
   resourcesCreated       ProjectResourceRequirement[] @relation("ResourceCreatedBy")
   documentsUploaded      ProjectDocument[]            @relation("DocumentUploadedBy")
   journalsCreated        Journal[]                    @relation("JournalCreatedBy")
+  expenseClaims          ExpenseClaim[]               @relation("ExpenseClaimant")
+  staffAdvances          StaffAdvance[]               @relation("StaffAdvancePerson")
 
   @@map("users")
 }
@@ -228,6 +230,8 @@ model LegalEntity {
   receipts         Receipt[]
   vendorBills      VendorBill[]
   vendorPayments   VendorPayment[]
+  staffAdvances    StaffAdvance[]
+  expenseClaims    ExpenseClaim[]
 
   @@map("legal_entities")
 }
@@ -1046,19 +1050,21 @@ model Project {
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
-  budgetLines    ProjectBudgetLine[]
-  milestones     ProjectMilestone[]
-  statusChanges  ProjectStatusChange[]
-  costEntries    ProjectCostEntry[]
-  changeOrders   ProjectChangeOrder[]
-  budgetVersions ProjectBudgetVersion[]
-  scheduleItems  ProjectScheduleItem[]
-  resources      ProjectResourceRequirement[]
-  documents      ProjectDocument[]
-  closeoutItems  ProjectCloseoutItem[]
-  journalLines   JournalLine[]
-  salesInvoices  SalesInvoice[]
-  billLines      VendorBillLine[]
+  budgetLines       ProjectBudgetLine[]
+  milestones        ProjectMilestone[]
+  statusChanges     ProjectStatusChange[]
+  costEntries       ProjectCostEntry[]
+  changeOrders      ProjectChangeOrder[]
+  budgetVersions    ProjectBudgetVersion[]
+  scheduleItems     ProjectScheduleItem[]
+  resources         ProjectResourceRequirement[]
+  documents         ProjectDocument[]
+  closeoutItems     ProjectCloseoutItem[]
+  journalLines      JournalLine[]
+  salesInvoices     SalesInvoice[]
+  billLines         VendorBillLine[]
+  staffAdvances     StaffAdvance[]
+  expenseClaimLines ExpenseClaimLine[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -1490,11 +1496,15 @@ model LedgerAccount {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  lines          JournalLine[]
-  bankAccount    BankAccount?
-  receipts       Receipt[]
-  vendorPayments VendorPayment[]
-  billLines      VendorBillLine[]
+  lines              JournalLine[]
+  bankAccount        BankAccount?
+  receipts           Receipt[]
+  vendorPayments     VendorPayment[]
+  billLines          VendorBillLine[]
+  staffAdvances      StaffAdvance[]
+  advanceReturns     AdvanceReturn[]
+  expenseClaimLines  ExpenseClaimLine[]
+  expenseSettlements ExpenseSettlement[]
 
   @@unique([legalEntityId, code])
   @@unique([legalEntityId, systemKey])
@@ -2118,4 +2128,213 @@ model VendorPaymentAllocation {
   @@index([paymentId])
   @@index([billId])
   @@map("vendor_payment_allocations")
+}
+
+// ─── Expenses and advances (docs/expenses.md) ──────────────────────────────
+
+enum ExpenseClaimStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  VOIDED
+  DISCARDED
+}
+
+enum AdvanceStatus {
+  POSTED
+  VOIDED
+}
+
+enum SettlementKind {
+  ADVANCE
+  PAYMENT
+}
+
+/// What staff spend money on, with the account it is charged to and a policy limit.
+model ExpenseCategory {
+  id              String       @id @default(uuid()) @db.Uuid
+  key             String       @unique
+  name            String
+  // The account in each entity's chart that this category is charged to.
+  accountCode     String
+  // The most one line may claim, in limitCurrency; more needs a reason.
+  limitMinor      BigInt?
+  limitCurrency   String?      @db.Char(3)
+  // Whether each line needs a receipt attached; without one it needs a reason.
+  receiptRequired Boolean      @default(true)
+  position        Int          @default(0)
+  status          RecordStatus @default(ACTIVE)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  lines ExpenseClaimLine[]
+
+  @@map("expense_categories")
+}
+
+/// Money given to a member of staff or crew ahead of spending it.
+model StaffAdvance {
+  id            String        @id @default(uuid()) @db.Uuid
+  legalEntityId String        @db.Uuid
+  legalEntity   LegalEntity   @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  number        String
+  status        AdvanceStatus @default(POSTED)
+  personId      String        @db.Uuid
+  person        User          @relation("StaffAdvancePerson", fields: [personId], references: [id], onDelete: Restrict)
+  projectId     String?       @db.Uuid
+  project       Project?      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  purpose       String
+  date          DateTime      @db.Date
+  currency      String        @db.Char(3)
+  amountMinor   BigInt
+  paidFromId    String        @db.Uuid
+  paidFrom      LedgerAccount @relation(fields: [paidFromId], references: [id], onDelete: Restrict)
+  method        PaymentMethod
+  reference     String?
+  journalId     String        @unique @db.Uuid
+  voidDate      DateTime?     @db.Date
+  voidedAt      DateTime?
+  voidReason    String?
+  createdById   String        @db.Uuid
+  isDemo        Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  settlements ExpenseSettlement[]
+  returns     AdvanceReturn[]
+
+  @@unique([legalEntityId, number])
+  @@index([personId])
+  @@map("staff_advances")
+}
+
+/// Unspent advance money handed back.
+model AdvanceReturn {
+  id               String        @id @default(uuid()) @db.Uuid
+  advanceId        String        @db.Uuid
+  advance          StaffAdvance  @relation(fields: [advanceId], references: [id], onDelete: Restrict)
+  date             DateTime      @db.Date
+  amountMinor      BigInt
+  depositAccountId String        @db.Uuid
+  depositAccount   LedgerAccount @relation(fields: [depositAccountId], references: [id], onDelete: Restrict)
+  reference        String?
+  journalId        String        @unique @db.Uuid
+  createdById      String        @db.Uuid
+  createdAt        DateTime      @default(now())
+
+  @@index([advanceId])
+  @@map("advance_returns")
+}
+
+/// A claim for money a member of staff or crew spent on HMBL's behalf.
+model ExpenseClaim {
+  id             String             @id @default(uuid()) @db.Uuid
+  legalEntityId  String             @db.Uuid
+  legalEntity    LegalEntity        @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  // Given when first submitted.
+  number         String?
+  status         ExpenseClaimStatus @default(DRAFT)
+  claimantId     String             @db.Uuid
+  claimant       User               @relation("ExpenseClaimant", fields: [claimantId], references: [id], onDelete: Restrict)
+  title          String
+  currency       String             @db.Char(3)
+  totalMinor     BigInt             @default(0)
+  notes          String?
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  approvedById   String?            @db.Uuid
+  rejectedReason String?
+  journalId      String?            @unique @db.Uuid
+  voidDate       DateTime?          @db.Date
+  voidedAt       DateTime?
+  voidReason     String?
+  createdById    String             @db.Uuid
+  isDemo         Boolean            @default(false)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  lines       ExpenseClaimLine[]
+  receipts    ExpenseReceipt[]
+  settlements ExpenseSettlement[]
+
+  @@unique([legalEntityId, number])
+  @@index([claimantId])
+  @@index([status])
+  @@map("expense_claims")
+}
+
+model ExpenseClaimLine {
+  id               String          @id @default(uuid()) @db.Uuid
+  claimId          String          @db.Uuid
+  claim            ExpenseClaim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  position         Int
+  date             DateTime        @db.Date
+  categoryId       String          @db.Uuid
+  category         ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  description      String
+  merchant         String?
+  accountId        String          @db.Uuid
+  account          LedgerAccount   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  projectId        String?         @db.Uuid
+  project          Project?        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  budgetLineId     String?         @db.Uuid
+  // In the claim's currency, as reimbursed.
+  amountMinor      BigInt
+  // What was actually spent when abroad, for reference.
+  spentCurrency    String?         @db.Char(3)
+  spentAmountMinor BigInt?
+  // Policy flags worked out when submitted, and the claimant's reason.
+  overLimit        Boolean         @default(false)
+  missingReceipt   Boolean         @default(false)
+  policyNote       String?
+  costEntryId      String?         @db.Uuid
+
+  receipts ExpenseReceipt[]
+
+  @@index([claimId])
+  @@index([projectId])
+  @@map("expense_claim_lines")
+}
+
+/// A photo or scan of a receipt, stored like project documents.
+model ExpenseReceipt {
+  id           String            @id @default(uuid()) @db.Uuid
+  claimId      String            @db.Uuid
+  claim        ExpenseClaim      @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  lineId       String?           @db.Uuid
+  line         ExpenseClaimLine? @relation(fields: [lineId], references: [id], onDelete: SetNull)
+  fileName     String
+  contentType  String
+  sizeBytes    BigInt
+  sha256       String
+  storageKey   String            @unique
+  uploadedById String            @db.Uuid
+  createdAt    DateTime          @default(now())
+
+  @@index([claimId])
+  @@map("expense_receipts")
+}
+
+/// Part of an approved claim settled from an advance or paid out.
+model ExpenseSettlement {
+  id          String         @id @default(uuid()) @db.Uuid
+  claimId     String         @db.Uuid
+  claim       ExpenseClaim   @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  kind        SettlementKind
+  advanceId   String?        @db.Uuid
+  advance     StaffAdvance?  @relation(fields: [advanceId], references: [id], onDelete: Restrict)
+  paidFromId  String?        @db.Uuid
+  paidFrom    LedgerAccount? @relation(fields: [paidFromId], references: [id], onDelete: Restrict)
+  date        DateTime       @db.Date
+  amountMinor BigInt
+  reference   String?
+  journalId   String         @unique @db.Uuid
+  voidDate    DateTime?      @db.Date
+  voidedAt    DateTime?
+  createdById String         @db.Uuid
+  createdAt   DateTime       @default(now())
+
+  @@index([claimId])
+  @@index([advanceId])
+  @@map("expense_settlements")
 }
