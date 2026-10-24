@@ -51,7 +51,7 @@ export const NAV: NavGroup[] = [
       { label: "Projects", icon: Briefcase, permission: "projects.view", href: "/projects" },
       { label: "Production", icon: Theater, permission: "production.view" },
       { label: "Crew", icon: HardHat, permission: "crew.view", href: "/crew" },
-      { label: "Equipment", icon: Boxes, permission: "equipment.view" },
+      { label: "Equipment", icon: Boxes, permission: "equipment.view", href: "/equipment" },
       { label: "Procurement", icon: ShoppingCart, permission: "procurement.view" },
       { label: "Travel & Logistics", icon: Plane, permission: "logistics.view" },
     ],

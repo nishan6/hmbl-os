@@ -234,6 +234,7 @@ model LegalEntity {
   vendorPayments   VendorPayment[]
   staffAdvances    StaffAdvance[]
   expenseClaims    ExpenseClaim[]
+  equipmentAssets  EquipmentAsset[]
 
   @@map("legal_entities")
 }
@@ -341,6 +342,11 @@ model Location {
   isDemo        Boolean      @default(false)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+
+  equipmentAssets      EquipmentAsset[]
+  equipmentStock       EquipmentStock[]
+  equipmentMovements   EquipmentStockMovement[]
+  equipmentMaintenance EquipmentMaintenance[]
 
   @@map("locations")
 }
@@ -2032,9 +2038,11 @@ model Vendor {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  bills    VendorBill[]
-  payments VendorPayment[]
-  crew     CrewMember[]
+  bills                VendorBill[]
+  payments             VendorPayment[]
+  crew                 CrewMember[]
+  equipmentPurchases   EquipmentAsset[]
+  equipmentMaintenance EquipmentMaintenance[]
 
   @@index([normalizedName])
   @@index([status, name])
@@ -2726,4 +2734,246 @@ model CrewSettlement {
 
   @@index([crewMemberId])
   @@map("crew_settlements")
+}
+
+// ─── Equipment (spec §13, docs/equipment.md) ─────────────────────────────────
+
+/// Serialised items are tracked one asset at a time; quantity items as stock
+/// counts per location, such as cables or clamps.
+enum EquipmentTracking {
+  SERIALISED
+  QUANTITY
+}
+
+enum EquipmentOwnership {
+  OWNED
+  LEASED
+}
+
+/// Whether an asset can go out. Only return-to-service approval makes an
+/// out-of-service asset available again.
+enum EquipmentAssetState {
+  AVAILABLE
+  OUT_OF_SERVICE
+  LOST
+  RETIRED
+}
+
+enum EquipmentCondition {
+  GOOD
+  FAIR
+  DAMAGED
+}
+
+enum EquipmentMaintenanceKind {
+  SCHEDULED
+  FAULT
+  REPAIR
+  INSPECTION
+}
+
+enum EquipmentMaintenanceStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+enum EquipmentStockMovementKind {
+  ADDED
+  REMOVED
+  TRANSFERRED
+  OUT_OF_SERVICE
+  RETURNED_TO_SERVICE
+}
+
+model EquipmentCategory {
+  id                     String       @id @default(uuid()) @db.Uuid
+  name                   String       @unique
+  description            String?
+  // How often items in it are inspected, and what an inspection checks.
+  inspectionIntervalDays Int?
+  inspectionChecklist    String[]
+  status                 RecordStatus @default(ACTIVE)
+  isDemo                 Boolean      @default(false)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  items EquipmentItem[]
+
+  @@map("equipment_categories")
+}
+
+/// A kind of equipment HMBL holds, such as "Robe MegaPointe" or "16A cable 10 m".
+model EquipmentItem {
+  id                    String            @id @default(uuid()) @db.Uuid
+  sku                   String            @unique
+  name                  String
+  categoryId            String            @db.Uuid
+  category              EquipmentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  tracking              EquipmentTracking
+  manufacturer          String?
+  model                 String?
+  description           String?
+  // Per day, before tax, in `currency`: what HMBL charges, what it costs
+  // HMBL internally (informational, never posted), and what replacing one costs.
+  currency              String            @db.Char(3)
+  rentalDayRateMinor    BigInt?
+  internalDayCostMinor  BigInt?
+  replacementValueMinor BigInt?
+  notes                 String?
+  status                RecordStatus      @default(ACTIVE)
+  isDemo                Boolean           @default(false)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  assets         EquipmentAsset[]
+  stock          EquipmentStock[]
+  stockMovements EquipmentStockMovement[]
+  kitComponents  EquipmentKitComponent[]
+  maintenance    EquipmentMaintenance[]
+
+  @@index([categoryId])
+  @@index([status, name])
+  @@map("equipment_items")
+}
+
+/// One serialised unit.
+model EquipmentAsset {
+  id                String              @id @default(uuid()) @db.Uuid
+  itemId            String              @db.Uuid
+  item              EquipmentItem       @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  assetTag          String              @unique
+  serialNumber      String?
+  ownership         EquipmentOwnership  @default(OWNED)
+  // The company that owns or leases it.
+  legalEntityId     String?             @db.Uuid
+  legalEntity       LegalEntity?        @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  locationId        String?             @db.Uuid
+  location          Location?           @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  state             EquipmentAssetState @default(AVAILABLE)
+  condition         EquipmentCondition  @default(GOOD)
+  stateReason       String?
+  purchasedOn       DateTime?           @db.Date
+  purchaseCostMinor BigInt?
+  purchaseCurrency  String?             @db.Char(3)
+  purchasedFromId   String?             @db.Uuid
+  purchasedFrom     Vendor?             @relation(fields: [purchasedFromId], references: [id], onDelete: Restrict)
+  purchaseReference String?
+  warrantyUntil     DateTime?           @db.Date
+  lastInspectedOn   DateTime?           @db.Date
+  nextInspectionDue DateTime?           @db.Date
+  notes             String?
+  isDemo            Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  maintenance EquipmentMaintenance[]
+
+  @@unique([itemId, serialNumber])
+  @@index([itemId, state])
+  @@map("equipment_assets")
+}
+
+/// How many of a quantity item a location holds, and how many of those are out of service.
+model EquipmentStock {
+  id                   String        @id @default(uuid()) @db.Uuid
+  itemId               String        @db.Uuid
+  item                 EquipmentItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  locationId           String        @db.Uuid
+  location             Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  quantity             Int           @default(0)
+  outOfServiceQuantity Int           @default(0)
+  updatedAt            DateTime      @updatedAt
+
+  @@unique([itemId, locationId])
+  @@map("equipment_stock")
+}
+
+/// Every change to stock, append-only.
+model EquipmentStockMovement {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  itemId             String                     @db.Uuid
+  item               EquipmentItem              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  locationId         String                     @db.Uuid
+  location           Location                   @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  kind               EquipmentStockMovementKind
+  // Change to the quantity held, and to the quantity out of service.
+  quantityChange     Int                        @default(0)
+  outOfServiceChange Int                        @default(0)
+  reason             String
+  maintenanceId      String?                    @db.Uuid
+  createdById        String                     @db.Uuid
+  createdAt          DateTime                   @default(now())
+
+  @@index([itemId, createdAt])
+  @@map("equipment_stock_movements")
+}
+
+/// A bundle booked as one, such as "Wireless mic kit".
+model EquipmentKit {
+  id          String       @id @default(uuid()) @db.Uuid
+  code        String       @unique
+  name        String
+  description String?
+  status      RecordStatus @default(ACTIVE)
+  isDemo      Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  components EquipmentKitComponent[]
+
+  @@map("equipment_kits")
+}
+
+model EquipmentKitComponent {
+  id       String        @id @default(uuid()) @db.Uuid
+  kitId    String        @db.Uuid
+  kit      EquipmentKit  @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  itemId   String        @db.Uuid
+  item     EquipmentItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  quantity Int
+
+  @@unique([kitId, itemId])
+  @@map("equipment_kit_components")
+}
+
+/// Scheduled maintenance, a fault, a repair or an inspection, on one asset or
+/// on a quantity of a stock item at a location.
+model EquipmentMaintenance {
+  id                    String                     @id @default(uuid()) @db.Uuid
+  itemId                String                     @db.Uuid
+  item                  EquipmentItem              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  assetId               String?                    @db.Uuid
+  asset                 EquipmentAsset?            @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  locationId            String?                    @db.Uuid
+  location              Location?                  @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  quantity              Int                        @default(1)
+  kind                  EquipmentMaintenanceKind
+  status                EquipmentMaintenanceStatus @default(OPEN)
+  title                 String
+  details               String?
+  // Took the equipment out of service when reported.
+  takesOutOfService     Boolean                    @default(false)
+  // Planned downtime: the equipment can't be booked over these days.
+  blockFrom             DateTime?                  @db.Date
+  blockTo               DateTime?                  @db.Date
+  // Inspection checks: [{ label, passed }] once done.
+  checklist             Json?
+  passed                Boolean?
+  outcome               String?
+  costMinor             BigInt?
+  currency              String?                    @db.Char(3)
+  vendorId              String?                    @db.Uuid
+  vendor                Vendor?                    @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  reportedById          String                     @db.Uuid
+  reportedAt            DateTime                   @default(now())
+  completedById         String?                    @db.Uuid
+  completedAt           DateTime?
+  returnedToServiceById String?                    @db.Uuid
+  returnedToServiceAt   DateTime?
+
+  @@index([assetId, status])
+  @@index([itemId, status])
+  @@index([status, kind])
+  @@map("equipment_maintenance")
 }

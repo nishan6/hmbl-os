@@ -38,7 +38,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test("app pages meet WCAG 2.2 AA", async ({ page }) => {
       // Many pages, each scanned by axe.
-      test.setTimeout(150_000);
+      test.setTimeout(240_000);
       await signIn(page, DEMO.owner);
       for (const path of [
         "/",
@@ -54,6 +54,12 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/projects/new",
         "/crew",
         "/crew/new",
+        "/equipment",
+        "/equipment/new",
+        "/equipment/kits",
+        "/equipment/kits/new",
+        "/equipment/maintenance",
+        "/equipment/categories",
         "/finance",
         "/finance/accounts",
         "/finance/journals",
@@ -120,6 +126,23 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.getByRole("link", { name: "Demo Ravi Lights (DEMO)" }).click();
         await expect(
           page.getByRole("heading", { level: 1, name: "Demo Ravi Lights (DEMO)" }),
+        ).toBeVisible();
+        await expectNoViolations(page);
+      });
+      await test.step("an equipment item, a kit and an out-of-service asset", async () => {
+        await page.goto("/equipment");
+        await page.getByRole("link", { name: "Demo 16A cable 10 m (DEMO)" }).click();
+        await expect(page.getByRole("heading", { level: 2, name: "Stock" })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goto("/equipment/kits");
+        await page.getByRole("link", { name: "Four-spot kit (DEMO)" }).click();
+        await expect(page.getByRole("heading", { level: 2, name: "Contents" })).toBeVisible();
+        await expectNoViolations(page);
+        await page.goto("/equipment?q=DEMO-ML-003");
+        await page.getByRole("link", { name: "Demo moving spot (DEMO)" }).click();
+        await page.getByRole("table").getByRole("link", { name: "DEMO-ML-003" }).click();
+        await expect(
+          page.getByRole("heading", { level: 2, name: "Return to service" }),
         ).toBeVisible();
         await expectNoViolations(page);
       });

@@ -106,6 +106,22 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
       ],
     },
     {
+      key: "warehouse",
+      name: "Warehouse",
+      description:
+        "Keeps equipment, stock and maintenance, and returns equipment to service after checks.",
+      permissions: [
+        ...all("equipment"),
+        ...all("expenses"),
+        ...only("projects", ["view"]),
+        ...only("logistics", ["view"]),
+        ...only("procurement", ["view"]),
+        ...only("documents", ["view", "create"]),
+        ...only("reports", ["view"]),
+        ...only("organisation", ["view"]),
+      ],
+    },
+    {
       key: "viewer",
       name: "Viewer",
       description: "Read-only access to non-sensitive records.",
