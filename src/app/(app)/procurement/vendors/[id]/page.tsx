@@ -23,6 +23,8 @@ import { ORDER_STATUS } from "../../_components/procurement-tabs";
 import { archiveProcurementVendorAction, updateProcurementVendorAction } from "../actions";
 import { RecordDocuments } from "../../../documents/_components/record-documents";
 import { PortalAccess } from "../../../admin/portal-access/_components/portal-access";
+import { PortalActivity } from "../../../admin/portal-access/_components/portal-activity";
+import { detailsRequestsFor } from "@/server/portal/activity";
 
 export const metadata = { title: "Vendor" };
 
@@ -181,6 +183,10 @@ export default async function ProcurementVendorPage({
       </Section>
       <RecordDocuments actor={actor} type="VENDOR" id={id} />
       <PortalAccess actor={actor} kind="VENDOR" id={id} />
+      <PortalActivity
+        items={await detailsRequestsFor(actor, { vendorId: id })}
+        title="Changes asked for in the portal"
+      />
     </>
   );
 }

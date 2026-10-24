@@ -6,16 +6,20 @@ Telling people what needs their attention (spec §20). Notifications are informa
 
 **Event notifications** (`rules.ts`) are raised by `recordAudit`, inside the same transaction as the change, so a change that rolls back notifies nobody. `AUDIT_RULES` maps an audit action to who is told:
 
-| Change                                 | Who is told                                                                              |
-| -------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Quotation submitted                    | People with `commercial.approve` for its legal entity                                    |
-| Purchase order submitted               | People with `procurement.approve` for its legal entity                                   |
-| Vendor bill or expense claim submitted | People with `finance.approve`, and the managers of the projects on its lines             |
-| Trip submitted                         | The project manager and people with `logistics.approve`                                  |
-| Any of these approved or sent back     | Whoever submitted it (and the quotation's owner); not when it was approved automatically |
-| Travel booking changed or cancelled    | Whoever raised the trip and the project manager                                          |
-| Crew member proposed for a project     | That crew member, if they have an account                                                |
-| Client payment recorded                | The managers of the projects it pays for                                                 |
+| Change                                   | Who is told                                                                                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Quotation submitted                      | People with `commercial.approve` for its legal entity                                                                                 |
+| Purchase order submitted                 | People with `procurement.approve` for its legal entity                                                                                |
+| Vendor bill or expense claim submitted   | People with `finance.approve`, and the managers of the projects on its lines                                                          |
+| Trip submitted                           | The project manager and people with `logistics.approve`                                                                               |
+| Any of these approved or sent back       | Whoever submitted it (and the quotation's owner); not when it was approved automatically                                              |
+| Travel booking changed or cancelled      | Whoever raised the trip and the project manager                                                                                       |
+| Crew member proposed for a project       | That crew member, if they have an account                                                                                             |
+| Client payment recorded                  | The managers of the projects it pays for                                                                                              |
+| Portal invitation accepted               | Whoever sent the invitation                                                                                                           |
+| Client answers a quotation in the portal | The quotation's owner ([client-portal.md](client-portal.md))                                                                          |
+| Client sends information in the portal   | The project manager                                                                                                                   |
+| Vendor or freelancer acts in the portal  | Whoever raised the order or booking, Finance for invoices, the project manager for days worked ([vendor-portal.md](vendor-portal.md)) |
 
 Whoever made the change is never told about it.
 

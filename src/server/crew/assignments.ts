@@ -321,7 +321,7 @@ function requireBooker(actor: Actor, project: { legalEntityId: string }) {
   if (!canBookCrew(actor, project.legalEntityId)) throw new ForbiddenError();
 }
 
-async function lockAssignment(tx: Tx, id: string) {
+export async function lockAssignment(tx: Tx, id: string) {
   await tx.$queryRaw`SELECT id FROM crew_assignments WHERE id = ${id}::uuid FOR UPDATE`;
   return tx.crewAssignment.findUniqueOrThrow({ where: { id } });
 }
@@ -677,7 +677,8 @@ export async function endAssignment(
   return db.$transaction((tx) => endInTx(tx, actor, project, assignment.id, to, reason));
 }
 
-async function endInTx(
+/** Ends a live booking inside a transaction; the portal uses it when a freelancer declines. */
+export async function endInTx(
   tx: Tx,
   actor: Actor,
   project: { id: string; legalEntityId: string },

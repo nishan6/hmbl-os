@@ -32,6 +32,8 @@ import { CrewForm } from "../crew-form";
 import { CertificationForm, EndRateForm, RateForm, UnavailabilityForm } from "./crew-forms";
 import { RecordDocuments } from "../../documents/_components/record-documents";
 import { PortalAccess } from "../../admin/portal-access/_components/portal-access";
+import { PortalActivity } from "../../admin/portal-access/_components/portal-activity";
+import { detailsRequestsFor } from "@/server/portal/activity";
 
 export const metadata = { title: "Crew member" };
 
@@ -333,6 +335,10 @@ export default async function CrewMemberPage({ params }: PageProps<"/crew/[id]">
       </Section>
       <RecordDocuments actor={actor} type="CREW_MEMBER" id={id} />
       {m.kind === "FREELANCER" ? <PortalAccess actor={actor} kind="FREELANCER" id={id} /> : null}
+      <PortalActivity
+        items={await detailsRequestsFor(actor, { crewMemberId: id })}
+        title="Changes asked for in the portal"
+      />
     </>
   );
 }

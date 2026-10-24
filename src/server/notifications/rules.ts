@@ -146,7 +146,156 @@ const bookingChanged: Rule = async (tx, e) => {
   };
 };
 
+/** A client answered a quotation in the portal: its owner hears at once. */
+const portalAnswer =
+  (accepted: boolean): Rule =>
+  async (tx, e) => {
+    if (e.metadata.via !== "portal") return null;
+    const q = await tx.quote.findUniqueOrThrow({
+      where: { id: e.targetId },
+      select: { number: true, title: true, ownerId: true, createdById: true },
+    });
+    return {
+      userIds: [q.ownerId ?? q.createdById],
+      kind: "portal.client_activity",
+      title: `The client ${accepted ? "accepted" : "declined"} quotation ${q.number} in the portal`,
+      body: accepted
+        ? q.title
+        : typeof e.metadata.reason === "string"
+          ? e.metadata.reason
+          : q.title,
+      href: `/quotes/${e.targetId}`,
+    };
+  };
+
+/** A vendor answered an order in the portal: whoever raised it hears. */
+const vendorAnswer =
+  (confirmed: boolean): Rule =>
+  async (tx, e) => {
+    const o = await tx.purchaseOrder.findUniqueOrThrow({
+      where: { id: e.targetId },
+      select: {
+        number: true,
+        createdById: true,
+        submittedById: true,
+        vendor: { select: { name: true } },
+      },
+    });
+    return {
+      userIds: [o.submittedById ?? o.createdById],
+      kind: "portal.supplier_activity",
+      title: `${o.vendor.name} ${confirmed ? "confirmed" : "declined"} purchase order ${o.number}`,
+      body: typeof e.metadata.note === "string" ? e.metadata.note : null,
+      href: `/procurement/${e.targetId}`,
+    };
+  };
+
+const fromPortal = async (tx: Tx, e: AuditedEvent) =>
+  e.metadata.via === "portal" ||
+  (!!e.actorId &&
+    (await tx.user.findUnique({ where: { id: e.actorId }, select: { kind: true } }))?.kind ===
+      "EXTERNAL");
+
+const bookingFor = (tx: Tx, id: string) =>
+  tx.crewAssignment.findUniqueOrThrow({
+    where: { id },
+    select: {
+      role: true,
+      createdById: true,
+      crewMember: { select: { name: true } },
+      project: { select: { number: true, projectManagerId: true } },
+    },
+  });
+
 export const AUDIT_RULES: Record<string, Rule> = {
+  "purchase_order.vendor_confirmed": vendorAnswer(true),
+  "purchase_order.vendor_declined": vendorAnswer(false),
+  "vendor_invoice.uploaded": async (tx, e) => {
+    const o = await tx.purchaseOrder.findUniqueOrThrow({
+      where: { id: e.targetId },
+      select: {
+        number: true,
+        createdById: true,
+        legalEntityId: true,
+        vendor: { select: { name: true } },
+      },
+    });
+    return {
+      userIds: [o.createdById, ...(await usersWithPermission(tx, "finance.edit", o.legalEntityId))],
+      kind: "portal.supplier_activity",
+      title: `${o.vendor.name} uploaded an invoice for ${o.number}`,
+      body:
+        typeof e.metadata.vendorInvoiceNumber === "string"
+          ? `Invoice ${e.metadata.vendorInvoiceNumber}. Enter the bill from it.`
+          : null,
+      href: `/procurement/${e.targetId}`,
+    };
+  },
+  "crew_assignment.freelancer_available": async (tx, e) => {
+    const id = e.metadata.assignmentId;
+    if (typeof id !== "string") return null;
+    const a = await bookingFor(tx, id);
+    return {
+      userIds: [a.createdById, a.project.projectManagerId],
+      kind: "portal.supplier_activity",
+      title: `${a.crewMember.name} can do ${a.role} on ${a.project.number}`,
+      body: "Confirm the booking when you're ready.",
+      href: `/projects/${e.targetId}/resources/crew/${id}`,
+    };
+  },
+  "crew_assignment.declined": async (tx, e) => {
+    const id = e.metadata.assignmentId;
+    if (typeof id !== "string" || !(await fromPortal(tx, e))) return null;
+    const a = await bookingFor(tx, id);
+    return {
+      userIds: [a.createdById, a.project.projectManagerId],
+      kind: "portal.supplier_activity",
+      title: `${a.crewMember.name} declined ${a.role} on ${a.project.number}`,
+      body: typeof e.metadata.reason === "string" ? e.metadata.reason : null,
+      href: `/projects/${e.targetId}/resources/crew/${id}`,
+    };
+  },
+  "crew_work.recorded": async (tx, e) => {
+    const id = e.metadata.assignmentId;
+    if (typeof id !== "string" || e.metadata.via !== "portal") return null;
+    const a = await bookingFor(tx, id);
+    return {
+      userIds: [a.project.projectManagerId],
+      kind: "portal.supplier_activity",
+      title: `${a.crewMember.name} recorded a day worked on ${a.project.number}`,
+      body: typeof e.metadata.date === "string" ? e.metadata.date : null,
+      href: `/projects/${e.targetId}/resources/crew/${id}`,
+    };
+  },
+  "portal_details.requested": async (tx, e) => {
+    const vendor = e.targetType === "vendor";
+    const name = vendor
+      ? (await tx.vendor.findUniqueOrThrow({ where: { id: e.targetId } })).name
+      : (await tx.crewMember.findUniqueOrThrow({ where: { id: e.targetId } })).name;
+    return {
+      userIds: await usersWithPermission(tx, vendor ? "procurement.edit" : "crew.edit", null),
+      kind: "portal.supplier_activity",
+      title: `${name} asked for their details to be changed`,
+      href: vendor ? `/procurement/vendors/${e.targetId}` : `/crew/${e.targetId}`,
+    };
+  },
+
+  "quote.accepted": portalAnswer(true),
+  "quote.declined": portalAnswer(false),
+  "portal_submission.created": async (tx, e) => {
+    const p = await tx.project.findUniqueOrThrow({
+      where: { id: e.targetId },
+      select: { number: true, name: true },
+    });
+    return {
+      userIds: await projectManagers(tx, [e.targetId]),
+      kind: "portal.client_activity",
+      title: `The client sent information about ${p.number} in the portal`,
+      body: typeof e.metadata.subject === "string" ? e.metadata.subject : p.name,
+      href: `/projects/${e.targetId}`,
+    };
+  },
+
   "portal_invitation.accepted": async (tx, e) => {
     const i = await tx.portalInvitation.findUniqueOrThrow({
       where: { id: e.targetId },
