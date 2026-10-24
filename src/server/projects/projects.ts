@@ -16,7 +16,8 @@ import {
 } from "./lifecycle";
 import { recordBudgetVersion } from "./versions";
 import { followEventDates } from "./billing-dates";
-import { outstandingCloseout } from "./closeout-rules";
+import { closeoutBlockers } from "./closeout-checks";
+import { outstandingCloseout, type CloseoutKey } from "./closeout-rules";
 import {
   newProjectInput,
   projectDetailsInput,
@@ -312,7 +313,10 @@ export async function changeProjectStatus(actor: Actor, id: string, raw: StatusM
     // Closing with closeout items still open is an override: allowed for
     // whoever may close, with the reason on record.
     const outstanding = move.closes
-      ? outstandingCloseout(await tx.projectCloseoutItem.findMany({ where: { projectId: id } }))
+      ? outstandingCloseout(
+          await tx.projectCloseoutItem.findMany({ where: { projectId: id } }),
+          Object.keys(await closeoutBlockers(tx, id)) as CloseoutKey[],
+        )
       : [];
     if (outstanding.length && !reason) {
       throw invalid(

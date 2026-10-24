@@ -60,4 +60,12 @@ The Budget tab, and every cost figure, is for people who can see project costs (
 - version 1 equals the original budget, and the latest version equals the revised cost and expected revenue;
 - every actual cost draws down only a commitment on its own line.
 
-The Budget tab runs the check every time it loads, and shows any disagreement in a red alert. It never changes data. `tests/integration/budget-integrity.test.ts` takes a quote project and a direct project through costs, voids, approved and withdrawn change orders, forecasts and resource plans, checks after each step, and checks the same figures from the budget, the versions and the original lines.
+`checkOperationsIntegrity`, in the same file, cross-checks the operational records against the project's costs (spec §32 D, operational integrity). It confirms that:
+
+- a crew booking's or purchase order line's commitment is on this project, on the same budget line, belongs to that booking or line, and is closed or voided once the booking or order has ended;
+- crew work is recorded only on days the person was booked;
+- a bill line drawn from a purchase order has the order's vendor, currency and budget line, and no order line is billed beyond what can be (received for goods and rentals, ordered for services);
+- every approved bill line on the budget has exactly one live actual cost, drawing down the same commitment as the bill line, and a bill that isn't approved has none;
+- a closed or cancelled equipment booking has nothing still out.
+
+The Budget tab runs both checks every time it loads, and shows any disagreement in a red alert. It never changes data. `tests/integration/budget-integrity.test.ts` takes a quote project and a direct project through costs, voids, approved and withdrawn change orders, forecasts and resource plans, checks after each step, and checks the same figures from the budget, the versions and the original lines. `tests/integration/operations-closeout.test.ts` covers the operations check and the closeout items checked from the records.

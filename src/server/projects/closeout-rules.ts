@@ -17,9 +17,13 @@ export type CloseoutKey = (typeof CLOSEOUT_ITEMS)[number]["key"];
 
 export type CloseoutRow = { key: CloseoutKey; doneAt: Date | null; notApplicable: boolean };
 
-/** The items still open, in checklist order. */
-export function outstandingCloseout(rows: CloseoutRow[]) {
+/**
+ * The items still open, in checklist order. An item the records show isn't
+ * finished (`blocked`) stays open even if it was ticked off before.
+ */
+export function outstandingCloseout(rows: CloseoutRow[], blocked: readonly CloseoutKey[] = []) {
   return CLOSEOUT_ITEMS.filter((item) => {
+    if (blocked.includes(item.key)) return true;
     const row = rows.find((r) => r.key === item.key);
     return !row || (!row.doneAt && !row.notApplicable);
   });

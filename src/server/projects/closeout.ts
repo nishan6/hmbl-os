@@ -7,6 +7,7 @@ import { authorize, type Actor } from "@/server/permissions/authorize";
 import { ConflictError, ValidationError } from "@/lib/errors";
 import { parseInput } from "@/lib/parse";
 import { optionalText } from "@/lib/validation";
+import { closeoutBlockers } from "./closeout-checks";
 import { CLOSEOUT_ITEMS, outstandingCloseout, type CloseoutKey } from "./closeout-rules";
 import { isPreApproval } from "./lifecycle";
 import { assertChangeable, loadProject, lockProject } from "./projects";
@@ -33,16 +34,19 @@ async function hasFinalReport(reader: Reader, projectId: string) {
 
 export async function getCloseout(actor: Actor, projectId: string) {
   await loadProject(actor, projectId);
-  const [rows, finalReport] = await Promise.all([
+  const [rows, finalReport, blockers] = await Promise.all([
     db.projectCloseoutItem.findMany({ where: { projectId } }),
     hasFinalReport(db, projectId),
+    closeoutBlockers(db, projectId),
   ]);
+  const blocked = Object.keys(blockers) as CloseoutKey[];
   return {
     finalReport,
-    outstanding: outstandingCloseout(rows).map((i) => i.key),
+    outstanding: outstandingCloseout(rows, blocked).map((i) => i.key),
     items: CLOSEOUT_ITEMS.map((item) => ({
       ...item,
       row: rows.find((r) => r.key === item.key) ?? null,
+      blockers: blockers[item.key] ?? [],
     })),
   };
 }
@@ -65,6 +69,14 @@ export async function setCloseoutItem(actor: Actor, projectId: string, raw: Clos
     }
     if (key === "FINAL_REPORT" && state === "done" && !(await hasFinalReport(tx, projectId))) {
       throw new ConflictError("Upload the closeout report under Documents first.");
+    }
+    if (state !== "open") {
+      const blockers = (await closeoutBlockers(tx, projectId))[key];
+      if (blockers?.length) {
+        throw new ConflictError(
+          `The records show this isn't finished: ${blockers[0]!.text}${blockers.length > 1 ? ` (and ${blockers.length - 1} more)` : ""}`,
+        );
+      }
     }
     const data = {
       doneAt: state === "done" ? new Date() : null,

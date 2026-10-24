@@ -16,7 +16,7 @@ import { isPreApproval } from "./lifecycle";
 import { assertChangeable, canSeeProjectCosts, loadProject, lockProject } from "./projects";
 import { optionalDate, optionalId } from "./schemas";
 import { approvedChangesByLine } from "./versions";
-import { checkBudgetIntegrity } from "./integrity";
+import { checkBudgetIntegrity, checkOperationsIntegrity } from "./integrity";
 
 type Tx = Prisma.TransactionClient;
 type Reader = Tx | typeof db;
@@ -101,9 +101,10 @@ export async function budgetFigures(
 export async function getProjectBudget(actor: Actor, id: string) {
   const project = await loadProject(actor, id);
   if (!canSeeProjectCosts(actor, project.legalEntityId)) throw new ForbiddenError();
-  const [figures, integrity, entries] = await Promise.all([
+  const [figures, budgetProblems, operationsProblems, entries] = await Promise.all([
     budgetFigures(db, project),
     checkBudgetIntegrity(db, id),
+    checkOperationsIntegrity(db, id),
     db.projectCostEntry.findMany({
       where: { projectId: id },
       orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
@@ -114,7 +115,7 @@ export async function getProjectBudget(actor: Actor, id: string) {
       },
     }),
   ]);
-  return { project, ...figures, integrity, entries };
+  return { project, ...figures, integrity: [...budgetProblems, ...operationsProblems], entries };
 }
 
 // ─── Draft budget lines (before approval) ────────────────────────────────────
