@@ -16,6 +16,7 @@ import {
   reverseManualJournal,
   updateJournal,
 } from "@/server/finance/journals";
+import { closePeriod } from "@/server/finance/period-close";
 import { postJournal, reverseJournal } from "@/server/finance/ledger";
 import { accountLedger, trialBalance } from "@/server/finance/ledger-reports";
 import { updateFinanceSettings, getFinanceSettings } from "@/server/finance/settings";
@@ -210,10 +211,14 @@ describe("posting", () => {
         lines: lines(account("1000").id, account("3000").id, 100n),
       }),
     );
-    await db.accountingPeriod.updateMany({
-      where: { legalEntityId: entity.id, name: "Sep 2026" },
-      data: { status: "CLOSED" },
-    });
+    // Months close in order, through the close checklist.
+    const closer = await makeActor("finance");
+    for (const month of ["Apr", "May", "Jun", "Jul", "Aug", "Sep"]) {
+      const period = await db.accountingPeriod.findFirstOrThrow({
+        where: { legalEntityId: entity.id, name: `${month} 2026` },
+      });
+      await closePeriod(closer, period.id, {});
+    }
     await expect(
       db.$transaction((tx) =>
         postJournal(tx, "system", {

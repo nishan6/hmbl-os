@@ -68,15 +68,16 @@ test("with approval on, the Director approves before sales can issue", async ({ 
   await next.getByRole("button", { name: "Submit for approval" }).click();
   await expect(sales.getByText("Waiting for the Director's approval")).toBeVisible();
 
+  // This quote, not another left waiting by an earlier run.
+  const number = (await sales.getByRole("heading", { level: 1 }).innerText()).split(" · ")[0]!;
   await director.goto("/");
   await director
     .getByRole("region", { name: "Quotes waiting for your approval" })
-    .getByRole("link")
-    .first()
+    .getByRole("link", { name: new RegExp(number) })
     .click();
   const decision = director.getByRole("region", { name: "Next step" });
   await decision.getByRole("button", { name: "Send back to draft" }).click();
-  await expect(decision.getByText("Required")).toBeVisible();
+  await expect(decision.getByText("Required", { exact: true })).toBeVisible();
   await decision.getByLabel("Comment").fill("Fine as it is");
   await decision.getByRole("button", { name: "Approve" }).click();
   await expect(director.getByText("Approved. It can be issued now")).toBeVisible();

@@ -22,7 +22,8 @@ export const FINANCE_TABS = [
   { path: "/finance/journals", label: "Journals" },
   { path: "/finance/accounts", label: "Chart of accounts" },
   { path: "/finance/bank-accounts", label: "Bank accounts" },
-  { path: "/finance/trial-balance", label: "Trial balance" },
+  { path: "/finance/reports", label: "Reports" },
+  { path: "/finance/periods", label: "Period close" },
   { path: "/finance/settings", label: "Settings" },
 ] as const;
 
