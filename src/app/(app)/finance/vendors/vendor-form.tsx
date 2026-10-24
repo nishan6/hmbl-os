@@ -13,12 +13,15 @@ export function VendorForm({
   kinds,
   tdsSections,
   submitLabel,
+  paymentDetails = true,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   defaults: Record<string, string>;
   kinds: Record<string, string>;
   tdsSections: Record<string, string>;
   submitLabel: string;
+  /** Bank details and TDS, which only Finance changes. */
+  paymentDetails?: boolean;
 }) {
   const f = useForm(action, defaults);
   const text = (
@@ -73,35 +76,37 @@ export function VendorForm({
             className: "uppercase",
           })}
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field
-            label="Usual TDS section"
-            description="Filled into their bills"
-            errors={f.errors("tdsSection")}
-          >
-            {(p) => (
-              <>
-                <Input
-                  name="tdsSection"
-                  list="vendor-tds-sections"
-                  defaultValue={f.value("tdsSection")}
-                  {...p}
-                />
-                <datalist id="vendor-tds-sections">
-                  {Object.entries(tdsSections).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </datalist>
-              </>
-            )}
-          </Field>
-          {text("tdsRate", "TDS rate (%)", {
-            description: "20% when they have given no PAN",
-            className: "tabular",
-          })}
-        </div>
+        {paymentDetails ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field
+              label="Usual TDS section"
+              description="Filled into their bills"
+              errors={f.errors("tdsSection")}
+            >
+              {(p) => (
+                <>
+                  <Input
+                    name="tdsSection"
+                    list="vendor-tds-sections"
+                    defaultValue={f.value("tdsSection")}
+                    {...p}
+                  />
+                  <datalist id="vendor-tds-sections">
+                    {Object.entries(tdsSections).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </datalist>
+                </>
+              )}
+            </Field>
+            {text("tdsRate", "TDS rate (%)", {
+              description: "20% when they have given no PAN",
+              className: "tabular",
+            })}
+          </div>
+        ) : null}
       </fieldset>
       <fieldset className="flex flex-col gap-3">
         <legend className="text-md text-text mb-2 font-semibold">Address and terms</legend>
@@ -127,14 +132,18 @@ export function VendorForm({
           })}
         </div>
       </fieldset>
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-md text-text mb-2 font-semibold">Bank details</legend>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {text("bankAccountName", "Account name")}
-          {text("bankAccountNumber", "Account number", { className: "tabular" })}
-          {text("bankIfsc", "IFSC", { className: "tabular uppercase" })}
-        </div>
-      </fieldset>
+      {paymentDetails ? (
+        <fieldset className="flex flex-col gap-3">
+          <legend className="text-md text-text mb-2 font-semibold">Bank details</legend>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {text("bankAccountName", "Account name")}
+            {text("bankAccountNumber", "Account number", { className: "tabular" })}
+            {text("bankIfsc", "IFSC", { className: "tabular uppercase" })}
+          </div>
+        </fieldset>
+      ) : (
+        <p className="text-secondary text-sm">Bank details and TDS are kept by Finance.</p>
+      )}
       <Field label="Notes" errors={f.errors("notes")}>
         {(p) => <Textarea name="notes" defaultValue={f.value("notes")} rows={2} {...p} />}
       </Field>

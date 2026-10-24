@@ -52,4 +52,5 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 | Period close                                 | Built — see [period-close.md](period-close.md)                 |
 | Crew and freelancers                         | Built — see [crew.md](crew.md)                                 |
 | Equipment inventory and maintenance          | Built — see [equipment.md](equipment.md)                       |
+| Procurement and purchase orders              | Built — see [procurement.md](procurement.md)                   |
 | Other business modules                       | Not started; listed in the navigation as "Planned"             |

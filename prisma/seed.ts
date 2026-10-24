@@ -21,7 +21,12 @@ import {
   seedDemoInvoice,
   seedDemoPayables,
 } from "./seed/finance";
-import { seedDemoCrew, seedDemoEquipment, seedDemoEquipmentBookings } from "./seed/operations";
+import {
+  seedDemoCrew,
+  seedDemoEquipment,
+  seedDemoEquipmentBookings,
+  seedDemoProcurement,
+} from "./seed/operations";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
 export const DEMO_USERS = [
@@ -33,6 +38,7 @@ export const DEMO_USERS = [
   { name: "Demo Viewer", email: "viewer@demo.hmbl.test", roleKeys: ["viewer"] },
   { name: "Demo Crew Coordinator", email: "crew@demo.hmbl.test", roleKeys: ["crew_coordinator"] },
   { name: "Demo Warehouse", email: "warehouse@demo.hmbl.test", roleKeys: ["warehouse"] },
+  { name: "Demo Procurement", email: "procurement@demo.hmbl.test", roleKeys: ["procurement"] },
   // Finance for the Indian demo entity only, to show entity scoping.
   { name: "Demo Finance India", email: "finance.in@demo.hmbl.test", roleKeys: [] },
   // Finance without two-factor yet: shows the forced setup screen on sign-in.
@@ -85,6 +91,11 @@ async function main() {
   await seedDemoEquipment(db, pm.id);
   await seedDemoEquipmentBookings(db, pm.id);
   console.log("Demo equipment");
+  const procurement = await db.user.findUniqueOrThrow({
+    where: { email: "procurement@demo.hmbl.test" },
+  });
+  await seedDemoProcurement(db, procurement.id, financeIndia.id);
+  console.log("Demo purchase orders");
   await seedDemoTwoFactor(
     db,
     DEMO_USERS.map((u) => u.email).filter((email) => !email.startsWith("new.")),

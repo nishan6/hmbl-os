@@ -31,6 +31,8 @@ export type BillRow = {
   /** The crew booking or purchase order line this line bills, kept with its budget line. */
   commitmentId?: string;
   commitmentLabel?: string;
+  /** The purchase order line this line bills; dropped if its project or budget line changes. */
+  purchaseOrderLineId?: string;
 };
 
 type TaxRateOption = { id: string; code: string; rateBps: number; isDefault: boolean };
@@ -351,6 +353,7 @@ export function BillEditor({
                           budgetLineId: "",
                           commitmentId: "",
                           commitmentLabel: "",
+                          purchaseOrderLineId: "",
                         })
                       }
                     >
@@ -374,6 +377,7 @@ export function BillEditor({
                           budgetLineId: e.target.value,
                           commitmentId: "",
                           commitmentLabel: "",
+                          purchaseOrderLineId: "",
                         })
                       }
                     >

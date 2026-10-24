@@ -63,6 +63,7 @@ export default async function EditBillPage({ params }: PageProps<"/finance/bills
           budgetLineId: l.budgetLineId ?? "",
           commitmentId: l.commitmentId ?? "",
           commitmentLabel: commitments.get(l.commitmentId ?? "") ?? "",
+          purchaseOrderLineId: l.purchaseOrderLineId ?? "",
         }))}
         taxRates={options.taxRates}
         accounts={options.accounts}

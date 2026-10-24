@@ -595,6 +595,31 @@ export async function endDocumentCommitment(
   return after;
 }
 
+/**
+ * Replaces a document's commitment when an approved amendment changes it (a
+ * purchase order line's price or quantity). Cost entries are append-only, so
+ * the old one is ended and a new one posted for what is still to be billed:
+ * the new amount less what was already billed against the old one. Returns
+ * the new commitment, or null when nothing is left to commit.
+ */
+export async function replaceDocumentCommitment(
+  tx: Tx,
+  caller: Caller,
+  entryId: string,
+  input: DocumentCostInput,
+) {
+  const old = await tx.projectCostEntry.findUniqueOrThrow({ where: { id: entryId } });
+  if (old.amountMinor === input.amountMinor && !old.voidedAt && !old.closedAt) return old;
+  const drawn = await tx.projectCostEntry.aggregate({
+    where: { commitmentId: entryId, kind: "ACTUAL", voidedAt: null },
+    _sum: { amountMinor: true },
+  });
+  await endDocumentCommitment(tx, caller, entryId, `Replaced: ${input.reference}`);
+  const left = input.amountMinor - (drawn._sum.amountMinor ?? 0n);
+  if (left <= 0n) return null;
+  return postDocumentCommitment(tx, caller, { ...input, amountMinor: left });
+}
+
 /** Voids costs a document posted, when the document is voided. */
 export async function voidDocumentCost(tx: Tx, caller: Caller, entryId: string, reason: string) {
   const entry = await tx.projectCostEntry.findUniqueOrThrow({ where: { id: entryId } });
