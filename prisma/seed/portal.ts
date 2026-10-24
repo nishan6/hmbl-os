@@ -119,3 +119,46 @@ export async function seedDemoShares(db: PrismaClient, sharedById: string) {
   await db.portalShare.createMany({ data });
   return data.length;
 }
+
+/**
+ * DEMO bookings for the demo freelancer on the demo project: one proposed,
+ * waiting for their answer, and one confirmed they can record days on.
+ * Neither is paid from the budget, so no commitment is needed.
+ */
+export async function seedDemoPortalBookings(db: PrismaClient, createdById: string) {
+  const account = await db.portalAccount.findFirst({
+    where: { kind: "FREELANCER", user: { email: "freelancer@demo.hmbl.test" } },
+  });
+  const project = await db.project.findFirst({
+    where: { isDemo: true, status: { not: "CANCELLED" }, eventStartDate: { not: null } },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!account?.crewMemberId || !project?.eventStartDate) return 0;
+  if (await db.crewAssignment.count({ where: { crewMemberId: account.crewMemberId } })) return 0;
+  const start = project.eventStartDate;
+  const end = project.eventEndDate ?? start;
+  const base = {
+    projectId: project.id,
+    crewMemberId: account.crewMemberId,
+    startDate: start,
+    endDate: end,
+    currency: project.currency,
+    dayRateMinor: 6_000_00n,
+    reportTo: "Demo Project Manager",
+    createdById,
+  };
+  await db.crewAssignment.create({
+    data: {
+      ...base,
+      role: "Lighting operator (DEMO)",
+      status: "CONFIRMED",
+      callTime: "14:00",
+      confirmedAt: new Date(),
+      confirmedById: createdById,
+    },
+  });
+  await db.crewAssignment.create({
+    data: { ...base, role: "Rigging (DEMO)", status: "PROPOSED", callTime: "08:00" },
+  });
+  return 2;
+}

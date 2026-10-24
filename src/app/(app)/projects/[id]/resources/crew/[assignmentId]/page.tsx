@@ -26,6 +26,8 @@ import {
   updateCrewAction,
 } from "../../actions";
 import { BookingEditForm, ConfirmForm, EndForm, SubstituteForm, WorkForm } from "../../crew-forms";
+import { PortalActivity } from "../../../../../admin/portal-access/_components/portal-activity";
+import { bookingPortalAnswer } from "@/server/portal/activity";
 
 export const metadata = { title: "Crew booking" };
 
@@ -60,6 +62,10 @@ export default async function CrewBookingPage({
           { label: "Crew and equipment", href: `/projects/${p.id}/resources` },
           { label: a.crewMember.name },
         ]}
+      />
+      <PortalActivity
+        items={await bookingPortalAnswer(actor, a.id)}
+        title="Their answer in the portal"
       />
       <Section title={`${a.crewMember.name} as ${a.role}`}>
         <DetailList

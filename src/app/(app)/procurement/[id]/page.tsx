@@ -31,6 +31,8 @@ import {
 import { ReasonForm, ReceiptForm } from "../order-forms";
 import { ORDER_STATUS } from "../_components/procurement-tabs";
 import { RecordDocuments } from "../../documents/_components/record-documents";
+import { PortalActivity } from "../../admin/portal-access/_components/portal-activity";
+import { orderPortalActivity } from "@/server/portal/activity";
 
 export const metadata = { title: "Purchase order" };
 
@@ -405,6 +407,7 @@ export default async function OrderPage({ params }: PageProps<"/procurement/[id]
           {order.closedReason}
         </p>
       ) : null}
+      <PortalActivity items={await orderPortalActivity(actor, id)} title="From the vendor portal" />
       <RecordDocuments actor={actor} type="PURCHASE_ORDER" id={id} />
     </>
   );

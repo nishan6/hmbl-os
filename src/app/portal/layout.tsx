@@ -22,7 +22,17 @@ function navFor(actor: PortalActor): PortalNavItem[] {
           has("invoices.view") && { href: "/portal/invoices", label: "Invoices" },
           has("documents.view") && { href: "/portal/documents", label: "Documents" },
         ]
-      : [];
+      : actor.kind === "VENDOR"
+        ? [
+            has("orders.view") && { href: "/portal/orders", label: "Purchase orders" },
+            has("payments.view") && { href: "/portal/bills", label: "Bills and payments" },
+            has("profile.edit") && { href: "/portal/details", label: "Your details" },
+          ]
+        : [
+            has("work.view") && { href: "/portal/bookings", label: "Bookings" },
+            has("settlements.view") && { href: "/portal/settlements", label: "Pay" },
+            has("profile.edit") && { href: "/portal/details", label: "Your details" },
+          ];
   return [{ href: "/portal", label: "Home" }, ...items.filter((i) => i !== false)];
 }
 
