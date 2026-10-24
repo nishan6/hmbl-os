@@ -4,7 +4,7 @@ import { Pencil, Printer } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
 import { availableActions, listApprovalSteps } from "@/server/commercial/workflow";
-import { ACCEPTANCE_METHODS } from "@/server/commercial/acceptance";
+import { ACCEPTANCE_METHOD_LABELS, ACCEPTANCE_METHODS } from "@/server/commercial/acceptance";
 import { getQuote, localToday } from "@/server/commercial/quotes";
 import { projectForQuote } from "@/server/projects/projects";
 import { LINE_CATEGORIES } from "@/server/commercial/schemas";
@@ -23,6 +23,8 @@ import { acceptQuoteAction, declineQuoteAction, quoteCommandAction } from "../ac
 import { QuoteActions } from "./quote-actions";
 import { ClientAnswer } from "./client-answer";
 import { RecordDocuments } from "../../documents/_components/record-documents";
+import { PortalShare } from "../../admin/portal-access/_components/portal-share";
+import { portalResponseFor } from "@/server/portal/sharing";
 
 export const metadata = { title: "Quote" };
 
@@ -61,10 +63,11 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
       ? `${date(v.eventStartDate)} – ${date(v.eventEndDate)}`
       : date(v.eventStartDate ?? v.eventEndDate);
   const schedule = v.paymentSchedule as Schedule;
-  const [allowed, steps, project] = await Promise.all([
+  const [allowed, steps, project, portalAnswer] = await Promise.all([
     quote.isLatest ? availableActions(actor, id) : null,
     listApprovalSteps(actor, id),
     projectForQuote(actor, id),
+    portalResponseFor(actor, v.id),
   ]);
   const anyAction =
     allowed &&
@@ -153,7 +156,7 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
       {v.status === "ACCEPTED" ? (
         <div className="mb-6">
           <Alert tone="success" title={`Accepted by ${v.acceptedByName} on ${date(v.acceptedOn)}`}>
-            {v.acceptanceMethod ? `${ACCEPTANCE_METHODS[v.acceptanceMethod]}. ` : null}
+            {v.acceptanceMethod ? `${ACCEPTANCE_METHOD_LABELS[v.acceptanceMethod]}. ` : null}
             {v.acceptanceNotes ? `${v.acceptanceNotes} ` : null}
             {project && project.sourceQuoteVersionId === v.id ? (
               <Link href={`/projects/${project.id}`} className="text-accent hover:underline">
@@ -161,6 +164,59 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
               </Link>
             ) : null}
           </Alert>
+        </div>
+      ) : null}
+      {portalAnswer ? (
+        <div className="mb-6">
+          <Section
+            title="Answered in the client portal"
+            description="What was recorded when the client answered. This is a record of their acceptance, not an electronic signature."
+          >
+            <Panel>
+              <DetailList
+                items={[
+                  {
+                    label: "Answer",
+                    value: (
+                      <StatusBadge
+                        status={portalAnswer.response === "ACCEPTED" ? "accepted" : "declined"}
+                      />
+                    ),
+                  },
+                  { label: "Typed name", value: portalAnswer.typedName },
+                  {
+                    label: "Signed in as",
+                    value: `${portalAnswer.user.name} (${portalAnswer.user.email})`,
+                  },
+                  { label: "At", value: formatDateTime(portalAnswer.createdAt, tz) },
+                  {
+                    label: "Amount",
+                    value: (
+                      <span className="tabular">
+                        {formatMoney(portalAnswer.totalMinor, portalAnswer.currency)}
+                      </span>
+                    ),
+                  },
+                  ...(portalAnswer.clientPoNumber
+                    ? [{ label: "Their PO", value: portalAnswer.clientPoNumber }]
+                    : []),
+                  ...(portalAnswer.reason ? [{ label: "Reason", value: portalAnswer.reason }] : []),
+                  { label: "Statement", value: portalAnswer.statement },
+                  {
+                    label: "From",
+                    value:
+                      [portalAnswer.ipAddress, portalAnswer.userAgent]
+                        .filter(Boolean)
+                        .join(" · ") || "Not recorded",
+                  },
+                  {
+                    label: "Content fingerprint",
+                    value: <code className="text-xs break-all">{portalAnswer.contentSha256}</code>,
+                  },
+                ]}
+              />
+            </Panel>
+          </Section>
         </div>
       ) : null}
       {!quote.isLatest ? (
@@ -350,6 +406,10 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
               />
             </Panel>
           </Section>
+
+          {quote.isLatest ? (
+            <PortalShare actor={actor} kind="QUOTE" id={quote.id} timeZone={tz} />
+          ) : null}
 
           <Section title="Payment schedule" description={v.paymentTermName ?? undefined}>
             {schedule.length ? (

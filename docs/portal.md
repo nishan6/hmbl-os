@@ -1,6 +1,6 @@
 # Portal access
 
-How people outside HMBL (client contacts, vendors and freelancers) get a sign-in, and what keeps them out of everything else (spec §18, §19). The services are in `src/server/portal/`. What each kind of person sees in the portal is described with the portal pages themselves.
+How people outside HMBL (client contacts, vendors and freelancers) get a sign-in, and what keeps them out of everything else (spec §18, §19). The services are in `src/server/portal/`. What clients see and do is in [client-portal.md](client-portal.md).
 
 ## Two kinds of user
 
