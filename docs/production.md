@@ -4,11 +4,11 @@ The show day (spec §16) is what the people at a venue need on one screen, witho
 
 ## Who sees what
 
-| Permission          | What it allows                                                                   |
-| ------------------- | -------------------------------------------------------------------------------- |
-| `production.view`   | Open the show day of projects in the entity                                      |
-| `production.create` | Post status updates and add notes (the crew at the venue)                        |
-| `production.edit`   | Keep the run of show, publish call sheets, pin, change and archive anyone's note |
+| Permission          | What it allows                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------ |
+| `production.view`   | Open the show day of projects in the entity                                                      |
+| `production.create` | Post status updates and notes, tick checklists, report incidents                                 |
+| `production.edit`   | Run of show, call sheets, checklists, resolving incidents; pin, change and archive anyone's note |
 
 The show day is its own permission so venue crew can see what they need without the rest of the project. The default **Show crew** role holds `production.view` and `.create`, project and document view, and expense claims. Project managers hold all of `production`. Crew coordinators can view; the warehouse can view and post.
 
@@ -38,10 +38,22 @@ The live list is the day's confirmed crew bookings, with call time, role, who th
 
 The **show log** puts status updates and show-day changes (run of show, call sheets, notes) in one timeline, newest first.
 
+## Checklists
+
+Safety and operational checklists for a show (spec §16), for one day or the whole show. Whoever plans the show (`production.edit`) creates them, from a template (load-in safety, pre-show, load-out), from typed lines, or both, and can relabel, reorder, add and remove items. The templates are default wording in `src/lib/production.ts`, not approved HMBL safety policy. Anyone who can post (`production.create`) ticks items off at the venue; the show day shows each checklist's progress.
+
+Every tick, untick and relabel raises the item's `version`. A change made from an older version that would undo someone else's change (unticking what someone just ticked) is refused as a **conflict** and changes nothing; ticking what someone already ticked is not a conflict. This is what makes offline ticks safe (see [offline.md](offline.md)). Removed items are kept with `removedAt`, never deleted, so the record of a tick survives.
+
+## Incidents
+
+Anything that went wrong at a show: safety, injury or illness, technical, equipment, crew, venue, security. Anyone who can post reports one with when it happened (venue time), how serious it is (low to critical), what happened, where, who was involved and what was done. The reporter or a planner can change it while open; a planner resolves it with a resolution.
+
+**Who was involved** is personal information: only planners and the reporter see it, and the audit log records that names were given, not the names. **High** and **critical** incidents notify the project manager and planners at once (notification kind `production.incident`). Incidents are never deleted (trigger). While one is open, the project's **Final report filed** closeout item is blocked (`src/server/projects/closeout-checks.ts`).
+
 ## Audit
 
-`production.run_of_show_added`, `.run_of_show_changed`, `.run_of_show_removed`, `.call_sheet_published`, `.note_added`, `.note_changed`, `.note_archived` and `.status_posted`, each with `projectId` in the metadata.
+`production.run_of_show_added`, `.run_of_show_changed`, `.run_of_show_removed`, `.call_sheet_published`, `.note_added`, `.note_changed`, `.note_archived`, `.status_posted`, `.checklist_created`, `.checklist_items_changed`, `.checklist_archived`, `.checklist_item_done`, `.checklist_item_undone`, `.incident_reported`, `.incident_updated` and `.incident_resolved`, each with `projectId` in the metadata.
 
 ## Demo data
 
-`pnpm db:seed` gives the first demo project a running order on its first show day, two notes (one pinned), a published call sheet when crew are confirmed that day, and a status update. The demo user `show@demo.hmbl.test` has the Show crew role.
+`pnpm db:seed` gives the first demo project a running order on its first show day, two notes (one pinned), a published call sheet when crew are confirmed that day, a load-in checklist with three items ticked, a pre-show checklist, and a status update. The demo user `show@demo.hmbl.test` has the Show crew role.

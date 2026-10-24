@@ -209,3 +209,234 @@ export function PublishCallSheetForm({
     </form>
   );
 }
+
+/** A new checklist from a template, typed items, or both. */
+export function ChecklistForm({
+  action,
+  days,
+  templates,
+}: {
+  action: Action;
+  days: { value: string; label: string }[];
+  templates: { value: string; label: string }[];
+}) {
+  const f = useForm(action);
+  return (
+    <form action={f.action} key={f.formKey} className="flex max-w-xl flex-col gap-3" noValidate>
+      <FormAlert {...f} title="The checklist wasn't created" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Title" required errors={f.errors("title")}>
+          {(p) => (
+            <Input
+              name="title"
+              placeholder="Load-in safety"
+              defaultValue={f.value("title")}
+              {...p}
+            />
+          )}
+        </Field>
+        <Field label="Day" description="Leave blank for the whole show" errors={f.errors("day")}>
+          {(p) => (
+            <Select name="day" defaultValue={f.value("day")} {...p}>
+              <option value="">Whole show</option>
+              {days.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+      </div>
+      <Field label="Start from" errors={f.errors("template")}>
+        {(p) => (
+          <Select name="template" defaultValue={f.value("template")} {...p}>
+            <option value="">Nothing, I&apos;ll type the items</option>
+            {templates.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
+      <Field
+        label="Items"
+        description="One per line, added after the template's"
+        errors={f.errors("items")}
+      >
+        {(p) => <Textarea name="items" rows={4} defaultValue={f.value("items")} {...p} />}
+      </Field>
+      <div>
+        <Button type="submit" variant="primary" disabled={f.pending}>
+          {f.pending ? "Creating…" : "Create checklist"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** Relabel, reorder (by editing), remove (by clearing) and add items. */
+export function ChecklistItemsForm({
+  action,
+  items,
+}: {
+  action: Action;
+  items: { id: string; label: string }[];
+}) {
+  const f = useForm(action);
+  return (
+    <form action={f.action} key={f.formKey} className="flex flex-col gap-2" noValidate>
+      <FormAlert {...f} title="The checklist wasn't saved" />
+      {items.map((item, i) => (
+        <div key={item.id}>
+          <input type="hidden" name="itemId" value={item.id} />
+          <label className="sr-only" htmlFor={`label-${item.id}`}>
+            Item {i + 1}
+          </label>
+          <Input id={`label-${item.id}`} name="label" defaultValue={item.label} />
+        </div>
+      ))}
+      <p className="text-secondary text-xs">
+        Clear an item to remove it. Ticks stay on items you keep.
+      </p>
+      <Field label="Add items" description="One per line" errors={f.errors("items")}>
+        {(p) => <Textarea name="add" rows={2} {...p} />}
+      </Field>
+      <div>
+        <Button type="submit" variant="primary" disabled={f.pending}>
+          {f.pending ? "Saving…" : "Save items"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+const CATEGORY_OPTIONS = {
+  SAFETY: "Safety",
+  INJURY: "Injury or illness",
+  TECHNICAL: "Technical",
+  EQUIPMENT: "Equipment",
+  CREW: "Crew",
+  VENUE: "Venue",
+  SECURITY: "Security",
+  OTHER: "Other",
+};
+const SEVERITY_OPTIONS = { LOW: "Low", MEDIUM: "Medium", HIGH: "High", CRITICAL: "Critical" };
+
+/** What happened, when, how serious, and what was done. Times are venue time. */
+export function IncidentForm({
+  action,
+  timeZone,
+  defaults = {},
+  submitLabel,
+}: {
+  action: Action;
+  timeZone: string;
+  defaults?: Record<string, string>;
+  submitLabel: string;
+}) {
+  const f = useForm(action, { severity: "MEDIUM", ...defaults });
+  return (
+    <form action={f.action} key={f.formKey} className="flex max-w-2xl flex-col gap-3" noValidate>
+      <FormAlert {...f} title="The incident wasn't saved" />
+      <input type="hidden" name="timeZone" value={timeZone} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field label="When" required description={timeZone} errors={f.errors("occurredAt")}>
+          {(p) => (
+            <Input
+              type="datetime-local"
+              name="occurredLocal"
+              defaultValue={f.value("occurredLocal")}
+              {...p}
+            />
+          )}
+        </Field>
+        <Field label="Kind" required errors={f.errors("category")}>
+          {(p) => (
+            <Select name="category" defaultValue={f.value("category")} {...p}>
+              <option value="">Choose…</option>
+              {Object.entries(CATEGORY_OPTIONS).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label="Severity" required errors={f.errors("severity")}>
+          {(p) => (
+            <Select name="severity" defaultValue={f.value("severity")} {...p}>
+              {Object.entries(SEVERITY_OPTIONS).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Title" required errors={f.errors("title")}>
+          {(p) => (
+            <Input
+              name="title"
+              placeholder="Truss motor tripped"
+              defaultValue={f.value("title")}
+              {...p}
+            />
+          )}
+        </Field>
+        <Field label="Where" errors={f.errors("location")}>
+          {(p) => <Input name="location" defaultValue={f.value("location")} {...p} />}
+        </Field>
+      </div>
+      <Field label="What happened" required errors={f.errors("description")}>
+        {(p) => (
+          <Textarea name="description" rows={3} defaultValue={f.value("description")} {...p} />
+        )}
+      </Field>
+      <Field
+        label="Who was involved"
+        description="Only planners and you will see this"
+        errors={f.errors("peopleInvolved")}
+      >
+        {(p) => (
+          <Textarea
+            name="peopleInvolved"
+            rows={2}
+            defaultValue={f.value("peopleInvolved")}
+            {...p}
+          />
+        )}
+      </Field>
+      <Field label="What was done" errors={f.errors("actionTaken")}>
+        {(p) => (
+          <Textarea name="actionTaken" rows={2} defaultValue={f.value("actionTaken")} {...p} />
+        )}
+      </Field>
+      <div>
+        <Button type="submit" variant="primary" disabled={f.pending}>
+          {f.pending ? "Saving…" : submitLabel}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export function ResolveIncidentForm({ action }: { action: Action }) {
+  const f = useForm(action);
+  return (
+    <form action={f.action} key={f.formKey} className="flex max-w-xl flex-col gap-3" noValidate>
+      <FormAlert {...f} title="The incident wasn't resolved" />
+      <Field label="Resolution" required errors={f.errors("resolution")}>
+        {(p) => <Textarea name="resolution" rows={2} defaultValue={f.value("resolution")} {...p} />}
+      </Field>
+      <div>
+        <Button type="submit" variant="primary" disabled={f.pending}>
+          {f.pending ? "Resolving…" : "Resolve"}
+        </Button>
+      </div>
+    </form>
+  );
+}

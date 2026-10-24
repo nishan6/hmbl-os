@@ -92,3 +92,59 @@ export function callSheetChanged(published: CallRow[], current: CallRow[]): bool
   const b = current.map(rowKey).sort();
   return a.some((k, i) => k !== b[i]);
 }
+
+/**
+ * Starting points for show checklists. Default wording, not approved HMBL
+ * safety policy (docs/decisions.md, "Show checklists"); items can be changed
+ * after a checklist is created.
+ */
+export const CHECKLIST_TEMPLATES: Record<string, { title: string; items: string[] }> = {
+  LOAD_IN: {
+    title: "Load-in safety",
+    items: [
+      "Site induction given to every crew member",
+      "Fire exits and routes kept clear",
+      "Rigging plan signed off by the venue",
+      "Rigging and truss inspected before loading",
+      "Power distribution checked and earthed",
+      "Cable runs taped or ramped",
+      "PPE worn in the work area",
+      "First aid kit and first aider identified",
+    ],
+  },
+  PRE_SHOW: {
+    title: "Pre-show",
+    items: [
+      "Sound check done",
+      "Lighting and video checked",
+      "Comms tested on every channel",
+      "Stage clear and walked",
+      "Emergency announcement ready",
+      "Front of house and venue confirm doors",
+    ],
+  },
+  LOAD_OUT: {
+    title: "Load-out",
+    items: [
+      "Stage cleared and walked",
+      "Every case counted against the pack list",
+      "Damage and losses noted",
+      "Hired equipment separated for return",
+      "Venue walkthrough with the venue manager",
+    ],
+  },
+};
+
+/** One item per non-blank line, with list markers ("-", "*", "1.") removed. */
+export function parseChecklistLines(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
+    .filter(Boolean)
+    .map((l) => l.slice(0, 300));
+}
+
+export function checklistProgress(items: { doneAt: Date | null }[]) {
+  const done = items.filter((i) => i.doneAt).length;
+  return { done, total: items.length, complete: items.length > 0 && done === items.length };
+}

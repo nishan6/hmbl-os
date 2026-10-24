@@ -1,12 +1,14 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { loadGrants } from "@/server/permissions/grants";
 import { publishCallSheet } from "@/server/production/call-sheets";
+import { createChecklist, setItemDone } from "@/server/production/checklists";
 import { addNote, postStatusUpdate } from "@/server/production/log";
 import { saveRunOfShowItem } from "@/server/production/run-of-show";
 
 /**
  * DEMO show day on the first demo project: a running order for its first
- * show day, notes for the venue, a published call sheet and a status update.
+ * show day, notes for the venue, a published call sheet, two checklists
+ * (one partly ticked) and a status update.
  */
 export async function seedDemoProduction(db: PrismaClient, pmId: string) {
   const project = await db.project.findFirst({
@@ -50,6 +52,18 @@ export async function seedDemoProduction(db: PrismaClient, pmId: string) {
   if (confirmed) {
     await publishCallSheet(pm, project.id, { day, notes: "DEMO: parking at gate 3, lunch 13:00." });
   }
+  const checklist = await createChecklist(pm, project.id, {
+    title: "DEMO load-in safety",
+    day,
+    template: "LOAD_IN",
+  });
+  const items = await db.showChecklistItem.findMany({
+    where: { checklistId: checklist.id },
+    orderBy: { position: "asc" },
+    take: 3,
+  });
+  for (const item of items) await setItemDone(pm, item.id, { done: true });
+  await createChecklist(pm, project.id, { title: "DEMO pre-show", day, template: "PRE_SHOW" });
   await postStatusUpdate(pm, project.id, {
     status: "ON_TRACK",
     message: "DEMO: advance done, all suppliers confirmed",

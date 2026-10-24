@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import type { ShowUpdateStatus } from "@/generated/prisma/enums";
+import type { IncidentSeverity, ShowUpdateStatus } from "@/generated/prisma/enums";
 import type { StatusKey } from "@/components/ui/status";
 
 export const SHOW_TABS = [
   { path: "", label: "Show day" },
   { path: "/run-of-show", label: "Run of show" },
   { path: "/call-sheets", label: "Call sheets" },
+  { path: "/checklists", label: "Checklists" },
+  { path: "/incidents", label: "Incidents" },
   { path: "/log", label: "Notes and log" },
 ] as const;
 
@@ -18,6 +20,13 @@ export const UPDATE_STATUS: Record<ShowUpdateStatus, StatusKey> = {
   ISSUE: "issue",
   DONE: "completed",
   INFO: "information",
+};
+
+export const SEVERITY_TONE: Record<IncidentSeverity, "neutral" | "info" | "warning" | "danger"> = {
+  LOW: "neutral",
+  MEDIUM: "info",
+  HIGH: "warning",
+  CRITICAL: "danger",
 };
 
 /** The sections of one show, under the page header. */

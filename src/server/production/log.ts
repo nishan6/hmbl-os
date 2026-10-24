@@ -193,6 +193,14 @@ const LOG_ACTIONS: Record<string, string> = {
   "production.note_added": "Added a note",
   "production.note_changed": "Changed a note",
   "production.note_archived": "Archived a note",
+  "production.checklist_created": "Created a checklist",
+  "production.checklist_items_changed": "Changed a checklist",
+  "production.checklist_archived": "Archived a checklist",
+  "production.checklist_item_done": "Ticked",
+  "production.checklist_item_undone": "Unticked",
+  "production.incident_reported": "Reported an incident",
+  "production.incident_updated": "Changed an incident",
+  "production.incident_resolved": "Resolved an incident",
 };
 
 export type LogEntry = {
@@ -235,12 +243,15 @@ export async function showLog(actor: Actor, projectId: string, take = 100): Prom
     ...events.map((e) => {
       const meta = (e.metadata ?? {}) as Record<string, unknown>;
       const title = (e.changes as Record<string, { from: unknown; to: unknown }> | null)?.title;
+      const named = meta.label ?? meta.title;
       const detail =
         e.action === "production.call_sheet_published"
           ? ` for ${String(meta.day)}, revision ${String(meta.revision)}`
-          : title
-            ? `: ${String(title.to ?? title.from)}`
-            : "";
+          : typeof named === "string"
+            ? `: ${named}`
+            : title
+              ? `: ${String(title.to ?? title.from)}`
+              : "";
       return {
         id: e.id,
         at: e.occurredAt,

@@ -8,6 +8,7 @@ import { can, entityFilter, type Actor } from "@/server/permissions/authorize";
 import { pickShowDay, showDays } from "@/lib/production";
 import { loadShow, showAbilities } from "./access";
 import { callSheetDay } from "./call-sheets";
+import { listChecklists } from "./checklists";
 import { currentStatus, listNotes, showLog } from "./log";
 import { runOfShow } from "./run-of-show";
 
@@ -218,16 +219,19 @@ async function movementsOn(projectId: string, day: Date) {
 /** Everything for one show day. */
 export async function getShowDay(actor: Actor, projectId: string, asked?: Date | null) {
   const { show, days, today, day, items } = await showCalendar(actor, projectId, asked);
-  const [running, calls, equipment, travel, movements, notes, status, log] = await Promise.all([
-    runOfShow(actor, projectId, day),
-    callSheetDay(actor, projectId, day),
-    equipmentOn(projectId, day),
-    travelOn(projectId, day),
-    movementsOn(projectId, day),
-    listNotes(actor, projectId),
-    currentStatus(projectId),
-    showLog(actor, projectId, 8),
-  ]);
+  const [running, calls, equipment, travel, movements, notes, status, log, lists, openIncidents] =
+    await Promise.all([
+      runOfShow(actor, projectId, day),
+      callSheetDay(actor, projectId, day),
+      equipmentOn(projectId, day),
+      travelOn(projectId, day),
+      movementsOn(projectId, day),
+      listNotes(actor, projectId),
+      currentStatus(projectId),
+      showLog(actor, projectId, 8),
+      listChecklists(actor, projectId),
+      db.showIncident.count({ where: { projectId, status: "OPEN" } }),
+    ]);
   const documents = canSeeRecordDocuments(actor, "PROJECT", show.legalEntityId)
     ? (await listRecordDocuments(actor, { type: "PROJECT", id: projectId })).documents.filter(
         (d) => !d.archivedAt && SHOW_DOCUMENT_CATEGORIES.includes(d.category),
@@ -247,6 +251,8 @@ export async function getShowDay(actor: Actor, projectId: string, asked?: Date |
     notes,
     status,
     log,
+    checklists: lists.filter((l) => !l.day || l.day.getTime() === day.getTime()),
+    openIncidents,
     documents,
     can: {
       ...showAbilities(actor, show),

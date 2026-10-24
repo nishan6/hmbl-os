@@ -1133,6 +1133,8 @@ model Project {
   callSheets    CallSheet[]
   showNotes     ProductionNote[]
   statusUpdates ShowStatusUpdate[]
+  checklists    ShowChecklist[]
+  incidents     ShowIncident[]
 
   @@unique([legalEntityId, number])
   @@index([clientId])
@@ -4080,4 +4082,94 @@ model ShowStatusUpdate {
 
   @@index([projectId, createdAt])
   @@map("show_status_updates")
+}
+
+/// A safety or operational checklist for a show: load-in, pre-show, load-out.
+/// Items are ticked off at the venue. A checklist for one day has `day`.
+model ShowChecklist {
+  id           String    @id @default(uuid()) @db.Uuid
+  projectId    String    @db.Uuid
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  title        String
+  day          DateTime? @db.Date
+  createdById  String    @db.Uuid
+  archivedAt   DateTime?
+  archivedById String?   @db.Uuid
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  items ShowChecklistItem[]
+
+  @@index([projectId])
+  @@map("show_checklists")
+}
+
+/// One thing to check. `version` goes up on every change, so a change made
+/// from an older copy (offline, or in another tab) is noticed as a conflict.
+model ShowChecklistItem {
+  id          String        @id @default(uuid()) @db.Uuid
+  checklistId String        @db.Uuid
+  checklist   ShowChecklist @relation(fields: [checklistId], references: [id], onDelete: Restrict)
+  position    Int
+  label       String
+  doneAt      DateTime?
+  doneById    String?       @db.Uuid
+  // Why it was ticked or untouched: "Fire exit 2 blocked, venue moving it".
+  note        String?
+  version     Int           @default(1)
+  removedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([checklistId, position])
+  @@map("show_checklist_items")
+}
+
+enum IncidentCategory {
+  SAFETY
+  INJURY
+  TECHNICAL
+  EQUIPMENT
+  CREW
+  VENUE
+  SECURITY
+  OTHER
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  RESOLVED
+}
+
+/// Something that went wrong at a show. Who was involved is personal
+/// information and is shown only to planners and whoever reported it.
+model ShowIncident {
+  id             String           @id @default(uuid()) @db.Uuid
+  projectId      String           @db.Uuid
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  occurredAt     DateTime
+  category       IncidentCategory
+  severity       IncidentSeverity
+  title          String
+  description    String
+  location       String?
+  peopleInvolved String?
+  actionTaken    String?
+  status         IncidentStatus   @default(OPEN)
+  resolution     String?
+  resolvedAt     DateTime?
+  resolvedById   String?          @db.Uuid
+  reportedById   String           @db.Uuid
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([projectId, occurredAt])
+  @@map("show_incidents")
 }

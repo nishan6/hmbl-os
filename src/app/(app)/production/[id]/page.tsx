@@ -222,6 +222,50 @@ export default async function ShowDayPage({ params, searchParams }: PageProps<"/
         )}
       </Section>
 
+      <Section
+        title="Checks and incidents"
+        actions={
+          <Link
+            href={`/production/${id}/checklists`}
+            className="text-accent text-sm hover:underline"
+          >
+            Checklists
+          </Link>
+        }
+      >
+        {view.openIncidents ? (
+          <div className="mb-3">
+            <Alert
+              tone="warning"
+              title={`${view.openIncidents} open incident${view.openIncidents === 1 ? "" : "s"}`}
+            >
+              <Link href={`/production/${id}/incidents`} className="text-accent hover:underline">
+                See the incidents
+              </Link>
+            </Alert>
+          </div>
+        ) : null}
+        {view.checklists.length ? (
+          <ul className="flex flex-col gap-1 text-sm">
+            {view.checklists.map((l) => (
+              <li key={l.id} className="flex items-center gap-2">
+                <StatusBadge
+                  status={
+                    l.progress.complete ? "completed" : l.progress.done ? "in_progress" : "open"
+                  }
+                  label={
+                    l.progress.complete ? undefined : `${l.progress.done} of ${l.progress.total}`
+                  }
+                />
+                {l.title}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-secondary text-sm">No checklists for this day.</p>
+        )}
+      </Section>
+
       <Section title="Equipment">
         {view.equipment.length ? (
           <Table dense>

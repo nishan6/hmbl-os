@@ -449,6 +449,25 @@ export const AUDIT_RULES: Record<string, Rule> = {
     };
   },
 
+  "production.incident_reported": async (tx, e) => {
+    const severity = e.metadata.severity;
+    if (severity !== "HIGH" && severity !== "CRITICAL") return null;
+    const i = await tx.showIncident.findUniqueOrThrow({
+      where: { id: e.targetId },
+      select: { title: true, project: { select: { id: true, number: true, legalEntityId: true } } },
+    });
+    return {
+      userIds: [
+        ...(await projectManagers(tx, [i.project.id])),
+        ...(await usersWithPermission(tx, "production.edit", i.project.legalEntityId)),
+      ],
+      kind: "production.incident",
+      title: `${severity === "CRITICAL" ? "Critical" : "Serious"} incident on ${i.project.number}`,
+      body: i.title,
+      href: `/production/${i.project.id}/incidents`,
+    };
+  },
+
   "receipt.recorded": async (tx, e) => {
     const r = await tx.receipt.findUniqueOrThrow({
       where: { id: e.targetId },
