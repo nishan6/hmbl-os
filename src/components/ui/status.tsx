@@ -101,8 +101,18 @@ const tones: Record<Tone, string> = {
   accent: "bg-accent-soft text-accent",
 };
 
-export function StatusBadge({ status, className }: { status: StatusKey; className?: string }) {
-  const { label, icon: Icon, tone } = STATUSES[status];
+export function StatusBadge({
+  status,
+  label: override,
+  className,
+}: {
+  status: StatusKey;
+  /** Words for another audience, e.g. a client, keeping the icon and tone. */
+  label?: string;
+  className?: string;
+}) {
+  const { label: standard, icon: Icon, tone } = STATUSES[status];
+  const label = override ?? standard;
   return (
     <span
       className={cn(

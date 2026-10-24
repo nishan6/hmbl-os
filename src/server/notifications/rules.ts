@@ -146,7 +146,45 @@ const bookingChanged: Rule = async (tx, e) => {
   };
 };
 
+/** A client answered a quotation in the portal: its owner hears at once. */
+const portalAnswer =
+  (accepted: boolean): Rule =>
+  async (tx, e) => {
+    if (e.metadata.via !== "portal") return null;
+    const q = await tx.quote.findUniqueOrThrow({
+      where: { id: e.targetId },
+      select: { number: true, title: true, ownerId: true, createdById: true },
+    });
+    return {
+      userIds: [q.ownerId ?? q.createdById],
+      kind: "portal.client_activity",
+      title: `The client ${accepted ? "accepted" : "declined"} quotation ${q.number} in the portal`,
+      body: accepted
+        ? q.title
+        : typeof e.metadata.reason === "string"
+          ? e.metadata.reason
+          : q.title,
+      href: `/quotes/${e.targetId}`,
+    };
+  };
+
 export const AUDIT_RULES: Record<string, Rule> = {
+  "quote.accepted": portalAnswer(true),
+  "quote.declined": portalAnswer(false),
+  "portal_submission.created": async (tx, e) => {
+    const p = await tx.project.findUniqueOrThrow({
+      where: { id: e.targetId },
+      select: { number: true, name: true },
+    });
+    return {
+      userIds: await projectManagers(tx, [e.targetId]),
+      kind: "portal.client_activity",
+      title: `The client sent information about ${p.number} in the portal`,
+      body: typeof e.metadata.subject === "string" ? e.metadata.subject : p.name,
+      href: `/projects/${e.targetId}`,
+    };
+  },
+
   "portal_invitation.accepted": async (tx, e) => {
     const i = await tx.portalInvitation.findUniqueOrThrow({
       where: { id: e.targetId },

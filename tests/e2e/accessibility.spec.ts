@@ -43,6 +43,27 @@ for (const colorScheme of ["light", "dark"] as const) {
       await enterPassword(page, "vendor@demo.hmbl.test");
       await expect(page.getByRole("heading", { level: 1, name: /^Welcome, / })).toBeVisible();
       await expectNoViolations(page);
+      await page.context().clearCookies();
+      await enterPassword(page, "client@demo.hmbl.test");
+      await expect(page.getByRole("heading", { level: 1, name: /^Welcome, / })).toBeVisible();
+      await expectNoViolations(page);
+      for (const [list, name] of [
+        ["/portal/projects", /New Year gala/],
+        ["/portal/quotes", /New Year gala/],
+        ["/portal/invoices", null],
+        ["/portal/documents", null],
+      ] as const) {
+        await test.step(list, async () => {
+          await page.goto(list);
+          await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+          await expectNoViolations(page);
+          if (name) {
+            await page.getByRole("link", { name }).first().click();
+            await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+            await expectNoViolations(page);
+          }
+        });
+      }
     });
 
     test("procurement pages meet WCAG 2.2 AA", async ({ page }) => {
