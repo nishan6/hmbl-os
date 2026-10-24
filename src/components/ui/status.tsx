@@ -66,6 +66,8 @@ export const STATUSES = {
   closed: { label: "Closed", icon: Lock, tone: "neutral" },
   credited: { label: "Credited", icon: Undo2, tone: "neutral" },
   reopened: { label: "Reopened", icon: History, tone: "warning" },
+  proposed: { label: "Proposed", icon: Clock, tone: "info" },
+  confirmed: { label: "Confirmed", icon: CircleCheck, tone: "success" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon; tone: Tone }>;
 
 export type StatusKey = keyof typeof STATUSES;

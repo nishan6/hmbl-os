@@ -1066,6 +1066,7 @@ model Project {
   resources         ProjectResourceRequirement[]
   documents         ProjectDocument[]
   closeoutItems     ProjectCloseoutItem[]
+  crewAssignments   CrewAssignment[]
   journalLines      JournalLine[]
   salesInvoices     SalesInvoice[]
   billLines         VendorBillLine[]
@@ -1358,6 +1359,8 @@ model ProjectResourceRequirement {
   createdBy    User               @relation("ResourceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
+
+  crewAssignments CrewAssignment[]
 
   @@index([projectId, kind])
   @@map("project_resource_requirements")
@@ -2095,8 +2098,9 @@ model VendorBill {
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
-  lines       VendorBillLine[]
-  allocations VendorPaymentAllocation[]
+  lines          VendorBillLine[]
+  allocations    VendorPaymentAllocation[]
+  crewSettlement CrewSettlement?
 
   @@unique([legalEntityId, number])
   @@index([vendorId])
@@ -2133,6 +2137,9 @@ model VendorBillLine {
   budgetLineId   String?       @db.Uuid
   // The project actual cost this line posted when approved.
   costEntryId    String?       @unique @db.Uuid
+  // The project commitment (a crew booking, a purchase order line) this line
+  // bills, so its actual cost draws the commitment down instead of adding to it.
+  commitmentId   String?       @db.Uuid
 
   @@unique([billId, position])
   @@map("vendor_bill_lines")
@@ -2551,6 +2558,8 @@ model CrewMember {
   rates          CrewRate[]
   certifications CrewCertification[]
   unavailability CrewUnavailability[]
+  assignments    CrewAssignment[]
+  settlements    CrewSettlement[]
 
   @@index([normalizedName])
   @@index([status, name])
@@ -2608,4 +2617,113 @@ model CrewUnavailability {
 
   @@index([crewMemberId, startDate])
   @@map("crew_unavailability")
+}
+
+enum CrewAssignmentStatus {
+  // Asked, not yet agreed.
+  PROPOSED
+  CONFIRMED
+  // The person said no.
+  DECLINED
+  // HMBL called it off, or replaced the person.
+  CANCELLED
+}
+
+enum CrewWorkDay {
+  FULL
+  HALF
+}
+
+/// A named person booked on a project, usually against a crew requirement.
+/// The rates are copied when booked; a confirmed freelancer with a budget
+/// line commits their cost to the project.
+model CrewAssignment {
+  id                String                      @id @default(uuid()) @db.Uuid
+  projectId         String                      @db.Uuid
+  project           Project                     @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  requirementId     String?                     @db.Uuid
+  requirement       ProjectResourceRequirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  crewMemberId      String                      @db.Uuid
+  crewMember        CrewMember                  @relation(fields: [crewMemberId], references: [id], onDelete: Restrict)
+  role              String
+  startDate         DateTime                    @db.Date
+  endDate           DateTime                    @db.Date
+  status            CrewAssignmentStatus        @default(PROPOSED)
+  budgetLineId      String?                     @db.Uuid
+  // In the project's currency, before tax.
+  currency          String                      @db.Char(3)
+  dayRateMinor      BigInt?
+  halfDayRateMinor  BigInt?
+  overtimeRateMinor BigInt?
+  callTime          String?
+  reportTo          String?
+  notes             String?
+  // A clash with another booking or time off, confirmed anyway with crew.approve.
+  overrideReason    String?
+  overrideById      String?                     @db.Uuid
+  overrideAt        DateTime?
+  // The booking this one replaced.
+  replacesId        String?                     @unique @db.Uuid
+  replaces          CrewAssignment?             @relation("CrewSubstitution", fields: [replacesId], references: [id], onDelete: Restrict)
+  replacedBy        CrewAssignment?             @relation("CrewSubstitution")
+  // The project commitment for a confirmed freelancer.
+  commitmentId      String?                     @unique @db.Uuid
+  confirmedAt       DateTime?
+  confirmedById     String?                     @db.Uuid
+  endedReason       String?
+  endedAt           DateTime?
+  createdById       String                      @db.Uuid
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+
+  workRecords CrewWorkRecord[]
+
+  @@index([crewMemberId, startDate])
+  @@index([projectId])
+  @@map("crew_assignments")
+}
+
+/// A day worked on an assignment: a full or half day, overtime and money
+/// spent. Approved by the project, then settled.
+model CrewWorkRecord {
+  id              String          @id @default(uuid()) @db.Uuid
+  assignmentId    String          @db.Uuid
+  assignment      CrewAssignment  @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  date            DateTime        @db.Date
+  day             CrewWorkDay     @default(FULL)
+  overtimeMinutes Int             @default(0)
+  // Reimbursable money spent, in the assignment's currency.
+  expensesMinor   BigInt          @default(0)
+  notes           String?
+  approvedAt      DateTime?
+  approvedById    String?         @db.Uuid
+  settlementId    String?         @db.Uuid
+  settlement      CrewSettlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  createdById     String          @db.Uuid
+  createdAt       DateTime        @default(now())
+
+  @@unique([assignmentId, date])
+  @@index([settlementId])
+  @@map("crew_work_records")
+}
+
+/// Approved work for one freelancer in one entity, turned into a draft vendor
+/// bill to the vendor they are paid through. Released if the bill is discarded or voided.
+model CrewSettlement {
+  id            String     @id @default(uuid()) @db.Uuid
+  legalEntityId String     @db.Uuid
+  crewMemberId  String     @db.Uuid
+  crewMember    CrewMember @relation(fields: [crewMemberId], references: [id], onDelete: Restrict)
+  billId        String     @unique @db.Uuid
+  bill          VendorBill @relation(fields: [billId], references: [id], onDelete: Restrict)
+  currency      String     @db.Char(3)
+  totalMinor    BigInt
+  releasedAt    DateTime?
+  createdById   String     @db.Uuid
+  createdAt     DateTime   @default(now())
+
+  workRecords CrewWorkRecord[]
+
+  @@index([crewMemberId])
+  @@map("crew_settlements")
 }

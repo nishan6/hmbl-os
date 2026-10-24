@@ -28,6 +28,9 @@ export type BillRow = {
   accountId: string;
   projectId: string;
   budgetLineId: string;
+  /** The crew booking or purchase order line this line bills, kept with its budget line. */
+  commitmentId?: string;
+  commitmentLabel?: string;
 };
 
 type TaxRateOption = { id: string; code: string; rateBps: number; isDefault: boolean };
@@ -342,7 +345,14 @@ export function BillEditor({
                       aria-label={`Line ${i + 1} project`}
                       value={row.projectId}
                       aria-invalid={err("projectId") ? true : undefined}
-                      onChange={(e) => update(i, { projectId: e.target.value, budgetLineId: "" })}
+                      onChange={(e) =>
+                        update(i, {
+                          projectId: e.target.value,
+                          budgetLineId: "",
+                          commitmentId: "",
+                          commitmentLabel: "",
+                        })
+                      }
                     >
                       <option value="">No project</option>
                       {projects.map((p) => (
@@ -359,7 +369,13 @@ export function BillEditor({
                       value={row.budgetLineId}
                       disabled={!project}
                       aria-invalid={err("budgetLineId") ? true : undefined}
-                      onChange={(e) => update(i, { budgetLineId: e.target.value })}
+                      onChange={(e) =>
+                        update(i, {
+                          budgetLineId: e.target.value,
+                          commitmentId: "",
+                          commitmentLabel: "",
+                        })
+                      }
                     >
                       <option value="">{project ? "Budget line…" : "No budget line"}</option>
                       {project?.budgetLines.map((b) => (
@@ -369,6 +385,11 @@ export function BillEditor({
                       ))}
                     </Select>
                     {message("budgetLineId")}
+                    {row.commitmentId ? (
+                      <p className="text-secondary mt-1 text-xs">
+                        Bills {row.commitmentLabel || "a commitment"}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>

@@ -90,3 +90,76 @@ export function parseSkills(text: string | null | undefined) {
   }
   return skills;
 }
+
+const DAY = 86_400_000;
+
+/** Days in a booking, counting both ends. */
+export function bookingDays(startDate: Date, endDate: Date) {
+  return Math.round((endDate.getTime() - startDate.getTime()) / DAY) + 1;
+}
+
+/** A booking's committed cost: every day at the day rate. */
+export function bookingCostMinor(b: { startDate: Date; endDate: Date; dayRateMinor: bigint }) {
+  return BigInt(bookingDays(b.startDate, b.endDate)) * b.dayRateMinor;
+}
+
+/** Half away from zero. */
+const divRound = (n: bigint, d: bigint) => (n >= 0n ? (n + d / 2n) / d : -((-n + d / 2n) / d));
+
+export type WorkRecordRow = {
+  day: "FULL" | "HALF";
+  overtimeMinutes: number;
+  expensesMinor: bigint;
+};
+
+/**
+ * What approved work on one booking comes to. A half day is paid at the
+ * half-day rate, or half the day rate when there is none. Overtime is the
+ * booking's overtime rate per hour, or the default from the day rate, for
+ * the minutes worked, rounded once.
+ */
+export function workAmounts(
+  records: WorkRecordRow[],
+  rates: {
+    dayRateMinor: bigint;
+    halfDayRateMinor: bigint | null;
+    overtimeRateMinor: bigint | null;
+  },
+) {
+  const fullDays = records.filter((r) => r.day === "FULL").length;
+  const halfDays = records.length - fullDays;
+  const halfRate = rates.halfDayRateMinor ?? divRound(rates.dayRateMinor, 2n);
+  const minutes = records.reduce((s, r) => s + r.overtimeMinutes, 0);
+  const hourly = overtimeHourMinor(rates.dayRateMinor, rates.overtimeRateMinor);
+  const feesMinor = BigInt(fullDays) * rates.dayRateMinor + BigInt(halfDays) * halfRate;
+  const overtimeMinor = divRound(BigInt(minutes) * hourly, 60n);
+  const expensesMinor = records.reduce((s, r) => s + r.expensesMinor, 0n);
+  return {
+    fullDays,
+    halfDays,
+    halfRateMinor: halfRate,
+    overtimeMinutes: minutes,
+    overtimeHourMinor: hourly,
+    feesMinor,
+    overtimeMinor,
+    expensesMinor,
+    totalMinor: feesMinor + overtimeMinor + expensesMinor,
+  };
+}
+
+/** "2 h 30 min" from minutes. */
+export function formatMinutes(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return [h ? `${h} h` : "", m ? `${m} min` : ""].filter(Boolean).join(" ") || "0 min";
+}
+
+/** Overtime typed as hours, such as "2.5" or "2:30", in whole minutes. Null when unreadable. */
+export function parseOvertime(text: string | null | undefined) {
+  const v = (text ?? "").trim();
+  if (!v) return 0;
+  const clock = /^(\d{1,2}):([0-5]\d)$/.exec(v);
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(v)) return null;
+  return Math.round(Number(v) * 60);
+}

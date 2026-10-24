@@ -15,6 +15,7 @@ export const FINANCE_TABS = [
   { path: "/finance/bills", label: "Bills" },
   { path: "/finance/payments", label: "Payments" },
   { path: "/finance/payables", label: "Payables" },
+  { path: "/finance/crew-settlements", label: "Crew settlements" },
   { path: "/finance/vendors", label: "Vendors" },
   { path: "/finance/expense-claims", label: "Expense claims" },
   { path: "/finance/advances", label: "Advances" },

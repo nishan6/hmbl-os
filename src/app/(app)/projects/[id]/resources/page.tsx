@@ -16,6 +16,13 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { ProjectHeader } from "../../_components/project-header";
 import { deleteRequirementAction, saveRequirementAction } from "./actions";
 import { RequirementForm, type LineOption } from "./resource-forms";
+import { bookableCrew, projectCrew } from "@/server/crew/assignments";
+import { CREW_KINDS } from "@/server/crew/members";
+import { StatusBadge } from "@/components/ui/status";
+import { ASSIGNMENT_STATUS } from "../../_components/status";
+import { BookingForm, ConfirmForm } from "./crew-forms";
+import { confirmCrewAction, proposeCrewAction } from "./actions";
+import Link from "next/link";
 
 export const metadata = { title: "Crew and equipment" };
 
@@ -33,6 +40,10 @@ export default async function ProjectResourcesPage({
     },
   );
   const { showCosts, requirements, checks } = plan;
+  const crewView = can(actor, "crew.view");
+  const [crew, people] = crewView
+    ? await Promise.all([projectCrew(actor, id), bookableCrew(actor)])
+    : [null, []];
   const canEdit =
     can(actor, "projects.edit", { legalEntityId: p.legalEntityId }) && !isLocked(p.status);
   const money = (minor: bigint) => formatMoney(minor, p.currency);
@@ -175,6 +186,127 @@ export default async function ProjectResourcesPage({
           </Section>
         );
       })}
+
+      {crew ? (
+        <Section
+          title="Crew bookings"
+          description="Named people on this project. A clash with another confirmed booking or time off needs crew approval to confirm."
+          actions={
+            <Link
+              href={`/projects/${p.id}/resources/call-sheet`}
+              className="text-accent text-sm hover:underline"
+            >
+              Call sheet
+            </Link>
+          }
+        >
+          {crew.assignments.length ? (
+            <Table dense>
+              <THead>
+                <tr>
+                  <TH>Person</TH>
+                  <TH>Booked as</TH>
+                  <TH>Dates</TH>
+                  <TH>Status</TH>
+                  {crew.showCosts ? <TH align="right">Day rate</TH> : null}
+                  <TH align="right">Days worked</TH>
+                  {crew.canBook ? <TH>Actions</TH> : null}
+                </tr>
+              </THead>
+              <TBody>
+                {crew.assignments.map((a) => {
+                  const hard = a.clashes.some((c) => c.hard);
+                  return (
+                    <TR key={a.id}>
+                      <TD className="py-1.5">
+                        <Link
+                          href={`/projects/${p.id}/resources/crew/${a.id}`}
+                          className="text-accent hover:underline"
+                        >
+                          {a.crewMember.name}
+                        </Link>
+                        <span className="text-muted text-xs">
+                          {" "}
+                          · {CREW_KINDS[a.crewMember.kind]}
+                        </span>
+                        {a.clashes.map((c) => (
+                          <p
+                            key={c.id}
+                            className={`${c.hard ? "text-danger" : "text-warning"} flex items-center gap-1 text-xs`}
+                          >
+                            <TriangleAlert className="size-3" aria-hidden />
+                            {c.label}, {date(c.startDate)}
+                            {c.endDate.getTime() === c.startDate.getTime()
+                              ? ""
+                              : ` – ${date(c.endDate)}`}
+                          </p>
+                        ))}
+                        {a.overrideReason ? (
+                          <p className="text-secondary text-xs">
+                            Confirmed over a clash: {a.overrideReason}
+                          </p>
+                        ) : null}
+                      </TD>
+                      <TD>{a.role}</TD>
+                      <TD className="tabular whitespace-nowrap">
+                        {a.endDate.getTime() === a.startDate.getTime()
+                          ? date(a.startDate)
+                          : `${date(a.startDate)} – ${date(a.endDate)}`}
+                      </TD>
+                      <TD>
+                        <StatusBadge status={ASSIGNMENT_STATUS[a.status]} />
+                      </TD>
+                      {crew.showCosts ? (
+                        <TD align="right">
+                          {a.dayRateMinor === null ? "—" : money(a.dayRateMinor)}
+                        </TD>
+                      ) : null}
+                      <TD align="right">
+                        {a.workRecords.reduce((s, w) => s + (w.day === "FULL" ? 1 : 0.5), 0)}
+                      </TD>
+                      {crew.canBook ? (
+                        <TD>
+                          {a.status === "PROPOSED" && !isLocked(p.status) ? (
+                            <ConfirmForm
+                              action={confirmCrewAction}
+                              assignmentId={a.id}
+                              clash={hard}
+                              canOverride={crew.canOverride}
+                            />
+                          ) : null}
+                        </TD>
+                      ) : null}
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </Table>
+          ) : (
+            <EmptyState title="Nobody booked yet" />
+          )}
+          {crew.canBook && !isLocked(p.status) ? (
+            <Panel className="mt-4">
+              <h3 className="text-text mb-3 text-sm font-semibold">Book someone</h3>
+              <BookingForm
+                action={proposeCrewAction.bind(null, p.id)}
+                requirements={requirements
+                  .filter((r) => r.kind === "CREW")
+                  .map((r) => ({
+                    id: r.id,
+                    label: `${r.name} × ${r.quantity}, ${date(r.startDate)}`,
+                  }))}
+                crew={people.map((c) => ({
+                  id: c.id,
+                  label: c.skills.length
+                    ? `${c.name} (${c.skills.slice(0, 3).join(", ")})`
+                    : c.name,
+                }))}
+                showCosts={crew.showCosts}
+              />
+            </Panel>
+          ) : null}
+        </Section>
+      ) : null}
 
       {showCosts ? (
         <Section

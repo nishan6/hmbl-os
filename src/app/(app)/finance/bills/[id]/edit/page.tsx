@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { requireActorOrRedirect } from "@/server/auth/session";
-import { billFormOptions, getBill } from "@/server/finance/bills";
+import { billFormOptions, commitmentLabels, getBill } from "@/server/finance/bills";
 import { financeEntity } from "@/server/finance/context";
 import { AppError } from "@/lib/errors";
 import { toDateOnly } from "@/lib/fiscal";
@@ -22,7 +22,10 @@ export default async function EditBillPage({ params }: PageProps<"/finance/bills
   if (!bill.actions.edit) redirect(`/finance/bills/${id}`);
   const { entities, entity } = await financeEntity(actor, bill.legalEntityId);
   if (!entity) notFound();
-  const options = await billFormOptions(actor, entity.id);
+  const [options, commitments] = await Promise.all([
+    billFormOptions(actor, entity.id),
+    commitmentLabels(bill.lines.map((l) => l.commitmentId)),
+  ]);
   return (
     <>
       <FinanceHeader
@@ -58,6 +61,8 @@ export default async function EditBillPage({ params }: PageProps<"/finance/bills
           accountId: l.accountId,
           projectId: l.projectId ?? "",
           budgetLineId: l.budgetLineId ?? "",
+          commitmentId: l.commitmentId ?? "",
+          commitmentLabel: commitments.get(l.commitmentId ?? "") ?? "",
         }))}
         taxRates={options.taxRates}
         accounts={options.accounts}

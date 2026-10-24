@@ -260,10 +260,24 @@ export async function billFormOptions(actor: Actor, legalEntityId: string) {
   return { entity, tax, taxRates, accounts, projects };
 }
 
+/** What each commitment a bill line draws down is, for the editor. */
+export async function commitmentLabels(ids: (string | null)[]) {
+  const wanted = ids.filter((x): x is string => !!x);
+  const rows = wanted.length
+    ? await db.projectCostEntry.findMany({
+        where: { id: { in: wanted } },
+        select: { id: true, description: true, reference: true },
+      })
+    : [];
+  return new Map(
+    rows.map((r) => [r.id, r.reference ? `${r.reference}: ${r.description}` : r.description]),
+  );
+}
+
 // ─── Drafting ────────────────────────────────────────────────────────────────
 
 /** The supply type of a vendor's bill: their GST state against the entity's. */
-function vendorSupply(
+export function vendorSupply(
   position: { countryCode: string; stateCode: string | null },
   vendor: { countryCode: string; gstin: string | null; region: string | null },
 ): SupplyType {
@@ -336,6 +350,8 @@ const lineInput = z.object({
   accountId: z.uuid({ message: "Choose an account" }),
   projectId: optionalId,
   budgetLineId: optionalId,
+  // Set when the line bills a crew booking or a purchase order line.
+  commitmentId: optionalId,
 });
 export type BillLineInput = z.input<typeof lineInput>;
 
@@ -411,7 +427,8 @@ export async function saveBillDraft(actor: Actor, id: string, raw: BillDraftInpu
   if (tdsRateBps && data.currency !== base)
     throw invalid("tdsRate", `TDS is only deducted on bills in ${base}`);
 
-  const [rates, accounts, projects] = await Promise.all([
+  const commitmentIds = data.lines.map((l) => l.commitmentId).filter((x): x is string => !!x);
+  const [rates, accounts, projects, commitments] = await Promise.all([
     db.taxRate.findMany({ where: { countryCode: entity.countryCode, status: "ACTIVE" } }),
     db.ledgerAccount.findMany({
       where: { legalEntityId: entity.id, status: "ACTIVE", isControl: false },
@@ -421,6 +438,7 @@ export async function saveBillDraft(actor: Actor, id: string, raw: BillDraftInpu
       where: { id: { in: data.lines.map((l) => l.projectId).filter((x): x is string => !!x) } },
       include: { budgetLines: { select: { id: true } } },
     }),
+    db.projectCostEntry.findMany({ where: { id: { in: commitmentIds }, kind: "COMMITMENT" } }),
   ]);
   const lines = data.lines.map((l, i) => {
     const quantityMilli = parseQuantity(l.quantity);
@@ -458,6 +476,15 @@ export async function saveBillDraft(actor: Actor, id: string, raw: BillDraftInpu
     } else if (l.budgetLineId) {
       throw invalid(`lines.${i}.projectId`, "Choose the project of the budget line");
     }
+    if (l.commitmentId) {
+      const commitment = commitments.find((c) => c.id === l.commitmentId);
+      if (!commitment || commitment.voidedAt || commitment.budgetLineId !== l.budgetLineId) {
+        throw invalid(
+          `lines.${i}.budgetLineId`,
+          "This line bills a booking or order on another budget line. Keep its budget line.",
+        );
+      }
+    }
     const taxRateBps = rate?.rateBps ?? 0;
     return {
       position: i,
@@ -472,6 +499,7 @@ export async function saveBillDraft(actor: Actor, id: string, raw: BillDraftInpu
       accountId: l.accountId,
       projectId: l.projectId ?? null,
       budgetLineId: l.projectId ? (l.budgetLineId ?? null) : null,
+      commitmentId: l.projectId ? (l.commitmentId ?? null) : null,
       ...priceInvoiceLine({ quantityMilli, unitPriceMinor, taxRateBps }, data.supplyType),
     };
   });
@@ -588,12 +616,30 @@ export async function rejectBill(actor: Actor, id: string, raw: { reason?: strin
   });
 }
 
+/**
+ * A crew settlement's work is free to settle again once its bill is discarded
+ * or voided (docs/crew.md, "Settlements").
+ */
+async function releaseCrewSettlement(tx: Tx, billId: string) {
+  const settlement = await tx.crewSettlement.findUnique({ where: { billId } });
+  if (!settlement || settlement.releasedAt) return;
+  await tx.crewWorkRecord.updateMany({
+    where: { settlementId: settlement.id },
+    data: { settlementId: null },
+  });
+  await tx.crewSettlement.update({
+    where: { id: settlement.id },
+    data: { releasedAt: new Date() },
+  });
+}
+
 export async function discardBill(actor: Actor, id: string) {
   const bill = await loadBill(actor, id);
   authorize(actor, "finance.edit", { legalEntityId: bill.legalEntityId });
   return db.$transaction(async (tx) => {
     requireStatus(await lockBill(tx, id), "DRAFT");
     const after = await tx.vendorBill.update({ where: { id }, data: { status: "DISCARDED" } });
+    await releaseCrewSettlement(tx, id);
     await recordAudit(tx, actor, {
       action: "vendor_bill.discarded",
       targetType: "vendor_bill",
@@ -679,6 +725,7 @@ export async function approveBill(actor: Actor, id: string) {
           reference: `${number} (${current.vendorInvoiceNumber})`,
           sourceType: "vendor_bill_line",
           sourceId: l.id,
+          commitmentId: l.commitmentId,
           createdById: actor.id,
         });
         await tx.vendorBillLine.update({ where: { id: l.id }, data: { costEntryId: entry.id } });
@@ -790,6 +837,7 @@ export async function voidBill(actor: Actor, id: string, raw: z.input<typeof voi
       where: { billId: id, costEntryId: { not: null } },
     });
     for (const l of lines) await voidDocumentCost(tx, actor, l.costEntryId!, reason);
+    await releaseCrewSettlement(tx, id);
     const after = await tx.vendorBill.update({
       where: { id },
       data: {
