@@ -40,7 +40,7 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 | Change control                               | Built — see [change-control.md](change-control.md)             |
 | Project schedule and milestones              | Built — see [schedule.md](schedule.md)                         |
 | Crew and equipment planning                  | Built — see [resources.md](resources.md)                       |
-| Project documents                            | Built — see [documents.md](documents.md)                       |
+| Documents on records and the library         | Built — see [documents.md](documents.md)                       |
 | Project closeout                             | Built — see [closeout.md](closeout.md)                         |
 | Ledger, chart of accounts and journals       | Built — see [ledger.md](ledger.md)                             |
 | Invoices and credit notes                    | Built — see [invoicing.md](invoicing.md)                       |

@@ -18,6 +18,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { FinanceHeader, withEntity } from "../../_components/finance-header";
 import { DOCUMENT_STATUS, PAYMENT_STATUS } from "../../_components/status";
 import { invoiceCommandAction, makeInvoiceFromAction } from "../actions";
+import { RecordDocuments } from "../../../documents/_components/record-documents";
 
 export const metadata = { title: "Invoice" };
 
@@ -414,6 +415,12 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
           </Table>
         </Section>
       ) : null}
+      <RecordDocuments
+        actor={actor}
+        type="SALES_INVOICE"
+        id={id}
+        timeZone={inv.legalEntity.timezone}
+      />
     </>
   );
 }

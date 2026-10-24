@@ -23,6 +23,7 @@ import {
 import { PairForm } from "../../shipment-forms";
 import { ReasonForm } from "../../travel-forms";
 import { SHIPMENT_STATUS } from "../../_components/logistics-tabs";
+import { RecordDocuments } from "../../../documents/_components/record-documents";
 
 export const metadata = { title: "Movement" };
 
@@ -296,6 +297,7 @@ export default async function ShipmentPage({ params }: PageProps<"/logistics/shi
           </div>
         </Section>
       ) : null}
+      <RecordDocuments actor={actor} type="SHIPMENT" id={id} />
     </>
   );
 }

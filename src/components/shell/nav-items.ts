@@ -71,7 +71,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: "Finance", icon: Landmark, permission: "finance.view", href: "/finance" },
       { label: "Expenses", icon: Wallet, permission: "expenses.view", href: "/expenses" },
-      { label: "Documents", icon: FileText, permission: "documents.view" },
+      { label: "Documents", icon: FileText, permission: "documents.view", href: "/documents" },
       { label: "Reports", icon: LineChart, permission: "reports.view" },
     ],
   },

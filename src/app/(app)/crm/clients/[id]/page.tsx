@@ -28,6 +28,7 @@ import { addActivityAction } from "../../opportunities/actions";
 import { ActivityFeed } from "../../_components/activity-feed";
 import { ActivityForm } from "../../_components/activity-form";
 import { STAGE_STATUS } from "../../_components/stage";
+import { RecordDocuments } from "../../../documents/_components/record-documents";
 
 export const metadata = { title: "Client" };
 
@@ -324,6 +325,7 @@ export default async function ClientPage({ params, searchParams }: PageProps<"/c
           </Panel>
         </Section>
       ) : null}
+      <RecordDocuments actor={actor} type="CLIENT" id={client.id} />
     </>
   );
 }

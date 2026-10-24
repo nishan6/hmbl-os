@@ -30,6 +30,7 @@ import {
 } from "../actions";
 import { ReasonForm, ReceiptForm } from "../order-forms";
 import { ORDER_STATUS } from "../_components/procurement-tabs";
+import { RecordDocuments } from "../../documents/_components/record-documents";
 
 export const metadata = { title: "Purchase order" };
 
@@ -404,6 +405,7 @@ export default async function OrderPage({ params }: PageProps<"/procurement/[id]
           {order.closedReason}
         </p>
       ) : null}
+      <RecordDocuments actor={actor} type="PURCHASE_ORDER" id={id} />
     </>
   );
 }

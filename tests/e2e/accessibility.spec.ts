@@ -124,6 +124,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/quotes/new",
         "/projects",
         "/projects/new",
+        "/documents",
         "/crew",
         "/crew/new",
         "/equipment",

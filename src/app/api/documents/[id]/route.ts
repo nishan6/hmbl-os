@@ -1,5 +1,5 @@
 import { requireActor } from "@/server/auth/session";
-import { openDocument } from "@/server/projects/documents";
+import { openDocument } from "@/server/documents/documents";
 import { canPreview } from "@/server/projects/document-rules";
 import { errorResponse } from "@/server/http/route-errors";
 

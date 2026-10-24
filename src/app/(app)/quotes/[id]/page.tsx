@@ -22,6 +22,7 @@ import { Totals } from "../_components/totals";
 import { acceptQuoteAction, declineQuoteAction, quoteCommandAction } from "../actions";
 import { QuoteActions } from "./quote-actions";
 import { ClientAnswer } from "./client-answer";
+import { RecordDocuments } from "../../documents/_components/record-documents";
 
 export const metadata = { title: "Quote" };
 
@@ -417,6 +418,7 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
           </Section>
         </aside>
       </div>
+      <RecordDocuments actor={actor} type="QUOTE" id={quote.id} timeZone={tz} />
     </>
   );
 }

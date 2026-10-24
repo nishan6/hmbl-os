@@ -21,6 +21,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { VendorForm } from "../../../finance/vendors/vendor-form";
 import { ORDER_STATUS } from "../../_components/procurement-tabs";
 import { archiveProcurementVendorAction, updateProcurementVendorAction } from "../actions";
+import { RecordDocuments } from "../../../documents/_components/record-documents";
 
 export const metadata = { title: "Vendor" };
 
@@ -177,6 +178,7 @@ export default async function ProcurementVendorPage({
           />
         )}
       </Section>
+      <RecordDocuments actor={actor} type="VENDOR" id={id} />
     </>
   );
 }

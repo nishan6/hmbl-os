@@ -170,7 +170,10 @@ test("a large document is uploaded and downloaded", async ({ page }) => {
     .getByRole("row", { name: /New Year gala/ })
     .getByRole("link", { name: /^P-/ })
     .click();
-  await page.getByRole("link", { name: "Documents", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Project" })
+    .getByRole("link", { name: "Documents", exact: true })
+    .click();
 
   // Bigger than the proxy's 10 MB buffer: the upload route streams it.
   const upload = page.getByRole("region", { name: "Documents" }).locator("form").last();

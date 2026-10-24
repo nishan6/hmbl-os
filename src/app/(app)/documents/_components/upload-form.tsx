@@ -18,14 +18,19 @@ type Result = {
  * progress bar is real. The server streams it to disk.
  */
 export function UploadForm({
-  projectId,
+  recordType,
+  recordId,
   categories,
+  restrictable = false,
   previousVersionId,
   category,
   label = "Upload",
 }: {
-  projectId: string;
+  recordType: string;
+  recordId: string;
   categories: Record<string, string>;
+  /** Offers "Restricted" for people who may see restricted documents. */
+  restrictable?: boolean;
   previousVersionId?: string;
   /** Fixed for a new version. */
   category?: string;
@@ -50,13 +55,16 @@ export function UploadForm({
       return;
     }
     const query = new URLSearchParams({
+      recordType,
+      recordId,
+      restricted: data.get("restricted") === "on" ? "true" : "false",
       category: String(data.get("category") ?? category ?? ""),
       title: String(data.get("title") ?? ""),
       fileName: file.name,
       ...(previousVersionId ? { previousVersionId } : {}),
     });
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/api/uploads/projects/${projectId}/documents?${query}`);
+    xhr.open("POST", `/api/uploads/documents?${query}`);
     xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
@@ -126,6 +134,12 @@ export function UploadForm({
       >
         {(p) => <Input name="file" type="file" {...p} />}
       </Field>
+      {restrictable ? (
+        <label className="text-text flex items-center gap-2 text-sm">
+          <input type="checkbox" name="restricted" />
+          Restricted: only people with sensitive document access can see it
+        </label>
+      ) : null}
       {busy ? (
         <div className="flex items-center gap-2 text-sm">
           <progress
