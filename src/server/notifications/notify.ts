@@ -25,6 +25,7 @@ export const NOTIFICATION_KINDS = {
   "milestone.approaching": "A payment milestone is coming up",
   "budget.threshold": "A project's costs passed its budget threshold",
   "closeout.incomplete": "A finished project's closeout is incomplete",
+  "portal.invitation_accepted": "Someone you invited to the portal created their account",
 } as const;
 export type NotificationKind = keyof typeof NOTIFICATION_KINDS;
 

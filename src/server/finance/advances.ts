@@ -147,7 +147,7 @@ export async function advanceFormOptions(actor: Actor, legalEntityId: string) {
   authorize(actor, "finance.post", { legalEntityId });
   const [people, projects, accounts] = await Promise.all([
     db.user.findMany({
-      where: { status: "ACTIVE" },
+      where: { status: "ACTIVE", kind: "STAFF" },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
@@ -187,7 +187,9 @@ export async function recordAdvance(actor: Actor, legalEntityId: string, raw: Ad
   const data = parseInput(advanceInput, raw);
   const base = entity.baseCurrency;
   const person = await db.user.findUnique({ where: { id: data.personId } });
-  if (!person || person.status !== "ACTIVE") throw invalid("personId", "Choose an active user");
+  if (!person || person.status !== "ACTIVE" || person.kind !== "STAFF") {
+    throw invalid("personId", "Choose an active user");
+  }
   if (data.projectId) {
     const project = await db.project.findUnique({ where: { id: data.projectId } });
     if (!project || project.legalEntityId !== legalEntityId) {

@@ -31,6 +31,7 @@ import {
 import { CrewForm } from "../crew-form";
 import { CertificationForm, EndRateForm, RateForm, UnavailabilityForm } from "./crew-forms";
 import { RecordDocuments } from "../../documents/_components/record-documents";
+import { PortalAccess } from "../../admin/portal-access/_components/portal-access";
 
 export const metadata = { title: "Crew member" };
 
@@ -331,6 +332,7 @@ export default async function CrewMemberPage({ params }: PageProps<"/crew/[id]">
         ) : null}
       </Section>
       <RecordDocuments actor={actor} type="CREW_MEMBER" id={id} />
+      {m.kind === "FREELANCER" ? <PortalAccess actor={actor} kind="FREELANCER" id={id} /> : null}
     </>
   );
 }

@@ -36,6 +36,15 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expectNoViolations(page);
     });
 
+    test("portal pages meet WCAG 2.2 AA", async ({ page }) => {
+      await page.goto("/invite/not-a-real-invitation");
+      await expect(page.getByRole("heading", { name: "This link isn't valid" })).toBeVisible();
+      await expectNoViolations(page);
+      await enterPassword(page, "vendor@demo.hmbl.test");
+      await expect(page.getByRole("heading", { level: 1, name: /^Welcome, / })).toBeVisible();
+      await expectNoViolations(page);
+    });
+
     test("procurement pages meet WCAG 2.2 AA", async ({ page }) => {
       test.setTimeout(120_000);
       await signIn(page, DEMO.owner);
@@ -128,6 +137,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/notifications",
         "/notifications/settings",
         "/approvals",
+        "/admin/portal-access",
         "/crew",
         "/crew/new",
         "/equipment",

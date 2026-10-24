@@ -126,6 +126,11 @@ export async function assignRole(
   await assertCanGrant(caller, [role!.id], legalEntityId);
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new NotFoundError();
+  if (user.kind !== "STAFF") {
+    throw new ValidationError(
+      "Portal users can't hold a role. Manage their portal access instead.",
+    );
+  }
   const where = { userId, roleId: role!.id, legalEntityId };
   const existing = await db.userRole.findFirst({ where });
   if (existing) return existing;
@@ -221,7 +226,9 @@ export async function disableUser(caller: Caller, userId: string) {
 
 export async function listUsers(caller: Actor) {
   authorize(caller, "users.view");
+  // Portal users are listed under Portal access, never as staff.
   return db.user.findMany({
+    where: { kind: "STAFF" },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -247,7 +254,7 @@ export async function listUserOptions(caller: Actor) {
     throw new ForbiddenError();
   }
   return db.user.findMany({
-    where: { status: "ACTIVE" },
+    where: { status: "ACTIVE", kind: "STAFF" },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
