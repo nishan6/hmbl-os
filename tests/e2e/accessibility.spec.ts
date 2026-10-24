@@ -36,6 +36,40 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expectNoViolations(page);
     });
 
+    test("procurement pages meet WCAG 2.2 AA", async ({ page }) => {
+      test.setTimeout(120_000);
+      await signIn(page, DEMO.owner);
+      for (const path of [
+        "/procurement",
+        "/procurement/new",
+        "/procurement/vendors",
+        "/procurement/vendors/new",
+        "/procurement/settings",
+      ]) {
+        await test.step(path, async () => {
+          await page.goto(path);
+          await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+          await expectNoViolations(page);
+        });
+      }
+      await test.step("an approved and a draft purchase order", async () => {
+        // An order has no number until it is approved, so filter to drafts to
+        // reach one that can still be edited.
+        for (const [list, name] of [
+          ["/procurement?status=APPROVED", /^PO\//],
+          ["/procurement?status=DRAFT", "Draft"],
+        ] as const) {
+          await page.goto(list);
+          await page.getByRole("link", { name }).first().click();
+          await expect(page.getByRole("heading", { level: 2, name: "Lines" })).toBeVisible();
+          await expectNoViolations(page);
+        }
+        await page.getByRole("link", { name: "Edit", exact: true }).click();
+        await expect(page.getByLabel("Line 1 description")).toBeVisible();
+        await expectNoViolations(page);
+      });
+    });
+
     test("app pages meet WCAG 2.2 AA", async ({ page }) => {
       // Many pages, each scanned by axe.
       test.setTimeout(240_000);

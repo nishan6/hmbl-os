@@ -7,6 +7,7 @@ import { recordAudit } from "@/server/audit/record";
 import { authorize, can, entityFilter, type Actor } from "@/server/permissions/authorize";
 import { getLegalEntity } from "@/server/organisation/service";
 import { postDocumentCost, voidDocumentCost } from "@/server/projects/budget";
+import { matchOrderLines } from "@/server/procurement/matching";
 import { optionalId, requiredDate } from "@/server/projects/schemas";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { parseRate, toBaseMinor } from "@/lib/fx";
@@ -16,6 +17,7 @@ import { parseMoneyToMinor } from "@/lib/money";
 import { parseInput } from "@/lib/parse";
 import { parsePercentToBps } from "@/lib/percent";
 import { parseQuantity } from "@/lib/pricing";
+import { milli } from "@/lib/procurement";
 import { tdsOn } from "@/lib/tds";
 import { optionalText, requiredText } from "@/lib/validation";
 import { entityTaxPosition, TAX_ACCOUNT_KEYS } from "./invoices";
@@ -352,6 +354,8 @@ const lineInput = z.object({
   budgetLineId: optionalId,
   // Set when the line bills a crew booking or a purchase order line.
   commitmentId: optionalId,
+  // Set when the line bills a purchase order line (docs/procurement.md).
+  purchaseOrderLineId: optionalId,
 });
 export type BillLineInput = z.input<typeof lineInput>;
 
@@ -500,9 +504,22 @@ export async function saveBillDraft(actor: Actor, id: string, raw: BillDraftInpu
       projectId: l.projectId ?? null,
       budgetLineId: l.projectId ? (l.budgetLineId ?? null) : null,
       commitmentId: l.projectId ? (l.commitmentId ?? null) : null,
+      purchaseOrderLineId: l.purchaseOrderLineId ?? null,
       ...priceInvoiceLine({ quantityMilli, unitPriceMinor, taxRateBps }, data.supplyType),
     };
   });
+  // Lines billing an order: within what can be billed, drawing down its commitment.
+  const fromOrders = await matchOrderLines(
+    db,
+    { ...before, currency: data.currency },
+    lines.map((l) => ({
+      purchaseOrderLineId: l.purchaseOrderLineId,
+      quantityMilli: milli(l.quantity),
+      projectId: l.projectId,
+      budgetLineId: l.budgetLineId,
+    })),
+  );
+  for (const [i, commitmentId] of fromOrders) lines[i]!.commitmentId = commitmentId;
   const totals = documentTotals(lines);
   const tdsMinor = tdsOn(totals.subtotalMinor, tdsRateBps, data.currency);
   return db.$transaction(async (tx) => {
@@ -682,6 +699,25 @@ export async function approveBill(actor: Actor, id: string) {
         orderBy: { position: "asc" },
       }),
     ]);
+    // Received or ordered quantities, and an amended order's commitments, may
+    // have changed since the bill was entered.
+    const fromOrders = await matchOrderLines(
+      tx,
+      current,
+      lines.map((l) => ({
+        purchaseOrderLineId: l.purchaseOrderLineId,
+        quantityMilli: milli(l.quantity),
+        projectId: l.projectId,
+        budgetLineId: l.budgetLineId,
+      })),
+      true,
+    );
+    for (const [i, commitmentId] of fromOrders) {
+      const line = lines[i]!;
+      if (line.commitmentId === commitmentId) continue;
+      line.commitmentId = commitmentId;
+      await tx.vendorBillLine.update({ where: { id: line.id }, data: { commitmentId } });
+    }
     const base = entity.baseCurrency;
     const toBase = (minor: bigint) => toBaseMinor(minor, current.currency, base, current.fxRate);
     const fx =

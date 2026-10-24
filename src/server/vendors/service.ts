@@ -5,17 +5,18 @@ import { db } from "@/server/db";
 import { recordAudit } from "@/server/audit/record";
 import { diffChanges } from "@/server/audit/diff";
 import { normalizeClientName } from "@/server/crm/normalize";
-import { authorize, type Actor } from "@/server/permissions/authorize";
-import { NotFoundError, ValidationError } from "@/lib/errors";
+import { can, type Actor } from "@/server/permissions/authorize";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { isGstin } from "@/lib/gst";
 import { parseInput } from "@/lib/parse";
 import { parsePercentToBps } from "@/lib/percent";
 import { countryCodeSchema, currencySchema, optionalText, requiredText } from "@/lib/validation";
 
 /*
- * Vendors: the suppliers HMBL buys from (docs/payables.md). Shared by every
- * entity, like clients. Finance keeps them for now (`finance.create` and
- * `finance.edit`); procurement will use the same records.
+ * Vendors: the suppliers HMBL buys from (docs/payables.md, docs/procurement.md).
+ * Shared by every entity, like clients. Finance and procurement both keep
+ * them, but only Finance changes how a vendor is paid: bank details and TDS.
+ * Bank details are shown only to Finance and to `procurement.view_sensitive`.
  */
 
 export const VENDOR_KINDS: Record<VendorKind, string> = {
@@ -48,6 +49,48 @@ const FIELDS = [
   "notes",
   "status",
 ] as const;
+
+/** Fields only Finance sets: where the money goes, and the tax withheld from it. */
+const PAYMENT_FIELDS = [
+  "tdsSection",
+  "tdsRateBps",
+  "bankAccountName",
+  "bankAccountNumber",
+  "bankIfsc",
+] as const;
+
+type BankField = "bankAccountName" | "bankAccountNumber" | "bankIfsc";
+
+/** The payment fields of a vendor, or all null. */
+function pick(
+  from: Partial<Record<(typeof PAYMENT_FIELDS)[number], unknown>>,
+  fields: typeof PAYMENT_FIELDS,
+) {
+  return Object.fromEntries(fields.map((f) => [f, from[f] ?? null]));
+}
+
+function canRead(actor: Actor) {
+  return can(actor, "finance.view") || can(actor, "procurement.view");
+}
+
+function requireRead(actor: Actor) {
+  if (!canRead(actor)) throw new ForbiddenError();
+}
+
+/** Whether the actor may see a vendor's bank details. */
+export function canSeeBankDetails(actor: Actor) {
+  return can(actor, "finance.view") || can(actor, "procurement.view_sensitive");
+}
+
+/** Whether the actor may change a vendor's bank details and TDS. */
+export function canEditPaymentDetails(actor: Actor) {
+  return can(actor, "finance.edit");
+}
+
+function redact<T extends Record<BankField, string | null>>(actor: Actor, vendor: T): T {
+  if (canSeeBankDetails(actor)) return vendor;
+  return { ...vendor, bankAccountName: null, bankAccountNumber: null, bankIfsc: null };
+}
 
 const upper = (v: string | null) => (v ? v.toUpperCase().replace(/\s+/g, "") : null);
 
@@ -119,9 +162,9 @@ export async function listVendors(
   actor: Actor,
   options: { search?: string; includeArchived?: boolean } = {},
 ) {
-  authorize(actor, "finance.view");
+  requireRead(actor);
   const q = options.search?.trim();
-  return db.vendor.findMany({
+  const vendors = await db.vendor.findMany({
     where: {
       ...(options.includeArchived ? {} : { status: "ACTIVE" }),
       ...(q
@@ -139,18 +182,19 @@ export async function listVendors(
     orderBy: { name: "asc" },
     take: 500,
   });
+  return vendors.map((v) => redact(actor, v));
 }
 
 export async function getVendor(actor: Actor, id: string) {
-  authorize(actor, "finance.view");
+  requireRead(actor);
   const vendor = await db.vendor.findUnique({ where: { id } });
   if (!vendor) throw new NotFoundError();
-  return vendor;
+  return redact(actor, vendor);
 }
 
 /** Active vendors for pickers. */
 export async function vendorOptions(actor: Actor) {
-  authorize(actor, "finance.view");
+  requireRead(actor);
   return db.vendor.findMany({
     where: { status: "ACTIVE" },
     select: {
@@ -166,8 +210,10 @@ export async function vendorOptions(actor: Actor) {
 }
 
 export async function createVendor(actor: Actor, raw: VendorInput) {
-  authorize(actor, "finance.create");
+  const finance = can(actor, "finance.create");
+  if (!finance && !can(actor, "procurement.create")) throw new ForbiddenError();
   const data = toData(raw);
+  if (!finance) Object.assign(data, pick({}, PAYMENT_FIELDS));
   return db.$transaction(async (tx) => {
     const vendor = await tx.vendor.create({ data });
     await recordAudit(tx, actor, {
@@ -181,9 +227,13 @@ export async function createVendor(actor: Actor, raw: VendorInput) {
 }
 
 export async function updateVendor(actor: Actor, id: string, raw: VendorInput) {
-  authorize(actor, "finance.edit");
-  const before = await getVendor(actor, id);
+  if (!can(actor, "finance.edit") && !can(actor, "procurement.edit")) throw new ForbiddenError();
+  requireRead(actor);
+  const before = await db.vendor.findUnique({ where: { id } });
+  if (!before) throw new NotFoundError();
   const data = toData(raw);
+  // Without finance.edit, how the vendor is paid stays as it was.
+  if (!canEditPaymentDetails(actor)) Object.assign(data, pick(before, PAYMENT_FIELDS));
   return db.$transaction(async (tx) => {
     const after = await tx.vendor.update({ where: { id }, data });
     const changes = diffChanges(before, after, FIELDS);
@@ -200,7 +250,9 @@ export async function updateVendor(actor: Actor, id: string, raw: VendorInput) {
 }
 
 export async function setVendorArchived(actor: Actor, id: string, archived: boolean) {
-  authorize(actor, "finance.edit");
+  if (!can(actor, "finance.edit") && !can(actor, "procurement.archive")) {
+    throw new ForbiddenError();
+  }
   const before = await getVendor(actor, id);
   const status = archived ? "ARCHIVED" : "ACTIVE";
   if (before.status === status) return before;

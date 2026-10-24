@@ -4,7 +4,7 @@ Suppliers, their invoices, what HMBL pays them, and what is still owed (spec §1
 
 ## Vendors
 
-A vendor is shared by every entity, like a client. It holds the GSTIN, PAN, Udyam (MSME) number, address, currency, payment terms, usual TDS section and rate, and bank details. The PAN is taken from the GSTIN when it is left blank, and the two must agree. Finance adds and edits vendors (`finance.create`, `finance.edit`); procurement will use the same records.
+A vendor is shared by every entity, like a client. It holds the GSTIN, PAN, Udyam (MSME) number, address, currency, payment terms, usual TDS section and rate, and bank details. The PAN is taken from the GSTIN when it is left blank, and the two must agree. Finance and procurement both keep vendors; only Finance changes bank details and TDS ([procurement.md](procurement.md)). A bill line can bill a purchase order line, which limits it to what was received or ordered and draws down the order's commitment.
 
 ## Bills
 

@@ -235,6 +235,8 @@ model LegalEntity {
   staffAdvances    StaffAdvance[]
   expenseClaims    ExpenseClaim[]
   equipmentAssets  EquipmentAsset[]
+  purchaseOrders   PurchaseOrder[]
+  procurement      ProcurementSettings?
 
   @@map("legal_entities")
 }
@@ -311,6 +313,8 @@ model CostCentre {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  purchaseOrders PurchaseOrder[]
+
   @@unique([legalEntityId, code])
   @@map("cost_centres")
 }
@@ -349,6 +353,8 @@ model Location {
   equipmentMaintenance EquipmentMaintenance[]
 
   equipmentBookingMovements EquipmentBookingMovement[]
+  purchaseOrders            PurchaseOrder[]
+  goodsReceipts             GoodsReceipt[]
 
   @@map("locations")
 }
@@ -1073,6 +1079,7 @@ model Project {
   scheduleItems     ProjectScheduleItem[]
   resources         ProjectResourceRequirement[]
   documents         ProjectDocument[]
+  purchaseOrders    PurchaseOrder[]
   closeoutItems     ProjectCloseoutItem[]
   crewAssignments   CrewAssignment[]
   journalLines      JournalLine[]
@@ -1134,6 +1141,7 @@ model ProjectBudgetLine {
   costEntries ProjectCostEntry[]
   resources   ProjectResourceRequirement[]
   changeLines ProjectChangeOrderLine[]
+  orderLines  PurchaseOrderLine[]
 
   @@unique([projectId, position])
   @@map("project_budget_lines")
@@ -2049,6 +2057,7 @@ model Vendor {
   crew                 CrewMember[]
   equipmentPurchases   EquipmentAsset[]
   equipmentMaintenance EquipmentMaintenance[]
+  purchaseOrders       PurchaseOrder[]
 
   @@index([normalizedName])
   @@index([status, name])
@@ -2123,39 +2132,44 @@ model VendorBill {
 }
 
 model VendorBillLine {
-  id             String        @id @default(uuid()) @db.Uuid
-  billId         String        @db.Uuid
-  bill           VendorBill    @relation(fields: [billId], references: [id], onDelete: Cascade)
-  position       Int
-  description    String
-  sacCode        String?
-  quantity       Decimal       @db.Decimal(12, 3)
-  unitPriceMinor BigInt
-  amountMinor    BigInt
-  taxRateId      String?       @db.Uuid
-  taxCode        String?
-  taxRateBps     Int           @default(0)
-  cgstMinor      BigInt        @default(0)
-  sgstMinor      BigInt        @default(0)
-  igstMinor      BigInt        @default(0)
-  otherTaxMinor  BigInt        @default(0)
-  taxMinor       BigInt        @default(0)
-  totalMinor     BigInt
+  id                  String             @id @default(uuid()) @db.Uuid
+  billId              String             @db.Uuid
+  bill                VendorBill         @relation(fields: [billId], references: [id], onDelete: Cascade)
+  position            Int
+  description         String
+  sacCode             String?
+  quantity            Decimal            @db.Decimal(12, 3)
+  unitPriceMinor      BigInt
+  amountMinor         BigInt
+  taxRateId           String?            @db.Uuid
+  taxCode             String?
+  taxRateBps          Int                @default(0)
+  cgstMinor           BigInt             @default(0)
+  sgstMinor           BigInt             @default(0)
+  igstMinor           BigInt             @default(0)
+  otherTaxMinor       BigInt             @default(0)
+  taxMinor            BigInt             @default(0)
+  totalMinor          BigInt
   // Whether the GST can be claimed as input tax credit; if not it is part of the cost.
-  itcEligible    Boolean       @default(true)
+  itcEligible         Boolean            @default(true)
   // The expense or asset account the cost goes to.
-  accountId      String        @db.Uuid
-  account        LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  projectId      String?       @db.Uuid
-  project        Project?      @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  budgetLineId   String?       @db.Uuid
+  accountId           String             @db.Uuid
+  account             LedgerAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  projectId           String?            @db.Uuid
+  project             Project?           @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  budgetLineId        String?            @db.Uuid
   // The project actual cost this line posted when approved.
-  costEntryId    String?       @unique @db.Uuid
+  costEntryId         String?            @unique @db.Uuid
   // The project commitment (a crew booking, a purchase order line) this line
   // bills, so its actual cost draws the commitment down instead of adding to it.
-  commitmentId   String?       @db.Uuid
+  commitmentId        String?            @db.Uuid
+  // The purchase order line this line bills, for matching against what was
+  // ordered and received.
+  purchaseOrderLineId String?            @db.Uuid
+  purchaseOrderLine   PurchaseOrderLine? @relation(fields: [purchaseOrderLineId], references: [id], onDelete: Restrict)
 
   @@unique([billId, position])
+  @@index([purchaseOrderLineId])
   @@map("vendor_bill_lines")
 }
 
@@ -3089,4 +3103,175 @@ model EquipmentBookingMovement {
 
   @@index([bookingId])
   @@map("equipment_booking_movements")
+}
+
+// ─── Procurement ─────────────────────────────────────────────────────────────
+
+/// An entity's purchasing rules.
+model ProcurementSettings {
+  legalEntityId          String      @id @db.Uuid
+  legalEntity            LegalEntity @relation(fields: [legalEntityId], references: [id], onDelete: Cascade)
+  // Orders above this total (base currency, before tax) need approval; at or
+  // below it they are approved when submitted. Orders in another currency
+  // always need approval.
+  approvalThresholdMinor BigInt      @default(0)
+  updatedAt              DateTime    @updatedAt
+
+  @@map("procurement_settings")
+}
+
+enum PurchaseOrderKind {
+  SERVICES
+  RENTAL
+  CONSUMABLES
+  EQUIPMENT
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  AMENDING
+  CLOSED
+  CANCELLED
+}
+
+/// An order to a vendor for one project or cost centre. Numbered when first
+/// approved; each approved version is kept as a revision.
+model PurchaseOrder {
+  id                    String              @id @default(uuid()) @db.Uuid
+  legalEntityId         String              @db.Uuid
+  legalEntity           LegalEntity         @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  number                String?
+  kind                  PurchaseOrderKind
+  status                PurchaseOrderStatus @default(DRAFT)
+  vendorId              String              @db.Uuid
+  vendor                Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  // Exactly one of a project or a cost centre.
+  projectId             String?             @db.Uuid
+  project               Project?            @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  costCentreId          String?             @db.Uuid
+  costCentre            CostCentre?         @relation(fields: [costCentreId], references: [id], onDelete: Restrict)
+  currency              String              @db.Char(3)
+  supplyType            SupplyType
+  requiredDate          DateTime?           @db.Date
+  // The hire period, for rentals.
+  hireFrom              DateTime?           @db.Date
+  hireTo                DateTime?           @db.Date
+  deliveryLocationId    String?             @db.Uuid
+  deliveryLocation      Location?           @relation(fields: [deliveryLocationId], references: [id], onDelete: Restrict)
+  deliveryNotes         String?
+  terms                 String?
+  notes                 String?
+  subtotalMinor         BigInt              @default(0)
+  taxMinor              BigInt              @default(0)
+  totalMinor            BigInt              @default(0)
+  // 0 until first approved; each approval of an amendment adds one.
+  revision              Int                 @default(0)
+  // The subtotal last approved, against which amendments are measured.
+  approvedSubtotalMinor BigInt?
+  amendmentReason       String?
+  submittedAt           DateTime?
+  submittedById         String?             @db.Uuid
+  approvedAt            DateTime?
+  approvedById          String?             @db.Uuid
+  rejectedReason        String?
+  closedAt              DateTime?
+  closedReason          String?
+  createdById           String              @db.Uuid
+  isDemo                Boolean             @default(false)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  lines     PurchaseOrderLine[]
+  revisions PurchaseOrderRevision[]
+  receipts  GoodsReceipt[]
+
+  @@unique([legalEntityId, number])
+  @@index([legalEntityId, status])
+  @@index([vendorId])
+  @@index([projectId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id               String             @id @default(uuid()) @db.Uuid
+  purchaseOrderId  String             @db.Uuid
+  purchaseOrder    PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  position         Int
+  description      String
+  quantity         Decimal            @db.Decimal(12, 3)
+  unitPriceMinor   BigInt
+  amountMinor      BigInt
+  taxRateId        String?            @db.Uuid
+  taxRateBps       Int                @default(0)
+  taxMinor         BigInt             @default(0)
+  totalMinor       BigInt
+  budgetLineId     String?            @db.Uuid
+  budgetLine       ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: Restrict)
+  // The project commitment posted when the order is approved.
+  commitmentId     String?            @db.Uuid
+  receivedQuantity Decimal            @default(0) @db.Decimal(12, 3)
+  // Rentals handed back to the vendor.
+  returnedQuantity Decimal            @default(0) @db.Decimal(12, 3)
+
+  billLines    VendorBillLine[]
+  receiptLines GoodsReceiptLine[]
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_lines")
+}
+
+/// An approved version of an order, kept as it was approved.
+model PurchaseOrderRevision {
+  id              String        @id @default(uuid()) @db.Uuid
+  purchaseOrderId String        @db.Uuid
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  revision        Int
+  snapshot        Json
+  reason          String?
+  subtotalMinor   BigInt
+  totalMinor      BigInt
+  approvedById    String        @db.Uuid
+  createdAt       DateTime      @default(now())
+
+  @@unique([purchaseOrderId, revision])
+  @@map("purchase_order_revisions")
+}
+
+enum GoodsReceiptKind {
+  RECEIVED
+  RETURNED
+}
+
+/// Goods or services received against an order, or rentals handed back.
+model GoodsReceipt {
+  id              String           @id @default(uuid()) @db.Uuid
+  purchaseOrderId String           @db.Uuid
+  purchaseOrder   PurchaseOrder    @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  kind            GoodsReceiptKind
+  receivedOn      DateTime         @db.Date
+  locationId      String?          @db.Uuid
+  location        Location?        @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  reference       String?
+  notes           String?
+  createdById     String           @db.Uuid
+  createdAt       DateTime         @default(now())
+
+  lines GoodsReceiptLine[]
+
+  @@index([purchaseOrderId])
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptLine {
+  id        String            @id @default(uuid()) @db.Uuid
+  receiptId String            @db.Uuid
+  receipt   GoodsReceipt      @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  lineId    String            @db.Uuid
+  line      PurchaseOrderLine @relation(fields: [lineId], references: [id], onDelete: Restrict)
+  quantity  Decimal           @db.Decimal(12, 3)
+
+  @@index([lineId])
+  @@map("goods_receipt_lines")
 }

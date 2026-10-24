@@ -1,5 +1,13 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { normalizeClientName } from "@/server/crm/normalize";
+import { loadGrants } from "@/server/permissions/grants";
+import {
+  approveOrder,
+  createOrder,
+  recordReceipt,
+  saveOrder,
+  submitOrder,
+} from "@/server/procurement/orders";
 
 const day = (offset: number) =>
   new Date(`${new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10)}T00:00:00Z`);
@@ -224,4 +232,94 @@ export async function seedDemoEquipmentBookings(db: PrismaClient, createdById: s
       },
     });
   }
+}
+
+/**
+ * DEMO purchasing: an approved rental of two hazers for the demo India
+ * project, received and waiting to be billed, and a draft order for tape.
+ * Raised by the demo procurement user and approved by demo Finance.
+ */
+export async function seedDemoProcurement(
+  db: PrismaClient,
+  procurementId: string,
+  financeId: string,
+) {
+  if (await db.purchaseOrder.findFirst({ where: { isDemo: true } })) return;
+  const india = await db.legalEntity.findUniqueOrThrow({ where: { code: "DEMO-IN" } });
+  const [project, vendor, rate] = await Promise.all([
+    db.project.findFirst({
+      where: { isDemo: true, legalEntityId: india.id, baselineLockedAt: { not: null } },
+      include: { budgetLines: { orderBy: { position: "asc" }, take: 1 } },
+    }),
+    db.vendor.findFirst({ where: { isDemo: true, kind: "COMPANY" } }),
+    db.taxRate.findFirst({ where: { countryCode: "IN", isDefault: true } }),
+  ]);
+  const line = project?.budgetLines[0];
+  if (!project || !line || !vendor) return;
+  const asActor = async (id: string) => {
+    const user = await db.user.findUniqueOrThrow({ where: { id } });
+    return { id, name: user.name, email: user.email, grants: await loadGrants(db, id) };
+  };
+  const [buyer, finance] = await Promise.all([asActor(procurementId), asActor(financeId)]);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const start = project.eventStartDate ?? day(30);
+
+  const hire = await createOrder(buyer, india.id, {
+    vendorId: vendor.id,
+    kind: "RENTAL",
+    projectId: project.id,
+  });
+  await saveOrder(buyer, hire.id, {
+    requiredDate: iso(start),
+    hireFrom: iso(start),
+    hireTo: iso(project.eventEndDate ?? start),
+    deliveryNotes: "DEMO: deliver to the venue loading bay by 8 am.",
+    terms: "Damage beyond normal wear charged at replacement cost.",
+    supplyType: hire.supplyType,
+    lines: [
+      {
+        description: "DEMO hazer with fluid, per show",
+        quantity: "2",
+        unitPrice: "6500",
+        taxRateId: rate?.id ?? null,
+        budgetLineId: line.id,
+      },
+    ],
+  });
+  await submitOrder(buyer, hire.id);
+  await approveOrder(finance, hire.id);
+  await recordReceipt(buyer, hire.id, {
+    kind: "RECEIVED",
+    receivedOn: iso(day(0)),
+    reference: "DEMO-DN-118",
+    quantities: Object.fromEntries(
+      (await db.purchaseOrderLine.findMany({ where: { purchaseOrderId: hire.id } })).map((l) => [
+        l.id,
+        "2",
+      ]),
+    ),
+  });
+
+  const tape = await createOrder(buyer, india.id, {
+    vendorId: vendor.id,
+    kind: "CONSUMABLES",
+    projectId: project.id,
+  });
+  await saveOrder(buyer, tape.id, {
+    requiredDate: iso(start),
+    supplyType: tape.supplyType,
+    lines: [
+      {
+        description: "DEMO gaffer tape, black, 48 mm",
+        quantity: "20",
+        unitPrice: "450",
+        taxRateId: rate?.id ?? null,
+        budgetLineId: line.id,
+      },
+    ],
+  });
+  await db.purchaseOrder.updateMany({
+    where: { id: { in: [hire.id, tape.id] } },
+    data: { isDemo: true },
+  });
 }

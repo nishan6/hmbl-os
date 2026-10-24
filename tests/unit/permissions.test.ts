@@ -45,6 +45,14 @@ describe("default roles", () => {
     expect(role("viewer").permissions).not.toContain("users.view");
   });
 
+  it("let procurement raise orders but not approve them or see bank details", () => {
+    const p = role("procurement").permissions;
+    expect(p).toContain("procurement.submit");
+    expect(p).not.toContain("procurement.approve");
+    expect(p).not.toContain("procurement.view_sensitive");
+    expect(p.some((x) => x.startsWith("finance."))).toBe(false);
+  });
+
   it("do not let sales or project managers see sensitive finance data", () => {
     for (const key of ["sales", "project_manager"]) {
       expect(
