@@ -5,7 +5,7 @@ import {
   contentTypeFor,
   isBlocked,
 } from "@/server/projects/document-rules";
-import { outstandingCloseout } from "@/server/projects/closeout-rules";
+import { CLOSEOUT_ITEMS, outstandingCloseout } from "@/server/projects/closeout-rules";
 import { formatBytes } from "@/lib/format";
 
 describe("document rules", () => {
@@ -54,6 +54,18 @@ describe("closeout checklist", () => {
       "EQUIPMENT_RETURNED",
       "EXPENSES_RECONCILED",
       "FINAL_REPORT",
+    ]);
+  });
+
+  it("keeps an item open while the records show it isn't finished, even if ticked", () => {
+    const rows = CLOSEOUT_ITEMS.map(({ key }) => ({
+      key,
+      doneAt: new Date(),
+      notApplicable: false,
+    }));
+    expect(outstandingCloseout(rows)).toEqual([]);
+    expect(outstandingCloseout(rows, ["EQUIPMENT_RETURNED"]).map((i) => i.key)).toEqual([
+      "EQUIPMENT_RETURNED",
     ]);
   });
 });

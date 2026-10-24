@@ -59,12 +59,20 @@ export default async function ProjectCloseoutPage({
 
       <Section
         title="Closeout checklist"
-        description="Invoicing and payments are confirmed by hand until Finance tracks them."
+        description="Crew, equipment and vendor bills are checked against the records. Invoicing and payments are confirmed by hand until Finance tracks them."
       >
         <ul className="flex flex-col gap-3">
           {closeout.items.map((item) => {
             const row = item.row;
-            const state = row?.doneAt ? "done" : row?.notApplicable ? "not_applicable" : "open";
+            // What the records show outranks an earlier tick.
+            const blocked = item.blockers.length > 0;
+            const state = blocked
+              ? "open"
+              : row?.doneAt
+                ? "done"
+                : row?.notApplicable
+                  ? "not_applicable"
+                  : "open";
             return (
               <li key={item.key}>
                 <Panel>
@@ -93,13 +101,24 @@ export default async function ProjectCloseoutPage({
                       as a closeout report first.
                     </p>
                   ) : null}
-                  {canEdit ? (
+                  {blocked ? (
+                    <ul className="text-secondary mt-2 flex list-disc flex-col gap-1 pl-5 text-xs">
+                      {item.blockers.map((b) => (
+                        <li key={b.text}>
+                          <Link href={b.href} className="text-accent underline">
+                            {b.text}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {canEdit && !(blocked && !row?.doneAt && !row?.notApplicable) ? (
                     <div className="mt-3">
                       <CommandForm
                         action={closeoutItemAction.bind(null, p.id, item.key)}
                         label="Note"
                         buttons={
-                          state === "open"
+                          state === "open" && !blocked
                             ? [
                                 { command: "done", label: "Mark done", primary: true },
                                 { command: "not_applicable", label: "Not applicable" },
