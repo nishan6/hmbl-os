@@ -9,7 +9,13 @@ import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { parseInput } from "@/lib/parse";
 import { CHECKLIST_TEMPLATES, checklistProgress, parseChecklistLines } from "@/lib/production";
 import { optionalText, requiredText } from "@/lib/validation";
-import { loadShow, lockShow } from "./access";
+import {
+  inShowTransaction,
+  loadShow,
+  lockShow,
+  offlineMetadata,
+  type WriteOptions,
+} from "./access";
 
 /*
  * Show checklists: load-in safety, pre-show, load-out. Whoever plans the
@@ -145,7 +151,7 @@ export async function setItemDone(
   actor: Actor,
   itemId: string,
   raw: TickInput,
-  tx?: Tx,
+  options?: WriteOptions,
 ): Promise<{ conflict: false; version: number } | ItemConflict> {
   const input = parseInput(tickInput, raw);
   const run = async (t: Tx) => {
@@ -200,11 +206,12 @@ export async function setItemDone(
         label: item.label,
         version: after.version,
         ...(input.at ? { doneAtVenue: at.toISOString() } : {}),
+        ...offlineMetadata(options),
       },
     });
     return { conflict: false as const, version: after.version };
   };
-  return tx ? run(tx) : db.$transaction(run);
+  return inShowTransaction(options, run);
 }
 
 const itemsInput = z.object({

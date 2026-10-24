@@ -4173,3 +4173,27 @@ model ShowIncident {
   @@index([projectId, occurredAt])
   @@map("show_incidents")
 }
+
+enum OfflineOperationStatus {
+  APPLIED
+  CONFLICT
+  REJECTED
+}
+
+/// A change made in the field app while offline, keyed by the id the device
+/// gave it, so a change sent twice is applied once (docs/offline.md).
+model OfflineOperation {
+  id         String                 @id @db.Uuid
+  userId     String                 @db.Uuid
+  projectId  String                 @db.Uuid
+  kind       String
+  status     OfflineOperationStatus
+  /// What the device is told: the new version, the current state on a conflict, or why it was refused.
+  result     Json
+  queuedAt   DateTime
+  receivedAt DateTime               @default(now())
+
+  @@index([userId, receivedAt])
+  @@index([projectId])
+  @@map("offline_operations")
+}

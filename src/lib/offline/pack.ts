@@ -32,6 +32,8 @@ export type PackChecklistItem = {
   doneBy: string | null;
   note: string | null;
   version: number;
+  /** A change made on this device and not yet sent. */
+  pending?: boolean;
 };
 
 export type PackChecklist = {
@@ -125,7 +127,14 @@ export type ShowPack = {
   can: { post: boolean };
   days: PackDay[];
   checklists: PackChecklist[];
-  notes: { id: string; body: string; pinned: boolean; author: string; createdAt: string }[];
+  notes: {
+    id: string;
+    body: string;
+    pinned: boolean;
+    author: string;
+    createdAt: string;
+    pending?: boolean;
+  }[];
   status: { status: string; message: string; author: string; createdAt: string } | null;
   log: { id: string; at: string; who: string; status: string | null; text: string }[];
 };

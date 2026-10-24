@@ -112,6 +112,23 @@ async function waitUntilKept(page: Page) {
   await page.waitForFunction(async () => Boolean(await caches.match("/field")));
 }
 
+/** How many show packs the device holds. */
+const savedPacks = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<number>((resolve, reject) => {
+        const open = indexedDB.open("hmbl-field");
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const count = open.result.transaction("packs").objectStore("packs").count();
+          count.onsuccess = () => {
+            open.result.close();
+            resolve(count.result);
+          };
+        };
+      }),
+  );
+
 const offlineData = (page: Page) =>
   page.evaluate(async () => ({
     databases: (await indexedDB.databases()).map((d) => d.name),
@@ -159,7 +176,7 @@ test("signing out wipes the shows kept on the device", async ({ page, context })
   expect(await offlineData(page)).toEqual({ databases: [], caches: [] });
 });
 
-test("an ended session wipes the device the next time the app is online", async ({
+test("an ended session wipes the saved shows the next time the app is online", async ({
   page,
   context,
 }) => {
@@ -182,7 +199,9 @@ test("an ended session wipes the device the next time the app is online", async 
   await page.waitForURL(
     (url) => url.pathname === "/sign-in" && url.searchParams.get("next") === "/field",
   );
-  expect((await offlineData(page)).databases).not.toContain("hmbl-field");
+  // The shows go; changes not yet sent stay for the same user to send after signing in.
+  expect(await savedPacks(page)).toBe(0);
+  expect((await offlineData(page)).caches).toEqual([]);
 });
 
 test("the field app meets WCAG 2.2 AA", async ({ page, context }) => {
@@ -195,4 +214,119 @@ test("the field app meets WCAG 2.2 AA", async ({ page, context }) => {
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   expect(violations.map((v) => v.id)).toEqual([]);
+});
+
+type SentOperation = { id: string; kind: string; payload: Record<string, unknown> };
+
+/** Answers the sync endpoint with `answer`, recording every change sent. */
+async function serveSync(
+  context: BrowserContext,
+  answer: (op: SentOperation, call: number) => Record<string, unknown> | "fail",
+) {
+  const sent: SentOperation[][] = [];
+  await context.route("**/api/production/sync", async (route) => {
+    const { operations } = route.request().postDataJSON() as { operations: SentOperation[] };
+    sent.push(operations);
+    const answers = operations.map((op) => answer(op, sent.length));
+    if (answers.includes("fail")) return route.fulfill({ status: 500, json: { error: "Down" } });
+    await route.fulfill({
+      json: { results: operations.map((op, i) => ({ id: op.id, ...(answers[i] as object) })) },
+    });
+  });
+  return sent;
+}
+
+test("a tick made offline is kept, and sent once when the connection is back", async ({
+  page,
+  context,
+}) => {
+  await serveFixture(context);
+  const sent = await serveSync(context, () => ({ status: "applied", version: 2 }));
+  await signIn(page, DEMO.showCrew);
+  await page.goto(`/field?show=${SHOW_ID}`);
+  await expect(page.getByRole("cell", { name: "Doors open" })).toBeVisible();
+  await waitUntilKept(page);
+
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Tick Barriers in place" }).click();
+  await expect(page.getByRole("button", { name: "Untick Barriers in place" })).toBeVisible();
+  await expect(page.getByText("1 not sent").first()).toBeVisible();
+  // Still there after the app is closed and opened again offline.
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Untick Barriers in place" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Changes not sent" })).toContainText(
+    "Checklist tick: Tick Barriers in place",
+  );
+  expect(sent).toEqual([]);
+
+  await context.setOffline(false);
+  await expect(page.getByText("1 not sent")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Changes not sent" })).toHaveCount(0);
+  expect(sent.flat()).toEqual([
+    expect.objectContaining({ kind: "checklist.tick", payload: { itemId: "i1", done: true } }),
+  ]);
+  // Nothing is sent twice.
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect(page.getByRole("button", { name: "Refresh" })).toBeEnabled();
+  expect(sent.flat()).toHaveLength(1);
+});
+
+test("a change the server can't accept waits for the user to decide", async ({ page, context }) => {
+  await serveFixture(context);
+  const sent = await serveSync(context, (op, call) =>
+    op.kind === "checklist.tick"
+      ? {
+          status: "conflict",
+          current: { version: 2, done: true, doneAt: null, doneBy: "Priya PM" },
+        }
+      : call <= 2
+        ? { status: "rejected", error: "You don't have permission to do that." }
+        : { status: "applied" },
+  );
+  await signIn(page, DEMO.showCrew);
+  await page.goto(`/field?show=${SHOW_ID}`);
+
+  await page.getByRole("button", { name: "Tick Barriers in place" }).click();
+  const pending = page.getByRole("region", { name: "Changes not sent" });
+  await expect(pending.getByText("Conflict")).toBeVisible();
+  await expect(pending).toContainText("Ticked by Priya PM before your change arrived");
+  await pending.getByRole("button", { name: "Keep theirs" }).click();
+  await expect(pending).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Note", exact: true }).click();
+  await page.getByRole("textbox", { name: "Note" }).fill("Generator B is the backup");
+  await page.getByRole("button", { name: "Add note" }).click();
+  await expect(pending.getByText("Not accepted")).toBeVisible();
+  await expect(pending).toContainText("You don't have permission to do that.");
+  await pending.getByRole("button", { name: "Try again" }).click();
+  await expect(pending).toHaveCount(0);
+  const notes = sent.flat().filter((op) => op.kind === "note.add");
+  expect(notes).toHaveLength(2);
+  // Trying again is a new change, not a resend of the refused one.
+  expect(notes[0]!.id).not.toBe(notes[1]!.id);
+});
+
+test("signing out warns about changes not sent, then deletes them", async ({ page, context }) => {
+  await serveFixture(context);
+  await serveSync(context, () => "fail");
+  await signIn(page, DEMO.showCrew);
+  await page.goto(`/field?show=${SHOW_ID}`);
+  await page.getByRole("button", { name: "Tick Barriers in place" }).click();
+  await expect(page.getByText("Retrying")).toBeVisible();
+
+  await page.goto("/production");
+  page.once("dialog", (dialog) => {
+    expect(dialog.message()).toContain("1 change made in the field app");
+    void dialog.dismiss();
+  });
+  await page.getByRole("button", { name: /^Account:/ }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  await expect(page.getByRole("heading", { name: "Production" })).toBeVisible();
+  expect((await offlineData(page)).databases).toContain("hmbl-field");
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: /^Account:/ }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  await page.waitForURL(/\/sign-in/);
+  expect(await offlineData(page)).toEqual({ databases: [], caches: [] });
 });

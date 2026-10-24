@@ -67,3 +67,28 @@ export async function lockShow(
   assertChangeable(project);
   return project;
 }
+
+/**
+ * How a show-day change is made: inside a caller's transaction (the offline
+ * sync runs each change in its own), and whether it was made offline.
+ */
+export type WriteOptions = {
+  tx?: Tx;
+  offline?: { operationId: string; queuedAt: Date };
+};
+
+/** Runs `fn` in the caller's transaction, or in a new one. */
+export function inShowTransaction<T>(
+  options: WriteOptions | undefined,
+  fn: (tx: Tx) => Promise<T>,
+) {
+  return options?.tx ? fn(options.tx) : db.$transaction(fn);
+}
+
+/** Audit metadata saying a change was made offline and when it was queued on the device. */
+export function offlineMetadata(options: WriteOptions | undefined) {
+  const offline = options?.offline;
+  return offline
+    ? { offline: true, operationId: offline.operationId, queuedAt: offline.queuedAt.toISOString() }
+    : {};
+}

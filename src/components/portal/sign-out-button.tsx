@@ -2,7 +2,7 @@
 
 import { LogOut } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { clearOfflineData } from "@/lib/offline/store";
+import { clearOfflineData, confirmSignOut } from "@/lib/offline/store";
 import { Button } from "@/components/ui/button";
 
 export function SignOutButton() {
@@ -11,7 +11,8 @@ export function SignOutButton() {
       type="button"
       variant="quiet"
       onClick={async () => {
-        // Show packs kept for offline use go with the session (docs/offline.md).
+        // What the field app keeps on this device goes with the session (docs/offline.md).
+        if (!(await confirmSignOut())) return;
         await clearOfflineData();
         await authClient.signOut();
         // A full load drops every page the router cached while signed in.
