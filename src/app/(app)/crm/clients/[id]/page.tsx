@@ -151,6 +151,10 @@ export default async function ClientPage({ params, searchParams }: PageProps<"/c
             },
             { label: "Billing address", value: address || null },
             { label: "Quote currency", value: client.currency },
+            {
+              label: "Invoice code",
+              value: <span className="font-mono">{client.invoiceCode ?? "INT (one-off)"}</span>,
+            },
           ]}
         />
         {client.notes ? (

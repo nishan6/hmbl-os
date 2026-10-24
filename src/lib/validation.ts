@@ -19,6 +19,13 @@ export const codeSchema = z
   .toUpperCase()
   .regex(/^[A-Z0-9][A-Z0-9-]{1,19}$/, "Use 2–20 letters, digits or dashes");
 
+/** A code printed inside document numbers, e.g. MAG or VLR: 2–6 capitals or digits. */
+export const numberCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9]{2,6}$/, "Use 2–6 capital letters or digits");
+
 export const countryCodeSchema = z
   .string()
   .trim()

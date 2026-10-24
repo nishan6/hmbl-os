@@ -44,6 +44,7 @@ export function InvoiceEditor({
   taxRates,
   accounts,
   tax,
+  services,
   baseCurrency,
   cancelHref,
 }: {
@@ -53,6 +54,8 @@ export function InvoiceEditor({
   taxRates: TaxRateOption[];
   accounts: AccountOption[];
   tax: { countryCode: string; stateCode: string | null };
+  /** The entity's invoice services ({SERVICE} in the number). */
+  services: { code: string; name: string }[];
   baseCurrency: string;
   cancelHref: string;
 }) {
@@ -74,6 +77,7 @@ export function InvoiceEditor({
         taxRates={taxRates}
         accounts={accounts}
         tax={tax}
+        services={services}
         baseCurrency={baseCurrency}
         markDirty={markDirty}
       />
@@ -95,6 +99,7 @@ function Body({
   taxRates,
   accounts,
   tax,
+  services,
   baseCurrency,
   markDirty,
 }: {
@@ -103,6 +108,7 @@ function Body({
   taxRates: TaxRateOption[];
   accounts: AccountOption[];
   tax: { countryCode: string; stateCode: string | null };
+  services: { code: string; name: string }[];
   baseCurrency: string;
   markDirty: () => void;
 }) {
@@ -118,6 +124,7 @@ function Body({
   const [currency, setCurrency] = useState(f.value("currency") || baseCurrency);
   const [country, setCountry] = useState(f.value("placeOfSupplyCountry") || tax.countryCode);
   const [stateCode, setStateCode] = useState(f.value("placeOfSupplyCode"));
+  const [serviceCode, setServiceCode] = useState(f.value("serviceCode"));
   const gst = tax.countryCode === "IN";
   const supply = supplyTypeFor(tax, {
     countryCode: country.toUpperCase(),
@@ -160,6 +167,29 @@ function Body({
           <Field label="Client PO number" errors={f.errors("clientPoNumber")}>
             {(p) => <Input name="clientPoNumber" defaultValue={f.value("clientPoNumber")} {...p} />}
           </Field>
+          {services.length ? (
+            <Field
+              label="Service"
+              description="Part of the invoice number"
+              errors={f.errors("serviceCode")}
+            >
+              {(p) => (
+                <Select
+                  name="serviceCode"
+                  value={serviceCode}
+                  onChange={(e) => setServiceCode(e.target.value)}
+                  {...p}
+                >
+                  <option value="">Choose…</option>
+                  {services.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.code} · {s.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          ) : null}
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Currency" required errors={f.errors("currency")}>

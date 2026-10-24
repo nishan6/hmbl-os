@@ -64,7 +64,9 @@ async function checklist(period: {
       where: { legalEntityId, startDate: { lt: period.startDate }, status: "OPEN" },
     }),
     db.journal.count({ where: { legalEntityId, status: "DRAFT", date: inPeriod } }),
-    db.salesInvoice.count({ where: { legalEntityId, status: "DRAFT", invoiceDate: inPeriod } }),
+    db.salesInvoice.count({
+      where: { legalEntityId, kind: "TAX", status: "DRAFT", invoiceDate: inPeriod },
+    }),
     db.creditNote.count({ where: { legalEntityId, status: "DRAFT", date: inPeriod } }),
     db.vendorBill.count({
       where: { legalEntityId, status: { in: ["DRAFT", "SUBMITTED"] }, billDate: inPeriod },

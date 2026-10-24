@@ -186,6 +186,7 @@ export async function openInvoices(
   const invoices = await db.salesInvoice.findMany({
     where: {
       legalEntityId,
+      kind: "TAX",
       status: "ISSUED",
       ...(clientId ? { clientId } : {}),
       ...(currency ? { currency } : {}),
@@ -272,10 +273,11 @@ async function planAllocations(
     if (
       !invoice ||
       invoice.status !== "ISSUED" ||
+      invoice.kind !== "TAX" ||
       invoice.legalEntityId !== receipt.legalEntityId ||
       invoice.clientId !== receipt.clientId
     ) {
-      throw invalid(field, "Choose an issued invoice of this client");
+      throw invalid(field, "Choose an issued tax invoice of this client");
     }
     if (invoice.currency !== receipt.currency) {
       throw invalid(

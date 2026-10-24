@@ -4,9 +4,10 @@ import { invoiceBankAccounts } from "@/server/finance/bank-accounts";
 import { getInvoice } from "@/server/finance/invoices";
 import { AppError } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
+import { INVOICE_KINDS } from "@/lib/invoice-kinds";
 import { addressOf, TaxDocument } from "../../_components/tax-document";
 
-export const metadata = { title: "Tax invoice" };
+export const metadata = { title: "Invoice" };
 
 export default async function InvoiceDocumentPage({ params }: PageProps<"/print/invoices/[id]">) {
   const { id } = await params;
@@ -18,15 +19,21 @@ export default async function InvoiceDocumentPage({ params }: PageProps<"/print/
   });
   const e = inv.legalEntity;
   const bankAccounts = await invoiceBankAccounts(actor, e.id, inv.currency);
+  const tax = inv.kind === "TAX";
   const notice = [
-    inv.status === "DRAFT" ? "Draft: not a tax invoice until issued" : null,
+    inv.status === "DRAFT"
+      ? `Draft: not a ${tax ? "tax invoice" : INVOICE_KINDS[inv.kind].label.toLowerCase()} until issued`
+      : null,
+    tax ? null : "This is not a tax invoice",
     inv.status === "DISCARDED" ? "Discarded" : null,
     inv.isDemo || e.isDemo ? "Demo data" : null,
   ].filter(Boolean);
   const date = (d: Date) => formatDate(d, "UTC");
   return (
     <TaxDocument
-      title={e.countryCode === "IN" ? "Tax invoice" : "Invoice"}
+      title={
+        tax ? (e.countryCode === "IN" ? "Tax invoice" : "Invoice") : INVOICE_KINDS[inv.kind].label
+      }
       backHref={`/finance/invoices/${id}`}
       backLabel="Back to the invoice"
       notice={notice.length ? notice.join(" · ") : null}

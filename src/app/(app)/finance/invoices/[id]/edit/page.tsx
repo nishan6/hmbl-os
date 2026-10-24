@@ -4,6 +4,7 @@ import { financeEntity } from "@/server/finance/context";
 import { getInvoice, invoiceFormOptions } from "@/server/finance/invoices";
 import { AppError } from "@/lib/errors";
 import { toDateOnly } from "@/lib/fiscal";
+import { INVOICE_KINDS } from "@/lib/invoice-kinds";
 import { minorToInput } from "@/lib/money";
 import { FinanceHeader, withEntity } from "../../../_components/finance-header";
 import { saveInvoiceAction } from "../../actions";
@@ -27,7 +28,7 @@ export default async function EditInvoicePage({
   return (
     <>
       <FinanceHeader
-        title={`Draft invoice to ${invoice.clientName}`}
+        title={`Draft ${INVOICE_KINDS[invoice.kind].label.toLowerCase()} to ${invoice.clientName}`}
         entity={entity}
         entities={entities}
         crumbs={[
@@ -47,6 +48,7 @@ export default async function EditInvoicePage({
           placeOfSupplyCountry: invoice.placeOfSupplyCountry,
           placeOfSupplyCode: invoice.placeOfSupplyCode ?? "",
           clientPoNumber: invoice.clientPoNumber ?? "",
+          serviceCode: invoice.serviceCode ?? "",
           notes: invoice.notes ?? "",
         }}
         rows={invoice.lines.map((l) => ({
@@ -60,6 +62,7 @@ export default async function EditInvoicePage({
         taxRates={options.taxRates}
         accounts={options.revenueAccounts}
         tax={options.tax}
+        services={options.services}
         baseCurrency={entity.baseCurrency}
         cancelHref={`/finance/invoices/${id}`}
       />

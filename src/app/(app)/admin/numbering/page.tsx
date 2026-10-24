@@ -1,26 +1,20 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Hash } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
-import { listNumberingSchemes } from "@/server/numbering/service";
+import { exampleNumber, listNumberingSchemes } from "@/server/numbering/service";
 import { listLegalEntities } from "@/server/organisation/service";
 import { DOCUMENT_TYPES, type DocumentType } from "@/server/numbering/document-types";
-import { formatNumber } from "@/server/numbering/pattern";
 import { getEntityContext } from "@/server/shell/entity-context";
 import { ActionButton } from "@/components/ui/action-button";
 import { Alert, EmptyState, PageHeader } from "@/components/ui/page";
 import { Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { addDefaultSchemesAction } from "./actions";
+import { RESETS } from "./resets";
 
 export const metadata = { title: "Numbering" };
-
-const RESETS: Record<string, string> = {
-  NEVER: "Never",
-  YEARLY: "Each calendar year",
-  FISCAL_YEARLY: "Each fiscal year",
-  MONTHLY: "Each month",
-};
 
 export default async function NumberingPage() {
   const actor = await requireActorOrRedirect();
@@ -83,17 +77,19 @@ export default async function NumberingPage() {
                 <TD className="text-secondary">{s.legalEntity.code}</TD>
                 <TD className="font-medium">
                   <span className="flex items-center gap-2">
-                    {DOCUMENT_TYPES[s.documentType as DocumentType]?.label ?? s.documentType}
+                    <Link href={`/admin/numbering/${s.id}`} className="text-accent hover:underline">
+                      {DOCUMENT_TYPES[s.documentType as DocumentType]?.label ?? s.documentType}
+                    </Link>
                     {s.isDemo ? <Tag tone="warning">Demo</Tag> : null}
                   </span>
                 </TD>
                 <TD className="text-secondary font-mono">{s.pattern}</TD>
                 <TD className="font-mono">
-                  {formatNumber(
-                    s,
-                    { entityCode: s.legalEntity.code, date: now, timeZone: "Asia/Kolkata" },
-                    s.startAt,
-                  )}
+                  {exampleNumber(s, {
+                    entityCode: s.legalEntity.code,
+                    date: now,
+                    timeZone: "Asia/Kolkata",
+                  })}
                 </TD>
                 <TD className="text-secondary">{RESETS[s.resetPolicy]}</TD>
               </TR>

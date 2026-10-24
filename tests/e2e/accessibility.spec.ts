@@ -122,6 +122,12 @@ for (const colorScheme of ["light", "dark"] as const) {
         ).toBeVisible();
         await expectNoViolations(page);
       });
+      await test.step("a number format", async () => {
+        await page.goto("/admin/numbering");
+        await page.getByRole("link", { name: "Sales invoice" }).first().click();
+        await expect(page.getByRole("heading", { level: 2, name: "Counts" })).toBeVisible();
+        await expectNoViolations(page);
+      });
       await test.step("a bank reconciliation", async () => {
         await page.goto("/finance/bank-accounts");
         await page.getByRole("combobox", { name: "Books of" }).selectOption({ label: "DEMO-IN" });
@@ -182,7 +188,9 @@ for (const colorScheme of ["light", "dark"] as const) {
         await expectNoViolations(page);
         const invoiceUrl = page.url();
         await page.goto(`${invoiceUrl}/edit`);
-        await expect(page.getByRole("heading", { level: 1, name: /^Draft invoice/ })).toBeVisible();
+        await expect(
+          page.getByRole("heading", { level: 1, name: /^Draft tax invoice/ }),
+        ).toBeVisible();
         await expectNoViolations(page);
         await page.goto(invoiceUrl.replace("/finance/invoices/", "/print/invoices/"));
         await expect(page.getByRole("heading", { level: 1, name: "Tax invoice" })).toBeVisible();

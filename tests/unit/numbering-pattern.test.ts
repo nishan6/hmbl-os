@@ -113,3 +113,53 @@ describe("default schemes", () => {
     }
   });
 });
+
+describe("document fields", () => {
+  const hmbl = spec("{FYS}-{CLIENT}-{SERVICE}-{CSEQ:2}-{SEQ:2}", "FISCAL_YEARLY");
+  const withFields = (iso: string) => ({
+    ...ctx(iso),
+    fields: { CLIENT: "MAG", SERVICE: "VLR" },
+  });
+
+  it("render HMBL's format, with the fiscal year's starting year", () => {
+    expect(formatNumber(hmbl, withFields("2026-10-22T10:00:00Z"), 8, 3)).toBe("26-MAG-VLR-03-08");
+    // February 2027 is still FY 2026-27.
+    expect(formatNumber(hmbl, withFields("2027-02-10T10:00:00Z"), 120, 12)).toBe(
+      "26-MAG-VLR-12-120",
+    );
+  });
+
+  it("are only allowed where the document supplies them", () => {
+    expect(validatePattern(hmbl, ["CLIENT", "SERVICE"])).toEqual([]);
+    expect(validatePattern(hmbl)).toEqual([
+      "This document has no {CLIENT}.",
+      "This document has no {SERVICE}.",
+      "This document has no {CSEQ}.",
+    ]);
+    expect(validatePattern(spec("{CLIENT}-{SEQ:2}-{SEQ:2}"), ["CLIENT"])).toContain(
+      "Include {SEQ:n} exactly once.",
+    );
+    expect(validatePattern(spec("X-{CSEQ:2}-{SEQ:2}"), ["CLIENT"])).toContain(
+      "{CSEQ:n} needs {CLIENT} in the pattern.",
+    );
+    expect(validatePattern(spec("{CLIENT}-{CSEQ}-{SEQ:2}"), ["CLIENT"])).toContain(
+      "Give {CSEQ:n} a width from 1 to 10, e.g. {CSEQ:4}.",
+    );
+    expect(validatePattern(spec("{CLIENT:2}-{SEQ:2}"), ["CLIENT"])).toContain(
+      "{CLIENT} takes no width.",
+    );
+  });
+
+  it("must be given, as capitals and digits", () => {
+    expect(() => formatNumber(hmbl, ctx("2026-10-22T10:00:00Z"), 1, 1)).toThrow(/No value/);
+    expect(() =>
+      formatNumber(
+        hmbl,
+        { ...ctx("2026-10-22T10:00:00Z"), fields: { CLIENT: "M-G", SERVICE: "V" } },
+        1,
+        1,
+      ),
+    ).toThrow(/No value for \{CLIENT\}/);
+    expect(() => formatNumber(hmbl, withFields("2026-10-22T10:00:00Z"), 1)).toThrow(/CSEQ/);
+  });
+});

@@ -46,7 +46,7 @@ export async function financeDashboard(actor: Actor, legalEntityId: string, toda
     }),
     Promise.all([
       db.journal.count({ where: { legalEntityId, status: "DRAFT" } }),
-      db.salesInvoice.count({ where: { legalEntityId, status: "DRAFT" } }),
+      db.salesInvoice.count({ where: { legalEntityId, kind: "TAX", status: "DRAFT" } }),
       db.creditNote.count({ where: { legalEntityId, status: "DRAFT" } }),
       db.vendorBill.count({ where: { legalEntityId, status: "DRAFT" } }),
     ]),

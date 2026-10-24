@@ -8,6 +8,7 @@ import {
   createInvoice,
   discardInvoice,
   issueInvoice,
+  makeInvoiceFrom,
   recogniseInvoiceRevenue,
   saveInvoiceDraft,
   type InvoiceLineInput,
@@ -33,6 +34,7 @@ export async function startInvoiceAction(legalEntityId: string, _: FormState, fo
   let id: string;
   try {
     ({ id } = await createInvoice(await requireActor(), legalEntityId, {
+      kind: (values.kind || "TAX") as "TAX",
       clientId: values.clientId ?? "",
       projectId: values.projectId,
       milestoneId: values.milestoneId,
@@ -55,6 +57,7 @@ export async function saveInvoiceAction(id: string, _: FormState, formData: Form
       placeOfSupplyCountry: values.placeOfSupplyCountry ?? "",
       placeOfSupplyCode: values.placeOfSupplyCode,
       clientPoNumber: values.clientPoNumber,
+      serviceCode: values.serviceCode,
       notes: values.notes,
       lines: linesOf<InvoiceLineInput>(values),
     });
@@ -82,6 +85,20 @@ export async function invoiceCommandAction(id: string, _: FormState, formData: F
   });
   if (state.status === "success") refresh();
   return state;
+}
+
+/** Drafts the commercial or tax invoice for an issued proforma or commercial one. */
+export async function makeInvoiceFromAction(id: string, _: FormState, formData: FormData) {
+  const values = formValues(formData);
+  let draftId: string;
+  try {
+    ({ id: draftId } = await makeInvoiceFrom(await requireActor(), id, {
+      kind: (values.kind ?? "") as "TAX",
+    }));
+  } catch (error) {
+    return toFormState(error, values);
+  }
+  redirect(`/finance/invoices/${draftId}/edit`);
 }
 
 export async function createCreditNoteAction(invoiceId: string, _: FormState, formData: FormData) {

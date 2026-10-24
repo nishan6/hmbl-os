@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Select } from "@/components/ui/field";
 import { FormAlert } from "@/components/ui/form-alert";
 import { useForm } from "@/components/ui/use-form";
+import { INVOICE_KINDS } from "@/lib/invoice-kinds";
 import type { FormState } from "@/server/http/action-result";
 
 type ProjectOption = {
@@ -31,6 +32,7 @@ export function StartInvoiceForm({
   cancelHref: string;
 }) {
   const f = useForm(action, defaults);
+  const [kind, setKind] = useState(f.value("kind") || "TAX");
   const [clientId, setClientId] = useState(f.value("clientId"));
   const [projectId, setProjectId] = useState(f.value("projectId"));
   const forClient = projects.filter((p) => p.clientId === clientId);
@@ -38,6 +40,22 @@ export function StartInvoiceForm({
   return (
     <form action={f.action} key={f.formKey} className="max-w-form flex flex-col gap-4" noValidate>
       <FormAlert {...f} title="The invoice wasn't started" />
+      <Field
+        label="Type"
+        required
+        description="Proforma and commercial invoices ask for payment and aren't posted. Turn them into the tax invoice later; all three share one number series."
+        errors={f.errors("kind")}
+      >
+        {(p) => (
+          <Select name="kind" value={kind} onChange={(e) => setKind(e.target.value)} {...p}>
+            {Object.entries(INVOICE_KINDS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v.label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
       <Field label="Client" required errors={f.errors("clientId")}>
         {(p) => (
           <Select

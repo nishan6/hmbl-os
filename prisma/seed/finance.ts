@@ -76,6 +76,14 @@ export async function seedDemoFinance(db: PrismaClient, entities: { id: string }
 /** A DEMO draft invoice from DEMO-IN to a demo client in the same state (CGST + SGST). */
 export async function seedDemoInvoice(db: PrismaClient, createdById: string) {
   const india = await db.legalEntity.findUniqueOrThrow({ where: { code: "DEMO-IN" } });
+  // What invoices pick for {SERVICE} in their number.
+  await db.invoiceService.createMany({
+    data: [
+      { code: "VLR", name: "DEMO Rental service" },
+      { code: "LDS", name: "DEMO Live design services" },
+    ].map((s) => ({ ...s, legalEntityId: india.id, isDemo: true })),
+    skipDuplicates: true,
+  });
   if (await db.salesInvoice.findFirst({ where: { legalEntityId: india.id, isDemo: true } })) return;
   const client = await db.client.findFirstOrThrow({ where: { name: "Demo Arena Live (DEMO)" } });
   const [rate, rental, crew] = await Promise.all([

@@ -221,6 +221,7 @@ model LegalEntity {
   commercial       CommercialSettings?
   projects         Project[]
   financeSettings  FinanceSettings?
+  invoiceServices  InvoiceService[]
   ledgerAccounts   LedgerAccount[]
   periods          AccountingPeriod[]
   journals         Journal[]
@@ -551,6 +552,9 @@ model Client {
   countryCode    String             @db.Char(2)
   // Currency quotes for this client start in.
   currency       String             @db.Char(3)
+  // Short code in invoice numbers ({CLIENT}), e.g. MAG. Null for one-off
+  // clients, who share the code INT.
+  invoiceCode    String?
   ownerId        String?            @db.Uuid
   owner          User?              @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   notes          String?
@@ -572,6 +576,7 @@ model Client {
   receipts      Receipt[]
 
   @@unique([taxIdType, taxId], map: "clients_tax_id_key", where: raw("\"taxId\" IS NOT NULL AND status = 'ACTIVE'"))
+  @@unique([invoiceCode], map: "clients_invoice_code_key", where: raw("\"invoiceCode\" IS NOT NULL AND status = 'ACTIVE'"))
   @@index([normalizedName])
   @@index([status, name])
   @@map("clients")
@@ -1449,6 +1454,23 @@ model FinanceSettings {
   @@map("finance_settings")
 }
 
+/// What an entity sells, as coded in its invoice numbers ({SERVICE}), e.g.
+/// VLR for rentals. The code never changes once created; archive it instead.
+model InvoiceService {
+  id            String       @id @default(uuid()) @db.Uuid
+  legalEntityId String       @db.Uuid
+  legalEntity   LegalEntity  @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  code          String
+  name          String
+  status        RecordStatus @default(ACTIVE)
+  isDemo        Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([legalEntityId, code])
+  @@map("invoice_services")
+}
+
 enum AccountType {
   ASSET
   LIABILITY
@@ -1665,6 +1687,14 @@ model JournalLine {
 // posts it to the ledger; from then on it never changes, and corrections are
 // credit notes.
 
+// Proforma and commercial invoices ask the client to pay; only a tax invoice
+// is a GST invoice and posts to the ledger. All three share one number series.
+enum InvoiceKind {
+  PROFORMA
+  COMMERCIAL
+  TAX
+}
+
 enum InvoiceStatus {
   DRAFT
   ISSUED
@@ -1683,9 +1713,14 @@ model SalesInvoice {
   id                   String            @id @default(uuid()) @db.Uuid
   legalEntityId        String            @db.Uuid
   legalEntity          LegalEntity       @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  kind                 InvoiceKind       @default(TAX)
   // Given when the invoice is issued; drafts have none.
   number               String?
   status               InvoiceStatus     @default(DRAFT)
+  // The proforma or commercial invoice this one was made from.
+  sourceInvoiceId      String?           @db.Uuid
+  sourceInvoice        SalesInvoice?     @relation("InvoiceSource", fields: [sourceInvoiceId], references: [id], onDelete: Restrict)
+  madeFrom             SalesInvoice[]    @relation("InvoiceSource")
   clientId             String            @db.Uuid
   client               Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
   projectId            String?           @db.Uuid
@@ -1710,6 +1745,9 @@ model SalesInvoice {
   clientAddress        String?
   entityGstin          String?
   clientPoNumber       String?
+  // What was sold ({SERVICE} in the number), e.g. VLR. A code from the
+  // entity's invoice services, kept as text so the issued number reads the same.
+  serviceCode          String?
   notes                String?
   // Totals in the invoice currency, recalculated from the lines on every save.
   subtotalMinor        BigInt            @default(0)
@@ -1739,6 +1777,8 @@ model SalesInvoice {
   allocations ReceiptAllocation[]
 
   @@unique([legalEntityId, number])
+  // A proforma or commercial invoice becomes at most one invoice of each later kind.
+  @@unique([sourceInvoiceId, kind], map: "sales_invoices_source_kind_key", where: raw("status <> 'DISCARDED'"))
   @@index([clientId])
   @@index([projectId])
   @@index([legalEntityId, status, dueDate])

@@ -22,7 +22,7 @@ export async function receivablesAgeing(actor: Actor, legalEntityId: string, asA
   const live = { OR: [{ voidDate: null }, { voidDate: { gt: asAt } }] };
   const [invoices, credits, allocations, receipts] = await Promise.all([
     db.salesInvoice.findMany({
-      where: { legalEntityId, status: "ISSUED", invoiceDate: { lte: asAt } },
+      where: { legalEntityId, kind: "TAX", status: "ISSUED", invoiceDate: { lte: asAt } },
       select: {
         id: true,
         number: true,
