@@ -7,8 +7,9 @@
  *   everything else  straight to the network, never cached (API data lives in
  *                    IndexedDB, written by the app itself)
  *
- * A redirect on /field means the user is signed out or lost access: every
- * cache and the offline database are wiped.
+ * A redirect on /field means the session ended or access was lost: the
+ * caches and the show packs are wiped. Changes not yet sent are kept for the
+ * same user to send after signing in; signing out deletes them too.
  */
 
 const CACHE = "hmbl-field-v1";
@@ -29,12 +30,43 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-async function wipe() {
+async function clearCaches() {
   const keys = await caches.keys();
   await Promise.all(keys.filter((k) => k.startsWith("hmbl-field")).map((k) => caches.delete(k)));
+}
+
+/** Signing out: everything, the database included. */
+async function wipe() {
+  await clearCaches();
   await new Promise((resolve) => {
     const request = indexedDB.deleteDatabase(DATABASE);
     request.onsuccess = request.onerror = request.onblocked = () => resolve(undefined);
+  });
+}
+
+/** A session that ended: the packs and caches, not the changes waiting to be sent. */
+async function dropPacks() {
+  await clearCaches();
+  await new Promise((resolve) => {
+    const open = indexedDB.open(DATABASE);
+    open.onupgradeneeded = () => open.transaction?.abort();
+    open.onerror = () => resolve(undefined);
+    open.onsuccess = () => {
+      const db = open.result;
+      if (!db.objectStoreNames.contains("packs")) {
+        db.close();
+        return resolve(undefined);
+      }
+      const tx = db.transaction("packs", "readwrite");
+      tx.objectStore("packs").clear();
+      tx.oncomplete =
+        tx.onerror =
+        tx.onabort =
+          () => {
+            db.close();
+            resolve(undefined);
+          };
+    };
   });
 }
 
@@ -42,7 +74,7 @@ async function shell(request) {
   try {
     const response = await fetch(request);
     if (response.type === "opaqueredirect" || response.redirected) {
-      await wipe();
+      await dropPacks();
     } else if (response.ok) {
       const cache = await caches.open(CACHE);
       await cache.put(SHELL, response.clone());

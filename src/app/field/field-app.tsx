@@ -1,33 +1,52 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, CircleCheck, Circle, RefreshCw, Theater } from "lucide-react";
-import type { ShipmentStatus, ShowUpdateStatus } from "@/generated/prisma/enums";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { RefreshCw, Theater } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { formatZoned } from "@/lib/time-zone";
-import { endClock } from "@/lib/production";
-import { packExpiresAt, pickPackDay, type ShowPack } from "@/lib/offline/pack";
+import { packExpiresAt, type ShowPack } from "@/lib/offline/pack";
+import {
+  queueTick,
+  withQueued,
+  type OperationKind,
+  type OperationPayloads,
+  type QueuedOperation,
+} from "@/lib/offline/operations";
+import { requeue, sendQueue, type QueueStore, type SendResult } from "@/lib/offline/send";
 import {
   pruneStale,
   refreshPacks,
   type PackStore,
   type RefreshResult,
 } from "@/lib/offline/refresh";
-import { SHELL_CACHE, clearOfflineData, deletePack, listPacks, putPack } from "@/lib/offline/store";
+import {
+  SHELL_CACHE,
+  clearPacks,
+  deleteOperation,
+  deletePack,
+  listPacks,
+  listQueue,
+  putOperation,
+  putPack,
+} from "@/lib/offline/store";
 import { cn } from "@/lib/cn";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { Alert, EmptyState, Section } from "@/components/ui/page";
-import { StatusBadge, Tag } from "@/components/ui/status";
-import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { UPDATE_STATUS } from "../(app)/production/_components/show-tabs";
-import { SHIPMENT_STATUS } from "../(app)/logistics/_components/logistics-tabs";
+import { StatusBadge } from "@/components/ui/status";
+import { OfflineForms, PendingChanges, type Queue, type Resolve } from "./offline-changes";
+import { ShowView } from "./show-view";
 
 const store: PackStore = {
   list: listPacks,
   put: putPack,
   remove: deletePack,
-  clear: clearOfflineData,
+  // The session ended: packs go, changes not yet sent stay for the same user.
+  clear: clearPacks,
 };
+
+const queueStore: QueueStore = { list: listQueue, put: putOperation, remove: deleteOperation };
+
+/** While changes wait to be sent, how often to try again. */
+const SEND_EVERY_MS = 15_000;
 
 /** Keeps the app itself (this page and its scripts and styles) for opening offline. */
 async function keepAppShell() {
@@ -91,35 +110,55 @@ const RESULT_TEXT: Record<RefreshResult["outcome"], string | null> = {
   "signed-out": null,
 };
 
+const SEND_TEXT: Partial<Record<SendResult["outcome"], string>> = {
+  failed: "HMBL OS couldn't take your changes just now. They're saved here and will be sent again.",
+};
+
+const signIn = () => {
+  // A full load: the session has ended.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  window.location.assign("/sign-in?next=/field");
+};
+
 export function FieldApp({ userId, name }: { userId: string; name: string }) {
   const online = useOnline();
   const [packs, setPacks] = useState<ShowPack[] | null>(null);
+  const [queue, setQueue] = useState<QueuedOperation[]>([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RefreshResult | null>(null);
+  const [sendResult, setSendResult] = useState<SendResult | null>(null);
+  const sending = useRef(false);
   const showId = useShowParam();
 
   const reload = useCallback(async () => {
     await pruneStale(store, userId);
-    setPacks(
-      (await listPacks()).sort((a, b) =>
-        (a.days[0]?.date ?? "").localeCompare(b.days[0]?.date ?? ""),
-      ),
+    const [saved, queued] = await Promise.all([listPacks(), listQueue()]);
+    setPacks(saved.sort((a, b) => (a.days[0]?.date ?? "").localeCompare(b.days[0]?.date ?? "")));
+    setQueue(
+      queued
+        .filter((q) => q.userId === userId)
+        .sort((a, b) => a.queuedAt.localeCompare(b.queuedAt)),
     );
   }, [userId]);
 
-  const refresh = useCallback(async () => {
+  /** Sends what is waiting, then fetches fresh packs. One at a time. */
+  const sync = useCallback(async () => {
+    if (sending.current) return;
+    sending.current = true;
     setBusy(true);
     try {
-      const outcome = await refreshPacks(store, userId);
-      if (outcome.outcome === "signed-out") {
-        // A full load: the field app's data is already gone.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.assign("/sign-in?next=/field");
-        return;
+      const sent = await sendQueue(queueStore, userId);
+      if (sent.outcome === "signed-out") {
+        await clearPacks();
+        return signIn();
       }
-      setResult(outcome);
+      setSendResult(sent);
+      const fresh = await refreshPacks(store, userId);
+      if (fresh.outcome === "signed-out") return signIn();
+      setResult(fresh);
       await reload();
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   }, [reload, userId]);
@@ -127,23 +166,84 @@ export function FieldApp({ userId, name }: { userId: string; name: string }) {
   useEffect(() => {
     navigator.serviceWorker?.register("/sw.js", { scope: "/field" }).catch(() => undefined);
     void keepAppShell();
-    // Saved shows first, so the app works at once; then fresh ones if online.
+    // Saved shows first, so the app works at once; then send and refresh if online.
     const start = async () => {
       await reload();
-      if (navigator.onLine) await refresh();
+      if (navigator.onLine) await sync();
     };
     void start();
-    // Coming back online refreshes the packs straight away.
-    const back = () => void refresh();
+    // Coming back online sends and refreshes straight away.
+    const back = () => void sync();
     window.addEventListener("online", back);
     return () => window.removeEventListener("online", back);
-  }, [reload, refresh]);
+  }, [reload, sync]);
+
+  // Changes still waiting are tried again on a timer (each waits out its own back-off).
+  const waiting = queue.some((q) => q.state === "pending");
+  useEffect(() => {
+    if (!waiting || !online) return;
+    const timer = window.setInterval(() => void sync(), SEND_EVERY_MS);
+    return () => window.clearInterval(timer);
+  }, [waiting, online, sync]);
+
+  const enqueue = useCallback(
+    async <K extends OperationKind>(
+      projectId: string,
+      kind: K,
+      payload: OperationPayloads[K],
+      label: string,
+      baseVersion?: number,
+    ) => {
+      const op: QueuedOperation = {
+        id: crypto.randomUUID(),
+        userId,
+        kind,
+        projectId,
+        payload,
+        baseVersion: baseVersion ?? null,
+        queuedAt: new Date().toISOString(),
+        label,
+        state: "pending",
+        attempts: 0,
+        retryAt: null,
+        error: null,
+      };
+      if (kind === "checklist.tick") {
+        const itemId = (payload as OperationPayloads["checklist.tick"]).itemId;
+        const saved = packs
+          ?.find((p) => p.show.id === projectId)
+          ?.checklists.flatMap((l) => l.items)
+          .find((i) => i.id === itemId);
+        const { add, remove } = queueTick(queue, op, saved?.done ?? false);
+        for (const id of remove) await deleteOperation(id);
+        if (add) await putOperation(add);
+      } else {
+        await putOperation(op);
+      }
+      await reload();
+      if (navigator.onLine) void sync();
+    },
+    [packs, queue, reload, sync, userId],
+  );
+
+  const resolve: Resolve = useCallback(
+    async (op, action) => {
+      await deleteOperation(op.id);
+      if (action === "again") await putOperation(requeue(op, crypto.randomUUID()));
+      await reload();
+      if (action === "again" && navigator.onLine) void sync();
+    },
+    [reload, sync],
+  );
 
   const pack = showId ? (packs?.find((p) => p.show.id === showId) ?? null) : null;
+  const view = useMemo(() => (pack ? withQueued(pack, queue) : null), [pack, queue]);
   const synced = useMemo(
     () => (packs?.length ? packs.map((p) => p.syncedAt).sort()[0]! : null),
     [packs],
   );
+  const unsent = queue.length;
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-4 sm:px-6">
@@ -154,15 +254,14 @@ export function FieldApp({ userId, name }: { userId: string; name: string }) {
         </a>
         <div role="status" aria-live="polite" className="ml-auto flex items-center gap-2 text-sm">
           <StatusBadge status={online ? "online" : "offline"} />
+          {unsent ? <StatusBadge status="pending_sync" label={`${unsent} not sent`} /> : null}
           {busy ? (
-            <StatusBadge status="pending_sync" label="Refreshing" />
+            <StatusBadge status="in_progress" label="Syncing" />
           ) : synced ? (
-            <span className="text-secondary tabular">
-              Saved {formatDateTime(synced, Intl.DateTimeFormat().resolvedOptions().timeZone)}
-            </span>
+            <span className="text-secondary tabular">Saved {formatDateTime(synced, zone)}</span>
           ) : null}
         </div>
-        <Button size="sm" onClick={() => void refresh()} disabled={!online || busy}>
+        <Button size="sm" onClick={() => void sync()} disabled={!online || busy}>
           <RefreshCw aria-hidden className={cn("size-4", busy && "animate-spin")} />
           Refresh
         </Button>
@@ -173,31 +272,98 @@ export function FieldApp({ userId, name }: { userId: string; name: string }) {
           <Alert tone="warning" title={RESULT_TEXT[result.outcome]!} />
         </div>
       ) : null}
+      {sendResult && SEND_TEXT[sendResult.outcome] ? (
+        <div className="mb-4">
+          <Alert tone="warning" title={SEND_TEXT[sendResult.outcome]!} />
+        </div>
+      ) : null}
 
       {packs === null ? (
         <p className="text-secondary">Opening saved shows…</p>
       ) : showId ? (
-        pack ? (
-          <ShowView pack={pack} online={online} />
-        ) : (
-          <EmptyState
-            title="This show isn't saved on this device"
-            description="Only shows with a show day from yesterday to two weeks ahead are kept offline. Refresh while connected, or open another show."
-            action={
-              <a href="/field" className={buttonClasses("secondary")}>
-                All saved shows
-              </a>
+        view ? (
+          <ShowView
+            pack={view}
+            online={online}
+            onTick={
+              view.can.post
+                ? (item) =>
+                    void enqueue(
+                      view.show.id,
+                      "checklist.tick",
+                      { itemId: item.id, done: !item.done },
+                      `${item.done ? "Untick" : "Tick"} ${item.label}`,
+                      // The version on the device, not one a queued change implies.
+                      pack!.checklists.flatMap((l) => l.items).find((i) => i.id === item.id)
+                        ?.version,
+                    )
+                : undefined
+            }
+            changes={
+              <>
+                <PendingChanges
+                  queue={queue.filter((q) => q.projectId === view.show.id)}
+                  timeZone={view.show.timeZone}
+                  online={online}
+                  onResolve={resolve}
+                />
+                {view.can.post ? (
+                  <OfflineForms
+                    timeZone={view.show.timeZone}
+                    onQueue={
+                      ((kind, payload, label) =>
+                        enqueue(view.show.id, kind, payload, label)) as Queue
+                    }
+                  />
+                ) : null}
+              </>
             }
           />
+        ) : (
+          <>
+            <PendingChanges
+              queue={queue.filter((q) => q.projectId === showId)}
+              timeZone={zone}
+              online={online}
+              onResolve={resolve}
+            />
+            <EmptyState
+              title="This show isn't saved on this device"
+              description="Only shows with a show day from yesterday to two weeks ahead are kept offline. Refresh while connected, or open another show."
+              action={
+                <a href="/field" className={buttonClasses("secondary")}>
+                  All saved shows
+                </a>
+              }
+            />
+          </>
         )
       ) : (
-        <ShowList packs={packs} name={name} online={online} />
+        <>
+          <PendingChanges
+            queue={queue.filter((q) => !packs.some((p) => p.show.id === q.projectId))}
+            timeZone={zone}
+            online={online}
+            onResolve={resolve}
+          />
+          <ShowList packs={packs} queue={queue} name={name} online={online} />
+        </>
       )}
     </div>
   );
 }
 
-function ShowList({ packs, name, online }: { packs: ShowPack[]; name: string; online: boolean }) {
+function ShowList({
+  packs,
+  queue,
+  name,
+  online,
+}: {
+  packs: ShowPack[];
+  queue: QueuedOperation[];
+  name: string;
+  online: boolean;
+}) {
   if (!packs.length) {
     return (
       <EmptyState
@@ -217,407 +383,33 @@ function ShowList({ packs, name, online }: { packs: ShowPack[]; name: string; on
       description={`Saved on this device for ${name}. Each show is deleted 72 hours after it was last refreshed.`}
     >
       <ul className="divide-separator border-separator divide-y rounded-lg border">
-        {packs.map((p) => (
-          <li key={p.show.id}>
-            <a href={`/field?show=${p.show.id}`} className="hover:bg-hover block px-4 py-3">
-              <span className="text-text block font-medium">{p.show.name}</span>
-              <span className="text-secondary tabular block text-sm">
-                {p.show.number}
-                {p.show.venue ? ` · ${p.show.venue}` : ""}
-                {p.days.length
-                  ? ` · ${formatDate(p.days[0]!.date, "UTC")}${p.days.length > 1 ? ` to ${formatDate(p.days[p.days.length - 1]!.date, "UTC")}` : ""}`
-                  : ""}
-              </span>
-              <span className="text-muted tabular block text-xs">
-                Saved {formatDateTime(p.syncedAt, p.show.timeZone)} · deleted after{" "}
-                {formatDateTime(packExpiresAt(p), p.show.timeZone)} unless refreshed
-              </span>
-            </a>
-          </li>
-        ))}
+        {packs.map((p) => {
+          const unsent = queue.filter((q) => q.projectId === p.show.id).length;
+          return (
+            <li key={p.show.id}>
+              <a href={`/field?show=${p.show.id}`} className="hover:bg-hover block px-4 py-3">
+                <span className="text-text flex flex-wrap items-center gap-2 font-medium">
+                  {p.show.name}
+                  {unsent ? (
+                    <StatusBadge status="pending_sync" label={`${unsent} not sent`} />
+                  ) : null}
+                </span>
+                <span className="text-secondary tabular block text-sm">
+                  {p.show.number}
+                  {p.show.venue ? ` · ${p.show.venue}` : ""}
+                  {p.days.length
+                    ? ` · ${formatDate(p.days[0]!.date, "UTC")}${p.days.length > 1 ? ` to ${formatDate(p.days[p.days.length - 1]!.date, "UTC")}` : ""}`
+                    : ""}
+                </span>
+                <span className="text-muted tabular block text-xs">
+                  Saved {formatDateTime(p.syncedAt, p.show.timeZone)} · deleted after{" "}
+                  {formatDateTime(packExpiresAt(p), p.show.timeZone)} unless refreshed
+                </span>
+              </a>
+            </li>
+          );
+        })}
       </ul>
     </Section>
-  );
-}
-
-function ShowView({ pack, online }: { pack: ShowPack; online: boolean }) {
-  const { show } = pack;
-  const dates = pack.days.map((d) => d.date);
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: show.timeZone }).format(new Date());
-  const [date, setDate] = useState(() => pickPackDay(dates, today));
-  const day = pack.days.find((d) => d.date === date) ?? null;
-  const lists = pack.checklists.filter((l) => !l.day || l.day === date);
-
-  return (
-    <>
-      <a
-        href="/field"
-        className="text-secondary hover:text-text mb-3 inline-flex items-center gap-1 text-sm"
-      >
-        <ArrowLeft aria-hidden className="size-4" />
-        All saved shows
-      </a>
-      <h1 className="text-text text-lg font-semibold">{show.name}</h1>
-      <p className="text-secondary tabular mb-1 text-sm">
-        {show.number}
-        {show.venue ? ` · ${show.venue}` : ""}
-        {show.client ? ` · ${show.client}` : ""}
-      </p>
-      <p className="text-muted tabular mb-4 text-xs">
-        Saved {formatDateTime(pack.syncedAt, show.timeZone)}. Times are {show.timeZone}.
-        {online ? (
-          <>
-            {" "}
-            <a href={`/production/${show.id}`} className="text-accent underline">
-              Open the full show day
-            </a>
-          </>
-        ) : null}
-      </p>
-
-      {pack.status ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-          <StatusBadge status={UPDATE_STATUS[pack.status.status as ShowUpdateStatus]} />
-          <span className="text-text">{pack.status.message}</span>
-          <span className="text-muted tabular">
-            {pack.status.author}, {formatDateTime(pack.status.createdAt, show.timeZone)}
-          </span>
-        </div>
-      ) : null}
-
-      <nav aria-label="Show days" className="mb-6 flex flex-wrap gap-2">
-        {dates.map((d) => (
-          <button
-            key={d}
-            type="button"
-            onClick={() => setDate(d)}
-            aria-current={d === date ? "date" : undefined}
-            className={cn(
-              "border-border text-secondary hover:text-text tabular rounded-md border px-2.5 py-1 text-sm",
-              "aria-[current=date]:border-accent aria-[current=date]:text-text aria-[current=date]:font-medium",
-            )}
-          >
-            {formatDate(d, "UTC")}
-            {d === today ? " · Today" : ""}
-          </button>
-        ))}
-      </nav>
-
-      {day ? <DayView day={day} timeZone={show.timeZone} /> : null}
-
-      <Section title="Checklists">
-        {lists.length ? (
-          <div className="space-y-4">
-            {lists.map((l) => (
-              <div key={l.id}>
-                <h3 className="text-text mb-1 font-medium">
-                  {l.title}{" "}
-                  <span className="text-muted tabular text-sm font-normal">
-                    {l.items.filter((i) => i.done).length} of {l.items.length} done
-                  </span>
-                </h3>
-                <ul className="space-y-1">
-                  {l.items.map((i) => (
-                    <li key={i.id} className="flex items-start gap-2 text-base">
-                      {i.done ? (
-                        <CircleCheck aria-hidden className="text-success mt-0.5 size-4 shrink-0" />
-                      ) : (
-                        <Circle aria-hidden className="text-muted mt-0.5 size-4 shrink-0" />
-                      )}
-                      <span>
-                        <span className="sr-only">{i.done ? "Done: " : "Not done: "}</span>
-                        {i.label}
-                        {i.done && i.doneBy ? (
-                          <span className="text-muted tabular block text-xs">
-                            {i.doneBy}
-                            {i.doneAt ? `, ${formatDateTime(i.doneAt, show.timeZone)}` : ""}
-                          </span>
-                        ) : null}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-secondary text-base">No checklists for this day.</p>
-        )}
-      </Section>
-
-      <Section title="Notes">
-        {pack.notes.length ? (
-          <ul className="space-y-3">
-            {pack.notes.map((n) => (
-              <li key={n.id}>
-                {n.pinned ? <Tag tone="accent">Pinned</Tag> : null}
-                <p className="text-text text-base whitespace-pre-wrap">{n.body}</p>
-                <p className="text-muted tabular text-xs">
-                  {n.author}, {formatDateTime(n.createdAt, show.timeZone)}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-secondary text-base">No notes.</p>
-        )}
-      </Section>
-
-      <Section title="Contacts">
-        <ul className="space-y-1 text-base">
-          {show.projectManager ? (
-            <li>
-              Project manager: {show.projectManager.name},{" "}
-              <a className="text-accent underline" href={`mailto:${show.projectManager.email}`}>
-                {show.projectManager.email}
-              </a>
-            </li>
-          ) : null}
-          {show.producer ? (
-            <li>
-              Producer: {show.producer.name},{" "}
-              <a className="text-accent underline" href={`mailto:${show.producer.email}`}>
-                {show.producer.email}
-              </a>
-            </li>
-          ) : null}
-          {!show.projectManager && !show.producer ? (
-            <li className="text-secondary">No project manager or producer set.</li>
-          ) : null}
-        </ul>
-      </Section>
-
-      <Section title="Recent updates">
-        {pack.log.length ? (
-          <ul className="space-y-2 text-base">
-            {pack.log.map((e) => (
-              <li key={e.id} className="flex flex-wrap items-center gap-2">
-                {e.status ? (
-                  <StatusBadge status={UPDATE_STATUS[e.status as ShowUpdateStatus]} />
-                ) : null}
-                <span className="text-text">{e.text}</span>
-                <span className="text-muted tabular text-xs">
-                  {e.who}, {formatDateTime(e.at, show.timeZone)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-secondary text-base">Nothing yet.</p>
-        )}
-      </Section>
-    </>
-  );
-}
-
-const TRAVEL_KIND: Record<string, string> = {
-  FLIGHT: "Flight",
-  RAIL: "Train",
-  HOTEL: "Hotel",
-  GROUND: "Transfer",
-  OTHER: "Travel",
-};
-
-function DayView({ day, timeZone }: { day: ShowPack["days"][number]; timeZone: string }) {
-  const sheet = day.callSheet;
-  return (
-    <>
-      <Section title="Run of show">
-        {day.running.length ? (
-          <Table>
-            <THead>
-              <TR>
-                <TH>Time</TH>
-                <TH>What</TH>
-                <TH>Who and where</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {day.running.map((r) => (
-                <TR key={r.id}>
-                  <TD className="tabular whitespace-nowrap">
-                    {r.startTime}
-                    {endClock(r.startTime, r.durationMinutes)
-                      ? `–${endClock(r.startTime, r.durationMinutes)}`
-                      : ""}
-                  </TD>
-                  <TD>
-                    {r.title}
-                    {r.notes ? (
-                      <span className="text-secondary block text-sm">{r.notes}</span>
-                    ) : null}
-                  </TD>
-                  <TD className="text-secondary">
-                    {[r.owner, r.location].filter(Boolean).join(" · ") || "—"}
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        ) : (
-          <p className="text-secondary text-base">Nothing in the run of show for this day.</p>
-        )}
-      </Section>
-
-      <Section
-        title="Call sheet"
-        description={
-          sheet
-            ? `Revision ${sheet.revision}, published ${formatDateTime(sheet.publishedAt, timeZone)}`
-            : undefined
-        }
-      >
-        {sheet ? (
-          <>
-            {sheet.notes ? (
-              <p className="text-text mb-2 text-base whitespace-pre-wrap">{sheet.notes}</p>
-            ) : null}
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Call</TH>
-                  <TH>Name</TH>
-                  <TH>Role</TH>
-                  <TH>Phone</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {sheet.crew.map((c, i) => (
-                  <TR key={`${c.name}-${i}`}>
-                    <TD className="tabular">{c.callTime ?? "—"}</TD>
-                    <TD>{c.name}</TD>
-                    <TD>
-                      {c.role}
-                      {c.reportTo ? (
-                        <span className="text-secondary block text-sm">Report to {c.reportTo}</span>
-                      ) : null}
-                    </TD>
-                    <TD className="tabular">
-                      {c.phone ? (
-                        <a className="text-accent underline" href={`tel:${c.phone}`}>
-                          {c.phone}
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          </>
-        ) : (
-          <p className="text-secondary text-base">No call sheet published for this day.</p>
-        )}
-      </Section>
-
-      {day.travel.length ? (
-        <Section title="Travel">
-          <ul className="space-y-2 text-base">
-            {day.travel.map((t) => (
-              <li key={t.id}>
-                <span className="text-text font-medium">
-                  {TRAVEL_KIND[t.kind] ?? "Travel"}
-                  {t.provider ? `: ${t.provider}` : ""}
-                  {t.serviceDetails ? ` ${t.serviceDetails}` : ""}
-                </span>
-                <span className="text-secondary tabular block text-sm">
-                  {t.kind === "HOTEL"
-                    ? [
-                        t.address,
-                        t.checkIn && `in ${formatDate(t.checkIn, "UTC")}`,
-                        t.checkOut && `out ${formatDate(t.checkOut, "UTC")}`,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")
-                    : [
-                        [t.fromPlace, t.toPlace].filter(Boolean).join(" to "),
-                        t.departAt &&
-                          t.departTimeZone &&
-                          `departs ${formatZoned(new Date(t.departAt), t.departTimeZone)}`,
-                        t.arriveAt &&
-                          t.arriveTimeZone &&
-                          `arrives ${formatZoned(new Date(t.arriveAt), t.arriveTimeZone)}`,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                </span>
-                {t.travellers.length ? (
-                  <span className="text-muted block text-xs">{t.travellers.join(", ")}</span>
-                ) : null}
-                {t.driverName || t.driverPhone ? (
-                  <span className="text-muted tabular block text-xs">
-                    Driver {[t.driverName, t.driverPhone].filter(Boolean).join(", ")}
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ) : null}
-
-      {day.movements.length ? (
-        <Section title="Movements">
-          <ul className="space-y-2 text-base">
-            {day.movements.map((m) => (
-              <li key={m.id}>
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-text font-medium">{m.title}</span>
-                  <StatusBadge status={SHIPMENT_STATUS[m.status as ShipmentStatus]} />
-                </span>
-                <span className="text-secondary tabular block text-sm">
-                  {[
-                    [m.fromAddress, m.toAddress].filter(Boolean).join(" to "),
-                    m.pickupAt &&
-                      m.pickupTimeZone &&
-                      `pickup ${formatZoned(new Date(m.pickupAt), m.pickupTimeZone)}`,
-                    m.deliverBy &&
-                      m.deliverTimeZone &&
-                      `due ${formatZoned(new Date(m.deliverBy), m.deliverTimeZone)}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-                {m.carrier || m.driverName ? (
-                  <span className="text-muted tabular block text-xs">
-                    {[m.carrier, m.carrierPhone, m.vehicle, m.driverName, m.driverPhone]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ) : null}
-
-      {day.equipment.length ? (
-        <Section title="Equipment">
-          <Table>
-            <THead>
-              <TR>
-                <TH>Item</TH>
-                <TH className="text-right">Booked</TH>
-                <TH className="text-right">Out</TH>
-                <TH className="text-right">Back</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {day.equipment.map((e) => (
-                <TR key={e.id}>
-                  <TD>
-                    {e.item}
-                    {e.kit ? <span className="text-secondary block text-sm">{e.kit}</span> : null}
-                  </TD>
-                  <TD className="tabular text-right">{e.quantity}</TD>
-                  <TD className="tabular text-right">{e.dispatched}</TD>
-                  <TD className="tabular text-right">{e.returned}</TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        </Section>
-      ) : null}
-    </>
   );
 }

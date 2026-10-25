@@ -29,6 +29,7 @@ import {
   TimerOff,
   Info,
   Wifi,
+  GitMerge,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -58,6 +59,7 @@ export const STATUSES = {
   failed: { label: "Failed", icon: CircleX, tone: "danger" },
   offline: { label: "Offline", icon: CloudOff, tone: "neutral" },
   online: { label: "Online", icon: Wifi, tone: "success" },
+  conflict: { label: "Conflict", icon: GitMerge, tone: "warning" },
   pending_sync: { label: "Pending sync", icon: RefreshCw, tone: "warning" },
   active: { label: "Active", icon: CircleDot, tone: "success" },
   archived: { label: "Archived", icon: Archive, tone: "neutral" },

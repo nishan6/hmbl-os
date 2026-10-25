@@ -7,8 +7,15 @@ import { diffChanges } from "@/server/audit/diff";
 import { can, type Actor } from "@/server/permissions/authorize";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { parseInput } from "@/lib/parse";
+import { SHOW_UPDATE_STATUSES } from "@/lib/production";
 import { requiredText } from "@/lib/validation";
-import { loadShow, lockShow } from "./access";
+import {
+  inShowTransaction,
+  loadShow,
+  lockShow,
+  offlineMetadata,
+  type WriteOptions,
+} from "./access";
 
 /*
  * What the people at the show say: production notes (access, power, client
@@ -18,13 +25,7 @@ import { loadShow, lockShow } from "./access";
  * changed or archived by their author or by whoever plans the show.
  */
 
-export const SHOW_UPDATE_STATUSES: Record<ShowUpdateStatus, string> = {
-  ON_TRACK: "On track",
-  DELAYED: "Delayed",
-  ISSUE: "Issue",
-  DONE: "Done for the day",
-  INFO: "Information",
-};
+export { SHOW_UPDATE_STATUSES };
 
 const NOTE_FIELDS = ["body", "pinned"] as const;
 
@@ -61,9 +62,14 @@ const noteInput = z.object({
 });
 export type NoteInput = z.input<typeof noteInput>;
 
-export async function addNote(actor: Actor, projectId: string, raw: NoteInput) {
+export async function addNote(
+  actor: Actor,
+  projectId: string,
+  raw: NoteInput,
+  options?: WriteOptions,
+) {
   const input = parseInput(noteInput, raw);
-  return db.$transaction(async (tx) => {
+  return inShowTransaction(options, async (tx) => {
     const project = await lockShow(tx, actor, projectId, "production.create");
     // Pinning puts a note above the others, which is planning.
     const pinned =
@@ -77,7 +83,7 @@ export async function addNote(actor: Actor, projectId: string, raw: NoteInput) {
       targetId: note.id,
       legalEntityId: project.legalEntityId,
       changes: diffChanges(null, note, NOTE_FIELDS),
-      metadata: { projectId },
+      metadata: { projectId, ...offlineMetadata(options) },
     });
     return note;
   });
@@ -154,9 +160,14 @@ const updateInput = z.object({
 });
 export type StatusUpdateInput = z.input<typeof updateInput>;
 
-export async function postStatusUpdate(actor: Actor, projectId: string, raw: StatusUpdateInput) {
+export async function postStatusUpdate(
+  actor: Actor,
+  projectId: string,
+  raw: StatusUpdateInput,
+  options?: WriteOptions,
+) {
   const input = parseInput(updateInput, raw);
-  return db.$transaction(async (tx) => {
+  return inShowTransaction(options, async (tx) => {
     const project = await lockShow(tx, actor, projectId, "production.create");
     const update = await tx.showStatusUpdate.create({
       data: { projectId, status: input.status, message: input.message, createdById: actor.id },
@@ -166,7 +177,7 @@ export async function postStatusUpdate(actor: Actor, projectId: string, raw: Sta
       targetType: "show_status_update",
       targetId: update.id,
       legalEntityId: project.legalEntityId,
-      metadata: { projectId, status: input.status },
+      metadata: { projectId, status: input.status, ...offlineMetadata(options) },
     });
     return update;
   });

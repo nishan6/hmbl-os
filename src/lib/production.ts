@@ -1,3 +1,9 @@
+import type {
+  IncidentCategory,
+  IncidentSeverity,
+  ShowUpdateStatus,
+} from "@/generated/prisma/enums";
+
 /**
  * Pure show-day rules (docs/production.md): wall-clock times, the days a show
  * covers, and whether a published call sheet still matches the bookings.
@@ -148,3 +154,30 @@ export function checklistProgress(items: { doneAt: Date | null }[]) {
   const done = items.filter((i) => i.doneAt).length;
   return { done, total: items.length, complete: items.length > 0 && done === items.length };
 }
+
+/** Show-day labels, shared by the show day and the field app. */
+export const SHOW_UPDATE_STATUSES: Record<ShowUpdateStatus, string> = {
+  ON_TRACK: "On track",
+  DELAYED: "Delayed",
+  ISSUE: "Issue",
+  DONE: "Done for the day",
+  INFO: "Information",
+};
+
+export const INCIDENT_CATEGORIES: Record<IncidentCategory, string> = {
+  SAFETY: "Safety",
+  INJURY: "Injury or illness",
+  TECHNICAL: "Technical",
+  EQUIPMENT: "Equipment",
+  CREW: "Crew",
+  VENUE: "Venue",
+  SECURITY: "Security",
+  OTHER: "Other",
+};
+
+export const INCIDENT_SEVERITIES: Record<IncidentSeverity, string> = {
+  LOW: "Low",
+  MEDIUM: "Medium",
+  HIGH: "High",
+  CRITICAL: "Critical",
+};

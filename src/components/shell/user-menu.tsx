@@ -5,7 +5,7 @@ import { DropdownMenu } from "radix-ui";
 import Link from "next/link";
 import { Check, LogOut, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { clearOfflineData } from "@/lib/offline/store";
+import { clearOfflineData, confirmSignOut } from "@/lib/offline/store";
 import { setThemePreference } from "@/app/(app)/actions";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/cn";
@@ -84,7 +84,8 @@ export function UserMenu({ name, email, theme }: { name: string; email: string; 
           <DropdownMenu.Item
             className={cn(item)}
             onSelect={async () => {
-              // Show packs kept for offline use go with the session (docs/offline.md).
+              // What the field app keeps on this device goes with the session (docs/offline.md).
+              if (!(await confirmSignOut())) return;
               await clearOfflineData();
               await authClient.signOut();
               // A full load drops every page the router cached while signed in.

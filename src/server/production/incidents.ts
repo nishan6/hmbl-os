@@ -1,15 +1,21 @@
 import "server-only";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
-import type { IncidentCategory, IncidentSeverity } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { recordAudit } from "@/server/audit/record";
 import { diffChanges } from "@/server/audit/diff";
 import { can, type Actor } from "@/server/permissions/authorize";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { parseInput } from "@/lib/parse";
+import { INCIDENT_CATEGORIES, INCIDENT_SEVERITIES } from "@/lib/production";
 import { optionalText, requiredText } from "@/lib/validation";
-import { loadShow, lockShow } from "./access";
+import {
+  inShowTransaction,
+  loadShow,
+  lockShow,
+  offlineMetadata,
+  type WriteOptions,
+} from "./access";
 
 /*
  * Incident records (spec §16): anything that went wrong at a show, from a
@@ -23,23 +29,7 @@ import { loadShow, lockShow } from "./access";
 type Tx = Prisma.TransactionClient;
 type Incident = Prisma.ShowIncidentGetPayload<object>;
 
-export const INCIDENT_CATEGORIES: Record<IncidentCategory, string> = {
-  SAFETY: "Safety",
-  INJURY: "Injury or illness",
-  TECHNICAL: "Technical",
-  EQUIPMENT: "Equipment",
-  CREW: "Crew",
-  VENUE: "Venue",
-  SECURITY: "Security",
-  OTHER: "Other",
-};
-
-export const INCIDENT_SEVERITIES: Record<IncidentSeverity, string> = {
-  LOW: "Low",
-  MEDIUM: "Medium",
-  HIGH: "High",
-  CRITICAL: "Critical",
-};
+export { INCIDENT_CATEGORIES, INCIDENT_SEVERITIES };
 
 const FIELDS = [
   "occurredAt",
@@ -121,8 +111,13 @@ export async function listIncidents(actor: Actor, projectId: string) {
   }));
 }
 
-/** Reports an incident. `tx` lets an offline change run in its sync transaction. */
-export async function reportIncident(actor: Actor, projectId: string, raw: IncidentInput, tx?: Tx) {
+/** Reports an incident. */
+export async function reportIncident(
+  actor: Actor,
+  projectId: string,
+  raw: IncidentInput,
+  options?: WriteOptions,
+) {
   const input = parseInput(incidentInput, raw);
   checkTime(input.occurredAt);
   const run = async (t: Tx) => {
@@ -146,11 +141,12 @@ export async function reportIncident(actor: Actor, projectId: string, raw: Incid
         severity: incident.severity,
         category: incident.category,
         title: incident.title,
+        ...offlineMetadata(options),
       },
     });
     return incident;
   };
-  return tx ? run(tx) : db.$transaction(run);
+  return inShowTransaction(options, run);
 }
 
 async function loadIncident(actor: Actor, id: string) {
