@@ -209,6 +209,8 @@ export type LogEntry = {
   who: string;
   kind: "update" | "change";
   status: ShowUpdateStatus | null;
+  /** The audit action of a change; null for a status update. */
+  action: string | null;
   text: string;
 };
 
@@ -238,6 +240,7 @@ export async function showLog(actor: Actor, projectId: string, take = 100): Prom
       who: who.get(u.createdById) ?? "Unknown",
       kind: "update" as const,
       status: u.status,
+      action: null,
       text: u.message,
     })),
     ...events.map((e) => {
@@ -258,6 +261,7 @@ export async function showLog(actor: Actor, projectId: string, take = 100): Prom
         who: e.actorLabel.replace(/ <.*>$/, ""),
         kind: "change" as const,
         status: null,
+        action: e.action,
         text: `${LOG_ACTIONS[e.action]}${detail}`,
       };
     }),

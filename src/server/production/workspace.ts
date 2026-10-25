@@ -105,7 +105,7 @@ export async function showCalendar(actor: Actor, projectId: string, asked?: Date
 }
 
 /** Equipment booked over the day: what, how many, and what is out or back. */
-async function equipmentOn(projectId: string, day: Date) {
+export async function equipmentOn(projectId: string, day: Date) {
   const rows = await db.equipmentBooking.findMany({
     where: {
       projectId,
@@ -130,7 +130,7 @@ async function equipmentOn(projectId: string, day: Date) {
 }
 
 /** Confirmed travel touching the day: journeys that day, hotels over the night. */
-async function travelOn(projectId: string, day: Date) {
+export async function travelOn(projectId: string, day: Date) {
   const next = new Date(day.getTime() + DAY);
   const bookings = await db.travelBooking.findMany({
     where: {
@@ -181,7 +181,7 @@ function localDay(instant: Date, timeZone: string) {
 }
 
 /** Movements for the show that are on the road or due around the day. */
-async function movementsOn(projectId: string, day: Date) {
+export async function movementsOn(projectId: string, day: Date) {
   const rows = await db.shipment.findMany({
     where: {
       projectId,

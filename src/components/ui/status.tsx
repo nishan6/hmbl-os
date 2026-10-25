@@ -28,6 +28,7 @@ import {
   Mail,
   TimerOff,
   Info,
+  Wifi,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -56,6 +57,7 @@ export const STATUSES = {
   completed: { label: "Completed", icon: CircleCheck, tone: "success" },
   failed: { label: "Failed", icon: CircleX, tone: "danger" },
   offline: { label: "Offline", icon: CloudOff, tone: "neutral" },
+  online: { label: "Online", icon: Wifi, tone: "success" },
   pending_sync: { label: "Pending sync", icon: RefreshCw, tone: "warning" },
   active: { label: "Active", icon: CircleDot, tone: "success" },
   archived: { label: "Archived", icon: Archive, tone: "neutral" },
