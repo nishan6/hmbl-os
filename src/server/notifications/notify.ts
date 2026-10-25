@@ -27,6 +27,7 @@ export const NOTIFICATION_KINDS = {
   "closeout.incomplete": "A finished project's closeout is incomplete",
   "portal.invitation_accepted": "Someone you invited to the portal created their account",
   "portal.client_activity": "A client answered a quotation or sent information in the portal",
+  "production.incident": "A serious incident was reported at a show",
   "portal.supplier_activity":
     "A vendor or freelancer answered, uploaded an invoice or sent details in the portal",
 } as const;

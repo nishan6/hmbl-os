@@ -59,4 +59,5 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 | Portal accounts, invitations and access      | Built — see [portal.md](portal.md)                             |
 | Client portal                                | Built — see [client-portal.md](client-portal.md)               |
 | Vendor and freelancer portal                 | Built — see [vendor-portal.md](vendor-portal.md)               |
+| Production workspace and show day            | Built — see [production.md](production.md)                     |
 | Other business modules                       | Not started; listed in the navigation as "Planned"             |

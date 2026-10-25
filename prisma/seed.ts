@@ -30,6 +30,7 @@ import {
   seedDemoTravel,
 } from "./seed/operations";
 import { seedDemoPortal, seedDemoPortalBookings, seedDemoShares } from "./seed/portal";
+import { seedDemoProduction } from "./seed/production";
 import { DEMO_PASSWORD } from "./seed/demo-credentials";
 
 export const DEMO_USERS = [
@@ -42,6 +43,7 @@ export const DEMO_USERS = [
   { name: "Demo Crew Coordinator", email: "crew@demo.hmbl.test", roleKeys: ["crew_coordinator"] },
   { name: "Demo Warehouse", email: "warehouse@demo.hmbl.test", roleKeys: ["warehouse"] },
   { name: "Demo Procurement", email: "procurement@demo.hmbl.test", roleKeys: ["procurement"] },
+  { name: "Demo Show Crew", email: "show@demo.hmbl.test", roleKeys: ["show_crew"] },
   // Finance for the Indian demo entity only, to show entity scoping.
   { name: "Demo Finance India", email: "finance.in@demo.hmbl.test", roleKeys: [] },
   // Finance without two-factor yet: shows the forced setup screen on sign-in.
@@ -105,6 +107,7 @@ async function main() {
   for (const email of await seedDemoPortal(db)) console.log(`Demo portal user: ${email}`);
   console.log(`Demo portal shares: ${await seedDemoShares(db, pm.id)}`);
   console.log(`Demo freelancer bookings: ${await seedDemoPortalBookings(db, pm.id)}`);
+  console.log(`Demo running order entries: ${await seedDemoProduction(db, pm.id)}`);
   await seedDemoTwoFactor(
     db,
     DEMO_USERS.map((u) => u.email).filter((email) => !email.startsWith("new.")),

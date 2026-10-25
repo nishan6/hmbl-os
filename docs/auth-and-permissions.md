@@ -45,9 +45,10 @@ Created once if missing by `pnpm db:seed` or `pnpm user:create`, then editable. 
 | Finance          | Finance and reports in full, sensitive commercial/project/crew figures, procurement approval and settings |
 | Sales            | CRM, quotations up to submit and issue (not approve), project view                                        |
 | Project manager  | Projects up to submit, production, crew, equipment, procurement and logistics requests                    |
-| Crew coordinator | Crew records, rates and availability in full; project view                                                |
-| Warehouse        | Equipment, stock and maintenance in full, including return to service; project view                       |
+| Crew coordinator | Crew records, rates and availability in full; project and show-day view                                   |
+| Warehouse        | Equipment, stock and maintenance in full, including return to service; project view; show-day posts       |
 | Procurement      | Vendors (not bank details or TDS), purchase orders up to submit, amendments and receipts                  |
+| Show crew        | The show day: view, status updates and notes; project and document view                                   |
 | Viewer           | View-only, no sensitive data, no users or audit                                                           |
 
 ## Portal users

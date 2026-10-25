@@ -17,62 +17,67 @@ const PENDING_BILL = ["DRAFT", "SUBMITTED"] as const;
 /**
  * The closeout items that the records can check (docs/closeout.md, "Checked
  * from the records"): crew settled, equipment back, and every purchase order,
- * vendor bill, trip and logistics movement finished. An item with blockers can't be marked done or not
+ * vendor bill, trip and logistics movement finished, and no show incident open. An item with blockers can't be marked done or not
  * applicable, and closing the project over it is an override.
  */
 export async function closeoutBlockers(
   reader: Reader,
   projectId: string,
 ): Promise<CloseoutBlockers> {
-  const [assignments, work, bookings, orders, bills, trips, shipments] = await Promise.all([
-    reader.crewAssignment.findMany({
-      where: { projectId, status: "PROPOSED" },
-      include: { crewMember: { select: { name: true } } },
-      orderBy: { startDate: "asc" },
-    }),
-    reader.crewWorkRecord.findMany({
-      where: {
-        assignment: { projectId },
-        OR: [
-          { approvedAt: null },
-          { settlementId: null, assignment: { crewMember: { kind: "FREELANCER" } } },
-          { settlement: { bill: { status: { in: [...PENDING_BILL] } } } },
-        ],
-      },
-      include: {
-        assignment: { include: { crewMember: { select: { name: true, kind: true } } } },
-        settlement: { include: { bill: { select: { id: true, status: true } } } },
-      },
-      orderBy: { date: "asc" },
-    }),
-    reader.equipmentBooking.findMany({
-      where: { projectId, status: "RESERVED", dispatchedQuantity: { gt: 0 } },
-      include: { item: { select: { name: true } } },
-      orderBy: { startDate: "asc" },
-    }),
-    reader.purchaseOrder.findMany({
-      where: { projectId, status: { notIn: ["CLOSED", "CANCELLED"] } },
-      include: { vendor: { select: { name: true } }, lines: { orderBy: { position: "asc" } } },
-      orderBy: { createdAt: "asc" },
-    }),
-    reader.vendorBill.findMany({
-      where: {
-        status: { in: [...PENDING_BILL] },
-        crewSettlement: null,
-        lines: { some: { projectId } },
-      },
-      include: { vendor: { select: { name: true } } },
-      orderBy: { billDate: "asc" },
-    }),
-    reader.travelRequest.findMany({
-      where: { projectId, status: { in: ["DRAFT", "SUBMITTED", "APPROVED"] } },
-      orderBy: { startDate: "asc" },
-    }),
-    reader.shipment.findMany({
-      where: { projectId, status: { in: ["PLANNED", "BOOKED", "IN_TRANSIT"] } },
-      orderBy: { pickupAt: "asc" },
-    }),
-  ]);
+  const [assignments, work, bookings, orders, bills, trips, shipments, incidents] =
+    await Promise.all([
+      reader.crewAssignment.findMany({
+        where: { projectId, status: "PROPOSED" },
+        include: { crewMember: { select: { name: true } } },
+        orderBy: { startDate: "asc" },
+      }),
+      reader.crewWorkRecord.findMany({
+        where: {
+          assignment: { projectId },
+          OR: [
+            { approvedAt: null },
+            { settlementId: null, assignment: { crewMember: { kind: "FREELANCER" } } },
+            { settlement: { bill: { status: { in: [...PENDING_BILL] } } } },
+          ],
+        },
+        include: {
+          assignment: { include: { crewMember: { select: { name: true, kind: true } } } },
+          settlement: { include: { bill: { select: { id: true, status: true } } } },
+        },
+        orderBy: { date: "asc" },
+      }),
+      reader.equipmentBooking.findMany({
+        where: { projectId, status: "RESERVED", dispatchedQuantity: { gt: 0 } },
+        include: { item: { select: { name: true } } },
+        orderBy: { startDate: "asc" },
+      }),
+      reader.purchaseOrder.findMany({
+        where: { projectId, status: { notIn: ["CLOSED", "CANCELLED"] } },
+        include: { vendor: { select: { name: true } }, lines: { orderBy: { position: "asc" } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      reader.vendorBill.findMany({
+        where: {
+          status: { in: [...PENDING_BILL] },
+          crewSettlement: null,
+          lines: { some: { projectId } },
+        },
+        include: { vendor: { select: { name: true } } },
+        orderBy: { billDate: "asc" },
+      }),
+      reader.travelRequest.findMany({
+        where: { projectId, status: { in: ["DRAFT", "SUBMITTED", "APPROVED"] } },
+        orderBy: { startDate: "asc" },
+      }),
+      reader.shipment.findMany({
+        where: { projectId, status: { in: ["PLANNED", "BOOKED", "IN_TRANSIT"] } },
+        orderBy: { pickupAt: "asc" },
+      }),
+      reader.showIncident.findMany({
+        where: { projectId, status: "OPEN" },
+        orderBy: { occurredAt: "asc" },
+      }),
+    ]);
 
   const crew: CloseoutBlocker[] = assignments.map((a) => ({
     text: `${a.crewMember.name} is still proposed as ${a.role}. Confirm or cancel the booking.`,
@@ -150,7 +155,14 @@ export async function closeoutBlockers(
     });
   }
 
+  // The final report can't be filed while an incident at the show is open.
+  const report: CloseoutBlocker[] = incidents.map((i) => ({
+    text: `The incident "${i.title}" is still open. Resolve it on the show's incidents.`,
+    href: `/production/${projectId}/incidents`,
+  }));
+
   const blockers: CloseoutBlockers = {};
+  if (report.length) blockers.FINAL_REPORT = report;
   if (crew.length) blockers.CREW_SETTLED = crew;
   if (equipment.length) blockers.EQUIPMENT_RETURNED = equipment;
   if (vendorBills.length) blockers.VENDOR_BILLS_RECEIVED = vendorBills;
