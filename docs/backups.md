@@ -19,7 +19,7 @@ pnpm db:restore-check --keep                                 # leave the copy to
 It:
 
 1. Creates an empty scratch database, `<database>_restore_check`, on the same Postgres server. The live database is never written to, apart from storing the result.
-2. Restores the dump into it with `pg_restore --exit-on-error`, so a damaged or cut-off dump fails at once. On HMBL's computer Postgres runs in Docker and the container's `pg_restore` is used; elsewhere the one on the PATH. `PG_TOOLS=docker` or `PG_TOOLS=local` forces one.
+2. Restores the dump into it with `pg_restore --exit-on-error`, so a damaged or cut-off dump fails at once. On HMBL's computer Postgres runs in Docker and the container's `pg_restore` is used; elsewhere the one on the PATH. `PG_TOOLS=docker` or `PG_TOOLS=local` forces one. Tools on the PATH must be the same major version as the server: a newer `pg_dump` writes settings an older server rejects, and the check fails with "unrecognized configuration parameter".
 3. Checks the copy holds the data (users, audit history up to before the backup was taken, journals, invoices, projects).
 4. Runs the readiness integrity checks against the copy: journals balance, documents and the ledger agree, no duplicate postings, control accounts agree, protections in place, records audited, migrations applied.
 5. Looks for every stored document and expense receipt the copy lists in `BACKUP_DIR/storage`, at the right size.

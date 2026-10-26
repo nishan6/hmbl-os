@@ -55,6 +55,14 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # The restore check test dumps and restores with the command-line tools.
+      # They must not be newer than the server: a newer pg_dump writes
+      # settings Postgres 16 rejects.
+      - name: Postgres 16 client tools
+        run: |
+          sudo apt-get install -y --no-install-recommends postgresql-client-16
+          echo /usr/lib/postgresql/16/bin >> "$GITHUB_PATH"
+
       - name: Create test database
         run: PGPASSWORD=hmbl psql -h localhost -U hmbl -d hmbl_ci -c "CREATE DATABASE hmbl_ci_test"
 
