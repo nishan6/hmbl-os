@@ -15,7 +15,7 @@ Each one has a date range, which counts both the first and last day, and optiona
 - **A day rate:** the planned cost per unit per day, before tax.
 - **Notes.**
 
-This is a plan of needs. Named crew members and specific assets are booked against these requirements in Stage 5 (crew and equipment). Double-booking checks come with Stage 5 too.
+This is a plan of needs. Named crew members and specific assets are booked against these requirements, with clash checks, in [crew.md](crew.md) and [equipment.md](equipment.md).
 
 People with `projects.edit` add, change and remove requirements while the project is open. Each change is audited as `resource.created`, `.updated` or `.deleted`. A database CHECK keeps the quantity above zero, the dates in order and the rate non-negative. Removing a draft budget line unlinks its requirements.
 

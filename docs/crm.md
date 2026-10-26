@@ -63,9 +63,9 @@ The spec asks that these never be mixed up. The pipeline shows only the first.
 | Value                   | Where it comes from                                                        |
 | ----------------------- | -------------------------------------------------------------------------- |
 | Opportunity value       | `opportunities.expectedValueMinor`: the salesperson's estimate, before tax |
-| Quoted value            | The latest quote version (Stage 2, quotes)                                 |
+| Quoted value            | The latest quote version ([commercial.md](commercial.md))                  |
 | Approved contract value | The accepted quote version                                                 |
-| Recognised revenue      | Finance (Stage 4)                                                          |
+| Recognised revenue      | Finance ([ledger.md](ledger.md), revenue recognition)                      |
 
 Totals are always shown per currency; amounts in different currencies are never added together. The weighted value is each opportunity's value times its win probability.
 

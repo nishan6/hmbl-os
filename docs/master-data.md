@@ -26,7 +26,7 @@ Percentages are integers in basis points everywhere (`src/lib/percent.ts`). Peop
 
 ## Indian GST split
 
-A rate is stored as the total GST (18%). Splitting it into CGST and SGST for supplies within a state, or IGST between states, is an invoicing concern and comes with tax configuration in Stage 4.
+A rate is stored as the total GST (18%). Splitting it into CGST and SGST for supplies within a state, or IGST between states, happens on the invoice ([invoicing.md](invoicing.md)).
 
 ## Number formats for new entities
 

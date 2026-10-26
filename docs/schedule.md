@@ -30,4 +30,4 @@ Billing milestones come from the quote's payment terms (see [projects.md](projec
 
 When the event dates on the project change, the due dates that follow them move too, and `project.billing_due_dates_moved` records the old and new dates. A project manager can instead set a due date by hand, with a reason. That date then stays put when the event dates move. A database CHECK makes sure a date set by hand always has a reason. Clearing the date goes back to the calculated one. Each change is audited as `project.billing_due_date_set`.
 
-Invoicing against these milestones comes with Finance.
+Finance invoices against these milestones ([invoicing.md](invoicing.md)).
