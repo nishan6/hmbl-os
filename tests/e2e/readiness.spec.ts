@@ -7,7 +7,7 @@ test("an owner runs the readiness checks and keeps the run as evidence", async (
   await page.getByRole("navigation").getByRole("link", { name: "Readiness" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Readiness" })).toBeVisible();
 
-  const runs = page.getByRole("table");
+  const runs = page.getByRole("region", { name: "Earlier runs" }).getByRole("table");
   const before = (await runs.isVisible()) ? await runs.getByRole("row").count() : 1;
   await page.getByRole("button", { name: "Run checks now" }).click();
   await expect(

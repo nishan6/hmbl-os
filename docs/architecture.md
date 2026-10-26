@@ -66,3 +66,5 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 | Financial migration                          | Built — see [migration.md](migration.md)                       |
 | Integrations                                 | Built — see [integrations.md](integrations.md)                 |
 | Production-readiness checks                  | Built — see [readiness.md](readiness.md)                       |
+| Backups and restore checks                   | Built — see [backups.md](backups.md)                           |
+| Error and job monitoring                     | Built — see [monitoring.md](monitoring.md)                     |

@@ -17,14 +17,13 @@ export type ReadinessContext = {
 
 export function readinessContext(overrides: Partial<ReadinessContext> = {}): ReadinessContext {
   const e = overrides.env ?? env();
-  const root = process.cwd();
   return {
     now: new Date(),
     env: e,
     production: e.APP_ENV === "production",
     database: databaseName(e.DATABASE_URL),
-    migrationsDir: path.join(root, "prisma", "migrations"),
-    backupDir: path.resolve(root, e.BACKUP_DIR),
+    migrationsDir: path.resolve("prisma", "migrations"),
+    backupDir: path.resolve(e.BACKUP_DIR),
     ...overrides,
   };
 }
