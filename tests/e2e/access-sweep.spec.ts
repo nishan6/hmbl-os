@@ -35,7 +35,7 @@ const pages = find(APP, "page.tsx").map(url);
 const apis = find(path.join(APP, "api"), "route.ts").map(url);
 
 /** Open on purpose: see tests/unit/server-boundaries.test.ts for the reasons. */
-const PUBLIC_PAGES = ["/sign-in", `/invite/${NOBODY}`];
+const PUBLIC_PAGES = ["/sign-in", `/invite/${NOBODY}`, `/sign-in/link/${NOBODY}`];
 const PUBLIC_APIS = ["/api/auth/x", "/api/health", `/api/calendar/${NOBODY}`];
 
 const internal = pages.filter(

@@ -25,7 +25,16 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
           <p className="text-secondary mt-1 text-sm">Accounts are created by your administrator.</p>
           {welcome ? (
             <div className="mt-4">
-              <Alert tone="success" title="Your portal account is ready">
+              <Alert
+                tone="success"
+                title={
+                  welcome === "password"
+                    ? "Your new password is set"
+                    : welcome === "staff"
+                      ? "Your account is ready"
+                      : "Your portal account is ready"
+                }
+              >
                 Sign in with the email and password you just chose.
               </Alert>
             </div>

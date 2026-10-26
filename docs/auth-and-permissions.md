@@ -3,16 +3,29 @@
 ## Sign-in
 
 - Better Auth, email and password only (`src/server/auth/auth.ts`). Passwords are hashed by Better Auth; HMBL OS never handles hashes itself except to pass one through when an administrator creates an account.
-- **Public sign-up is disabled.** Accounts are created by a user with `users.create`, or from the command line for the first owner:
+- **Public sign-up is disabled.** The first owner is created from the command line:
 
   ```bash
   HMBL_NEW_USER_PASSWORD='a long passphrase' pnpm user:create --name "Full Name" --email you@example.com --role owner
   ```
 
+  Everyone else is invited from **Administration → Users** (see [Staff accounts](#staff-accounts)).
+
 - Sessions are stored in Postgres (`sessions` table), last 12 hours and refresh hourly while in use. Disabling a user deletes all their sessions, and a disabled user cannot start a new one.
 - Sign-in attempts are rate limited per IP (10 per minute, stored in Postgres). Rate limiting is off only when `APP_ENV=test`.
 - The sign-in form shows one message for every failure so it doesn't reveal which emails have accounts.
 - `src/proxy.ts` redirects requests with no session cookie to `/sign-in`. That is a convenience only; it is not the security boundary.
+
+## Staff accounts
+
+Administration → **Users** (`/admin/users`) lists everyone who signs in to HMBL OS. The service is `src/server/users/links.ts` (links and passwords) and `src/server/users/service.ts` (roles and status); its tests are `tests/integration/staff-accounts.test.ts` and `tests/e2e/users.spec.ts`.
+
+- **Inviting** (`users.create` and `users.configure`): name, email and one role, for every legal entity or one. HMBL OS sends no email in Version 1, so the page shows a link once, to copy and send by hand. It works once, for 7 days. The person opens it, types the address it was made for, and chooses their name and password; the account is created with the role, granted by the inviter. More roles can be granted afterwards.
+- **Roles** are granted and removed on the person's page. Nobody can grant a role with permissions they don't hold themselves, for wider entities than they hold them, and HMBL OS always keeps one active owner.
+- **Forgotten password or lost phone** (`users.configure`): the person's page makes a one-use password link, valid for 24 hours, optionally also removing their authenticator app. Using it sets the new password and ends all their sessions. Only someone who could grant every role the person holds may do this, so an administrator can't take over an owner's account. Making a new link withdraws the old one.
+- **Disabling** (`users.archive`) signs the person out everywhere at once and stops them signing in; their records and history stay. **Enabling** lets them back in with the roles they still hold.
+- **Changing your own password**: Account menu → **Sign-in security**. The current password is checked; every other session is ended.
+- Links are stored as a SHA-256 hash only. A link stops working if it expires, is withdrawn, the account is disabled, or the person who made it has since lost the right to. The database refuses any change to a used or withdrawn link, or deleting one (`account_links_guard`).
 
 ## Two-factor sign-in
 
@@ -61,4 +74,4 @@ A role can be granted for all legal entities or for one. `authorize(actor, perm,
 
 ## Audit
 
-Sign-ins (successful, failed and blocked), user creation, role grants and revocations, and disabling a user are all recorded. See [audit-log.md](audit-log.md).
+Sign-ins (successful, failed and blocked), user creation, invitations and their use, role grants and revocations, disabling and enabling a user, password links, resets and changes are all recorded. See [audit-log.md](audit-log.md).

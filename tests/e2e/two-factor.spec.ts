@@ -29,7 +29,10 @@ test("a project manager turns on two-factor, signs in with it, then turns it off
   await page.goto("/account/security");
   await expect(page.getByText("Off", { exact: true })).toBeVisible();
 
-  await page.getByLabel("Current password").fill(DEMO_PASSWORD);
+  await page
+    .getByRole("region", { name: "Two-factor sign-in" })
+    .getByLabel("Current password")
+    .fill(DEMO_PASSWORD);
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("img", { name: "QR code for your authenticator app" })).toBeVisible();
   const key = (await page.getByTestId("totp-key").innerText()).replace(/\s/g, "");
@@ -55,7 +58,10 @@ test("a project manager turns on two-factor, signs in with it, then turns it off
   // Leave the demo account as it was.
   await page.goto("/account/security");
   await page.getByRole("button", { name: "Turn off" }).click();
-  await page.getByLabel("Current password").fill(DEMO_PASSWORD);
+  await page
+    .getByRole("region", { name: "Two-factor sign-in" })
+    .getByLabel("Current password")
+    .fill(DEMO_PASSWORD);
   await page.getByRole("button", { name: "Turn off two-factor" }).click();
   await expect(page.getByText("Off", { exact: true })).toBeVisible();
 });
