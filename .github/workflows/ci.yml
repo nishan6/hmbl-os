@@ -89,6 +89,9 @@ jobs:
       - name: Unit and integration tests
         run: pnpm test
 
+      - name: Performance at volume
+        run: pnpm test:perf
+
       - name: Build
         run: pnpm build
 
