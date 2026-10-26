@@ -103,3 +103,59 @@ export async function accountLedger(
     closingMinor: running,
   };
 }
+
+/**
+ * The day book: every posted journal between two dates with its lines, in
+ * posting order, for the accountant. Each line names the party it concerns.
+ */
+export async function dayBook(
+  actor: Actor,
+  legalEntityId: string,
+  range: { from: Date; to: Date },
+) {
+  await getLegalEntity(actor, legalEntityId);
+  authorize(actor, "finance.view", { legalEntityId });
+  const journals = await db.journal.findMany({
+    where: { legalEntityId, status: "POSTED", date: { gte: range.from, lte: range.to } },
+    include: {
+      lines: {
+        orderBy: { position: "asc" },
+        include: {
+          account: { select: { code: true, name: true } },
+          project: { select: { number: true } },
+        },
+      },
+    },
+    orderBy: [{ date: "asc" }, { postedAt: "asc" }, { number: "asc" }],
+  });
+  const ids = (type: string) => [
+    ...new Set(
+      journals.flatMap((j) =>
+        j.lines.filter((l) => l.partyType === type && l.partyId).map((l) => l.partyId!),
+      ),
+    ),
+  ];
+  const [clients, vendors, people] = await Promise.all([
+    db.client.findMany({ where: { id: { in: ids("CLIENT") } }, select: { id: true, name: true } }),
+    db.vendor.findMany({ where: { id: { in: ids("VENDOR") } }, select: { id: true, name: true } }),
+    db.user.findMany({ where: { id: { in: ids("PERSON") } }, select: { id: true, name: true } }),
+  ]);
+  const names = new Map([...clients, ...vendors, ...people].map((p) => [p.id, p.name]));
+  let debitMinor = 0n;
+  let creditMinor = 0n;
+  for (const j of journals)
+    for (const l of j.lines) {
+      debitMinor += l.debitMinor;
+      creditMinor += l.creditMinor;
+    }
+  return {
+    journals: journals.map((j) => ({
+      ...j,
+      lines: j.lines.map((l) => ({
+        ...l,
+        partyName: l.partyId ? (names.get(l.partyId) ?? null) : null,
+      })),
+    })),
+    totals: { debitMinor, creditMinor },
+  };
+}

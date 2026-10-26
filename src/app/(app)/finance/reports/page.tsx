@@ -37,6 +37,11 @@ const REPORTS = [
     description: "Revenue, direct costs and margin per project from the ledger.",
   },
   {
+    href: "/finance/reports/day-book",
+    title: "Day book",
+    description: "Every posted journal with its lines, for the accountant's own books.",
+  },
+  {
     href: "/finance/receivables",
     title: "Receivables ageing",
     description: "What each client owes, by how overdue it is.",

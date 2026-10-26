@@ -1,4 +1,5 @@
 import {
+  Plug,
   Boxes,
   Briefcase,
   Building2,
@@ -122,6 +123,12 @@ export const NAV: NavGroup[] = [
           "equipment.create",
         ],
         href: "/admin/imports",
+      },
+      {
+        label: "Integrations",
+        icon: Plug,
+        permission: "organisation.view",
+        href: "/admin/integrations",
       },
       { label: "Users", icon: UserCog, permission: "users.view", href: "/admin/users" },
       {
