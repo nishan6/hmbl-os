@@ -72,6 +72,7 @@ model User {
   portalShares           PortalShare[]                @relation("PortalSharedBy")
   portalSharesRevoked    PortalShare[]                @relation("PortalShareRevokedBy")
   quotePortalResponses   QuotePortalResponse[]        @relation("QuotePortalResponder")
+  calendarFeed           CalendarFeed?
 
   @@map("users")
 }
@@ -4400,4 +4401,20 @@ model OpeningItem {
   @@index([clientId])
   @@index([vendorId])
   @@map("opening_items")
+}
+
+// ─── Integrations: calendar feed ─────────────────────────────────────────────
+
+/// A person's private calendar link (docs/integrations.md). Only a hash of the
+/// secret in the link is kept; a new link replaces the old one.
+model CalendarFeed {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @unique @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  // When a calendar last fetched the feed, kept to the hour.
+  lastUsedAt DateTime?
+
+  @@map("calendar_feeds")
 }

@@ -33,6 +33,8 @@ Moves between the company's own cash and bank accounts aren't cash flows and can
 
 Each report has **Download CSV**, served by `/api/finance/reports/{report}` with the same dates. Amounts are plain numbers with two decimals in the base currency, ready for a spreadsheet or the accountant's software. Text cells that start with `=`, `+`, `-` or `@` are prefixed with an apostrophe so a spreadsheet can't run them as formulas.
 
+The **Day book** (Reports → Day book, `day-book`) lists every posted journal in the dates with all its lines, in posting order. The download has one row per line: date, journal number, source and its reference, narration, account code and name, debit, credit, the party the line concerns (client, vendor or person, by name), project and description. The screen shows the first 200 journals; the download has every one. It is what to hand the accountant until a Tally export is agreed (see [integrations.md](integrations.md)).
+
 ## Finance dashboard
 
 Finance → Overview shows, for the chosen entity, today:

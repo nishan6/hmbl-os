@@ -206,6 +206,25 @@ describe("financial statements", () => {
     ).rejects.toThrow(ForbiddenError);
   });
 
+  it("downloads the day book with every posted journal line and its party", async () => {
+    const s = await october();
+    const book = await reportCsv(s.finance, "day-book", {
+      entity: s.entity.id,
+      from: "2026-10-01",
+      to: "2026-10-31",
+    });
+    expect(book.fileName).toBe(`${s.entity.code}_day-book_2026-10-01_2026-10-31.csv`);
+    const lines = book.csv.trim().split("\r\n");
+    expect(lines[0]).toBe(
+      "Date,Journal,Source,Reference,Narration,Line,Code,Account,Debit (INR),Credit (INR),Party type,Party,Project,Description",
+    );
+    // March's journal is outside the dates.
+    expect(lines.some((l) => l.startsWith("2026-03-15"))).toBe(false);
+    const receipt = lines.find((l) => l.includes(",Receipt,") && l.includes(",CLIENT,"));
+    expect(receipt).toMatch(/^2026-10-20,.*,1200,.*,0\.00,118000\.00,CLIENT,/);
+    expect(lines.at(-1)).toMatch(/^Totals,,,,,,,,(\d+\.\d\d),\1$/);
+  });
+
   it("needs finance.view", async () => {
     const s = await october();
     await expect(profitAndLoss(await makeActor("sales"), s.entity.id, oct)).rejects.toThrow(

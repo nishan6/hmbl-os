@@ -6,7 +6,8 @@ import { NotFoundError } from "@/lib/errors";
 import { toDateOnly } from "@/lib/fiscal";
 import { minorToInput } from "@/lib/money";
 import { asAtOf, compareRange, rangeOf, today } from "@/lib/report-range";
-import { trialBalance } from "./ledger-reports";
+import { JOURNAL_SOURCES } from "./journals";
+import { dayBook, trialBalance } from "./ledger-reports";
 import {
   balanceSheet,
   cashFlow,
@@ -23,6 +24,7 @@ export const EXPORTABLE_REPORTS = [
   "trial-balance",
   "tax",
   "projects",
+  "day-book",
 ] as const;
 export type ExportableReport = (typeof EXPORTABLE_REPORTS)[number];
 
@@ -187,6 +189,60 @@ export async function reportCsv(actor: Actor, report: string, params: Params) {
           n(p.marginMinor),
         ]);
       }
+      break;
+    }
+    case "day-book": {
+      const r = await range();
+      const book = await dayBook(actor, legalEntityId, r);
+      dates = `${toDateOnly(r.from)}_${toDateOnly(r.to)}`;
+      rows.push([
+        "Date",
+        "Journal",
+        "Source",
+        "Reference",
+        "Narration",
+        "Line",
+        "Code",
+        "Account",
+        `Debit (${currency})`,
+        `Credit (${currency})`,
+        "Party type",
+        "Party",
+        "Project",
+        "Description",
+      ]);
+      for (const j of book.journals) {
+        for (const l of j.lines) {
+          rows.push([
+            toDateOnly(j.date),
+            j.number,
+            JOURNAL_SOURCES[j.source],
+            j.sourceRef,
+            j.narration,
+            l.position,
+            l.account.code,
+            l.account.name,
+            n(l.debitMinor),
+            n(l.creditMinor),
+            l.partyType,
+            l.partyName,
+            l.project?.number ?? null,
+            l.description,
+          ]);
+        }
+      }
+      rows.push([
+        "Totals",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        n(book.totals.debitMinor),
+        n(book.totals.creditMinor),
+      ]);
       break;
     }
   }

@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { DropdownMenu } from "radix-ui";
 import Link from "next/link";
-import { Check, LogOut, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
+import { CalendarDays, Check, LogOut, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { clearOfflineData, confirmSignOut } from "@/lib/offline/store";
 import { setThemePreference } from "@/app/(app)/actions";
@@ -79,6 +79,12 @@ export function UserMenu({ name, email, theme }: { name: string; email: string; 
             <Link href="/account/security">
               <ShieldCheck aria-hidden />
               Sign-in security
+            </Link>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item asChild className={item}>
+            <Link href="/account/calendar">
+              <CalendarDays aria-hidden />
+              Calendar feed
             </Link>
           </DropdownMenu.Item>
           <DropdownMenu.Item

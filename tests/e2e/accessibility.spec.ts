@@ -177,6 +177,9 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/reports/definitions",
         "/admin/imports",
         "/finance/opening-balances",
+        "/finance/reports/day-book",
+        "/admin/integrations",
+        "/account/calendar",
       ]) {
         await test.step(path, async () => {
           await page.goto(path);
