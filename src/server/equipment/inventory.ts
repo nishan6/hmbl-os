@@ -293,7 +293,8 @@ export async function equipmentFormOptions(actor: Actor) {
   return { categories, locations, entities, vendors };
 }
 
-async function itemData(raw: ItemInput) {
+/** Checks an item as the forms do, without saving it (also used by imports). */
+export async function itemData(raw: ItemInput) {
   const input = parseInput(itemInput, raw);
   const category = await db.equipmentCategory.findUnique({ where: { id: input.categoryId } });
   if (!category || category.status !== "ACTIVE") {

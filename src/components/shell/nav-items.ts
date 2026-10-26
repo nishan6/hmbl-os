@@ -19,6 +19,7 @@ import {
   UserCog,
   Users,
   Wallet,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/server/permissions/catalog";
@@ -28,6 +29,8 @@ export type NavItem = {
   icon: LucideIcon;
   /** Shown only to users with this permission (for any entity). */
   permission?: Permission;
+  /** Shown to users with any one of these, for areas several modules share. */
+  anyPermission?: Permission[];
   /** Built areas link somewhere; planned ones are listed but not clickable. */
   href?: string;
 };
@@ -107,6 +110,18 @@ export const NAV: NavGroup[] = [
         icon: Hash,
         permission: "organisation.view",
         href: "/admin/numbering",
+      },
+      {
+        label: "Imports",
+        icon: Upload,
+        anyPermission: [
+          "crm.create",
+          "finance.create",
+          "procurement.create",
+          "crew.create",
+          "equipment.create",
+        ],
+        href: "/admin/imports",
       },
       { label: "Users", icon: UserCog, permission: "users.view", href: "/admin/users" },
       {

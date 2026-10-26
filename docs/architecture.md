@@ -62,4 +62,5 @@ HMBL OS is one modular TypeScript application on PostgreSQL. Modules are separat
 | Production workspace and show day            | Built — see [production.md](production.md)                     |
 | Field app and offline show packs             | Built — see [offline.md](offline.md)                           |
 | Management dashboards                        | Built — see [reporting.md](reporting.md)                       |
-| Imports, financial migration, integrations   | Not started (rest of Stage 8)                                  |
+| Record imports                               | Built — see [imports.md](imports.md)                           |
+| Financial migration, integrations            | Not started (rest of Stage 8)                                  |
