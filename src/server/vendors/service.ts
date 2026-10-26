@@ -133,7 +133,8 @@ const vendorInput = z.object({
 });
 export type VendorInput = z.input<typeof vendorInput>;
 
-function toData(raw: VendorInput) {
+/** Checks a vendor as the forms do, without saving it (also used by imports). */
+export function vendorData(raw: VendorInput) {
   const { tdsRate, ...data } = parseInput(vendorInput, raw);
   let tdsRateBps: number | null = null;
   if (tdsRate) {
@@ -212,7 +213,7 @@ export async function vendorOptions(actor: Actor) {
 export async function createVendor(actor: Actor, raw: VendorInput) {
   const finance = can(actor, "finance.create");
   if (!finance && !can(actor, "procurement.create")) throw new ForbiddenError();
-  const data = toData(raw);
+  const data = vendorData(raw);
   if (!finance) Object.assign(data, pick({}, PAYMENT_FIELDS));
   return db.$transaction(async (tx) => {
     const vendor = await tx.vendor.create({ data });
@@ -231,7 +232,7 @@ export async function updateVendor(actor: Actor, id: string, raw: VendorInput) {
   requireRead(actor);
   const before = await db.vendor.findUnique({ where: { id } });
   if (!before) throw new NotFoundError();
-  const data = toData(raw);
+  const data = vendorData(raw);
   // Without finance.edit, how the vendor is paid stays as it was.
   if (!canEditPaymentDetails(actor)) Object.assign(data, pick(before, PAYMENT_FIELDS));
   return db.$transaction(async (tx) => {

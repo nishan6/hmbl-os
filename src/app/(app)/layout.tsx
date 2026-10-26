@@ -26,6 +26,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   // Decided on the server: the client only renders what it's given.
   const visible = NAV.flatMap((g) => g.items)
     .filter((item) => !item.permission || can(actor, item.permission))
+    .filter((item) => !item.anyPermission || item.anyPermission.some((p) => can(actor, p)))
     .map((item) => item.label);
 
   return (

@@ -175,6 +175,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/reports/projects?scope=all",
         "/reports/production",
         "/reports/definitions",
+        "/admin/imports",
       ]) {
         await test.step(path, async () => {
           await page.goto(path);
@@ -182,6 +183,21 @@ for (const colorScheme of ["light", "dark"] as const) {
           await expectNoViolations(page);
         });
       }
+    });
+
+    test("a staged import meets WCAG 2.2 AA", async ({ page }) => {
+      await signIn(page, DEMO.owner);
+      await page.goto("/admin/imports");
+      await page.getByLabel("What the file holds").selectOption("CLIENTS");
+      await page.getByLabel("File (CSV)").setInputFiles({
+        name: "axe-clients.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from("Client,Country\r\nAxe Check Ltd,IN\r\n,IN\r\n"),
+      });
+      await page.getByRole("button", { name: "Read and check the file" }).click();
+      await expect(page.getByRole("heading", { level: 1, name: "axe-clients.csv" })).toBeVisible();
+      await page.getByText("Correct line 2").click();
+      await expectNoViolations(page);
     });
 
     test("app pages meet WCAG 2.2 AA", async ({ page }) => {

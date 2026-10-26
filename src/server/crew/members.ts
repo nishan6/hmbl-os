@@ -63,7 +63,7 @@ const SENSITIVE_FIELDS = [
   "emergencyContactRelation",
 ] as const;
 
-const memberInput = z.object({
+export const memberInput = z.object({
   name: requiredText(200),
   kind: z.enum(["EMPLOYEE", "FREELANCER"], { message: "Choose staff or freelancer" }),
   userId: optionalId,

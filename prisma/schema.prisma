@@ -4197,3 +4197,104 @@ model OfflineOperation {
   @@index([projectId])
   @@map("offline_operations")
 }
+
+// ─── Imports ──────────────────────────────────────────────────────────────────
+// Staged CSV imports of master records (docs/imports.md): a file is read into
+// rows, mapped to fields, checked and only then written, row by row, through
+// the same services the screens use.
+
+enum ImportKind {
+  CLIENTS
+  VENDORS
+  CREW
+  EQUIPMENT
+}
+
+enum ImportStatus {
+  STAGED
+  // Being written; rows already written carry their outcome.
+  COMMITTING
+  COMMITTED
+  DISCARDED
+}
+
+enum ImportRowStatus {
+  VALID
+  INVALID
+  // Looks like an existing record: someone decides what to do with it.
+  DUPLICATE
+}
+
+enum ImportDecision {
+  CREATE
+  UPDATE
+  SKIP
+}
+
+enum ImportOutcome {
+  CREATED
+  UPDATED
+  SKIPPED
+  // Invalid when committed: never written, listed with its reasons.
+  REJECTED
+  // The service refused it at commit time.
+  FAILED
+}
+
+/// One uploaded file. The file's text is not kept; its rows are.
+model ImportBatch {
+  id              String       @id @default(uuid()) @db.Uuid
+  kind            ImportKind
+  status          ImportStatus @default(STAGED)
+  fileName        String
+  sha256          String       @db.Char(64)
+  headers         String[]
+  // { field: column index } or { field: { value } } for one value on every row.
+  mapping         Json         @default("{}")
+  rowCount        Int
+  // Counts by outcome once committed.
+  summary         Json?
+  createdById     String       @db.Uuid
+  commitStartedAt DateTime?
+  committedAt     DateTime?
+  committedById   String?      @db.Uuid
+  discardedAt     DateTime?
+  discardedById   String?      @db.Uuid
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  rows ImportRow[]
+
+  @@index([kind, createdAt])
+  @@map("import_batches")
+}
+
+/// One line of an uploaded file, with its check result and what became of it.
+model ImportRow {
+  id             String          @id @default(uuid()) @db.Uuid
+  batchId        String          @db.Uuid
+  batch          ImportBatch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  // The line in the file, counting the header as line 1.
+  line           Int
+  values         String[]
+  // Corrections typed in before commit: { field: value }.
+  edits          Json            @default("{}")
+  status         ImportRowStatus
+  // { field: [messages] }; "_row" for problems with the row as a whole.
+  errors         Json            @default("{}")
+  // The existing record it looks like, and why.
+  matchId        String?         @db.Uuid
+  matchLabel     String?
+  matchReason    String?
+  // False when the file's record can't sit beside the match (same SKU or tax ID).
+  matchCanCreate Boolean         @default(true)
+  decision       ImportDecision?
+  decidedById    String?         @db.Uuid
+  outcome        ImportOutcome?
+  outcomeMessage String?
+  // The record created or updated.
+  recordId       String?         @db.Uuid
+
+  @@unique([batchId, line])
+  @@map("import_rows")
+}
