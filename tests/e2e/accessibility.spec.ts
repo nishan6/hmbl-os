@@ -166,6 +166,24 @@ for (const colorScheme of ["light", "dark"] as const) {
       });
     });
 
+    test("report dashboards meet WCAG 2.2 AA", async ({ page }) => {
+      test.setTimeout(120_000);
+      await signIn(page, DEMO.owner);
+      for (const path of [
+        "/reports",
+        "/reports/executive",
+        "/reports/projects?scope=all",
+        "/reports/production",
+        "/reports/definitions",
+      ]) {
+        await test.step(path, async () => {
+          await page.goto(path);
+          await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+          await expectNoViolations(page);
+        });
+      }
+    });
+
     test("app pages meet WCAG 2.2 AA", async ({ page }) => {
       // Many pages, each scanned by axe.
       test.setTimeout(240_000);
