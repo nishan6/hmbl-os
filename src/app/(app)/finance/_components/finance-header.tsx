@@ -26,6 +26,7 @@ export const FINANCE_TABS = [
   { path: "/finance/reports", label: "Reports" },
   { path: "/finance/periods", label: "Period close" },
   { path: "/finance/settings", label: "Settings" },
+  { path: "/finance/opening-balances", label: "Opening balances" },
 ] as const;
 
 export type FinanceTab = (typeof FINANCE_TABS)[number]["path"];

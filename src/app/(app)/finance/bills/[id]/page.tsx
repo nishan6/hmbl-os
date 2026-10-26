@@ -144,6 +144,15 @@ export default async function BillPage({ params }: PageProps<"/finance/bills/[id
         />
       )}
 
+      {bill.openingItemId ? (
+        <div className="mb-6">
+          <Alert tone="info" title="Opening balance from the old system">
+            This is what HMBL still owed on this bill at the cut-over date, brought over from the
+            old books so payments can be allocated to it. It has no lines, tax or project costs
+            here. Void it if the balance was wrong.
+          </Alert>
+        </div>
+      ) : null}
       {bill.status === "DRAFT" && bill.rejectedReason ? (
         <div className="mb-6">
           <Alert tone="warning" title="Sent back">

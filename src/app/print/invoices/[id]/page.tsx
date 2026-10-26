@@ -17,6 +17,8 @@ export default async function InvoiceDocumentPage({ params }: PageProps<"/print/
     if (error instanceof AppError) notFound();
     throw error;
   });
+  // An opening balance was issued by the old system; there is no copy to print here.
+  if (inv.openingItemId) notFound();
   const e = inv.legalEntity;
   const bankAccounts = await invoiceBankAccounts(actor, e.id, inv.currency);
   const tax = inv.kind === "TAX";
