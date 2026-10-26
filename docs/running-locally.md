@@ -68,6 +68,15 @@ Open <http://localhost:3000> and sign in. Because Owner is a role that requires 
 
 To stop it, press `Ctrl+C` in that terminal. Start it again with `pnpm start`.
 
+## Check it is ready
+
+```bash
+pnpm db:backup
+pnpm readiness
+```
+
+The readiness checks look at the books, the audit log, migrations, demo data, settings and backups, and keep the result as evidence (see [readiness.md](readiness.md)). Fix anything marked FAIL before entering real work. Owners and administrators can also run them from **Administration → Readiness**.
+
 ## 6. Back up every day
 
 ```bash
@@ -110,5 +119,6 @@ git pull
 pnpm install
 pnpm db:migrate:deploy
 pnpm build
+pnpm readiness          # stop here if anything fails
 pnpm start
 ```

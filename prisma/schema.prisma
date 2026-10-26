@@ -4418,3 +4418,34 @@ model CalendarFeed {
 
   @@map("calendar_feeds")
 }
+
+// ─── Production readiness ────────────────────────────────────────────────────
+
+enum ReadinessSource {
+  // `pnpm readiness` on the computer that runs HMBL OS.
+  COMMAND
+  // Administration → Readiness.
+  APP
+}
+
+/// One run of the production-readiness checks (docs/readiness.md), kept as
+/// evidence. Append-only: a run is never changed or deleted.
+model ReadinessRun {
+  id         String          @id @default(uuid()) @db.Uuid
+  ranAt      DateTime        @default(now()) @db.Timestamptz(3)
+  source     ReadinessSource
+  // No foreign key, like the audit log: the evidence outlives user changes.
+  actorId    String?         @db.Uuid
+  actorLabel String
+  appEnv     String
+  database   String
+  durationMs Int
+  passCount  Int
+  warnCount  Int
+  failCount  Int
+  // CheckResult[] as shown on the page (src/lib/readiness.ts).
+  results    Json
+
+  @@index([ranAt])
+  @@map("readiness_runs")
+}

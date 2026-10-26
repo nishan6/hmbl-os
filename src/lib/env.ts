@@ -9,6 +9,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   // Where uploaded documents are kept. Back it up with the database.
   STORAGE_DIR: z.string().min(1).default("storage"),
+  // Where `pnpm db:backup` writes database dumps; the readiness checks look here.
+  BACKUP_DIR: z.string().min(1).default("backups"),
 });
 
 export type Env = z.infer<typeof envSchema>;
