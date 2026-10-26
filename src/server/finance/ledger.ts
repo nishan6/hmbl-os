@@ -70,6 +70,7 @@ async function checkAccounts(
   tx: Tx,
   legalEntityId: string,
   source: JournalSource,
+  sourceId: string | null,
   lines: { accountId: string }[],
 ) {
   const ids = [...new Set(lines.map((l) => l.accountId))];
@@ -83,8 +84,14 @@ async function checkAccounts(
       throw new ValidationError(`${account.code} ${account.name} is archived.`);
     }
     // Control accounts only move with the documents behind them, so the
-    // ledger always agrees with the open invoices, bills and advances.
-    if (account.isControl && (source === "MANUAL" || source === "OPENING_BALANCE")) {
+    // ledger always agrees with the open invoices, bills and advances. The
+    // migration's opening journal (the one with a source) writes the open
+    // invoices and bills behind its control lines in the same transaction.
+    const migration = source === "OPENING_BALANCE" && sourceId !== null;
+    if (
+      account.isControl &&
+      (source === "MANUAL" || (source === "OPENING_BALANCE" && !migration))
+    ) {
       throw new ValidationError(
         `${account.code} ${account.name} is a control account. It is posted by invoices, bills, receipts and claims, not by journals.`,
       );
@@ -108,7 +115,7 @@ export async function finalisePosting(tx: Tx, caller: Caller, journalId: string)
   }
   const problems = journalProblems(journal.lines);
   if (problems.length) throw new ValidationError(problems[0]!, { lines: problems });
-  await checkAccounts(tx, journal.legalEntityId, journal.source, journal.lines);
+  await checkAccounts(tx, journal.legalEntityId, journal.source, journal.sourceId, journal.lines);
   const period = await ensurePeriod(tx, journal.legalEntityId, journal.date);
   if (period.status !== "OPEN") {
     throw new ConflictError(`${period.name} is closed. Date the journal in an open period.`);
@@ -190,7 +197,7 @@ export async function postJournal(tx: Tx, caller: Caller, input: PostingInput) {
       lines: problems,
     });
   }
-  await checkAccounts(tx, input.legalEntityId, input.source, lines);
+  await checkAccounts(tx, input.legalEntityId, input.source, input.sourceId ?? null, lines);
   const entity = await tx.legalEntity.findUniqueOrThrow({
     where: { id: input.legalEntityId },
     select: { baseCurrency: true },

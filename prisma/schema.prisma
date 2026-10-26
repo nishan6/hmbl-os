@@ -239,6 +239,7 @@ model LegalEntity {
   commercial       CommercialSettings?
   projects         Project[]
   financeSettings  FinanceSettings?
+  openingBalance   OpeningBalance?
   invoiceServices  InvoiceService[]
   ledgerAccounts   LedgerAccount[]
   periods          AccountingPeriod[]
@@ -614,6 +615,8 @@ model Client {
   portalAccounts    PortalAccount[]
 
   portalShares PortalShare[]
+
+  openingItems OpeningItem[]
 
   @@unique([taxIdType, taxId], map: "clients_tax_id_key", where: raw("\"taxId\" IS NOT NULL AND status = 'ACTIVE'"))
   @@unique([invoiceCode], map: "clients_invoice_code_key", where: raw("\"invoiceCode\" IS NOT NULL AND status = 'ACTIVE'"))
@@ -1634,6 +1637,7 @@ model LedgerAccount {
   updatedAt     DateTime       @updatedAt
 
   lines              JournalLine[]
+  openingLines       OpeningAccountLine[]
   bankAccount        BankAccount?
   receipts           Receipt[]
   vendorPayments     VendorPayment[]
@@ -1883,6 +1887,9 @@ model SalesInvoice {
   issuedAt             DateTime?
   issuedById           String?           @db.Uuid
   createdById          String            @db.Uuid
+  // Set when the migration created this as an open balance from the old system.
+  openingItemId        String?           @unique @db.Uuid
+  openingItem          OpeningItem?      @relation(fields: [openingItemId], references: [id], onDelete: Restrict)
   isDemo               Boolean           @default(false)
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
@@ -2157,6 +2164,8 @@ model Vendor {
   billUploads       PortalBillSubmission[]
   detailRequests    PortalDetailsRequest[]
 
+  openingItems OpeningItem[]
+
   @@index([normalizedName])
   @@index([status, name])
   @@map("vendors")
@@ -2173,51 +2182,54 @@ enum BillStatus {
 /// A supplier's invoice to HMBL. Entered by Finance, approved by the project
 /// manager (or Finance when it has no project), posted when approved.
 model VendorBill {
-  id                  String      @id @default(uuid()) @db.Uuid
-  legalEntityId       String      @db.Uuid
-  legalEntity         LegalEntity @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  id                  String       @id @default(uuid()) @db.Uuid
+  legalEntityId       String       @db.Uuid
+  legalEntity         LegalEntity  @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
   // HMBL's own number, given when approved.
   number              String?
-  status              BillStatus  @default(DRAFT)
-  vendorId            String      @db.Uuid
-  vendor              Vendor      @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  status              BillStatus   @default(DRAFT)
+  vendorId            String       @db.Uuid
+  vendor              Vendor       @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   // The number on the supplier's invoice.
   vendorInvoiceNumber String
-  billDate            DateTime    @db.Date
-  dueDate             DateTime    @db.Date
-  currency            String      @db.Char(3)
-  fxRate              Decimal?    @db.Decimal(18, 8)
+  billDate            DateTime     @db.Date
+  dueDate             DateTime     @db.Date
+  currency            String       @db.Char(3)
+  fxRate              Decimal?     @db.Decimal(18, 8)
   supplyType          SupplyType
   vendorGstin         String?
   notes               String?
-  subtotalMinor       BigInt      @default(0)
-  cgstMinor           BigInt      @default(0)
-  sgstMinor           BigInt      @default(0)
-  igstMinor           BigInt      @default(0)
-  otherTaxMinor       BigInt      @default(0)
-  taxMinor            BigInt      @default(0)
-  totalMinor          BigInt      @default(0)
+  subtotalMinor       BigInt       @default(0)
+  cgstMinor           BigInt       @default(0)
+  sgstMinor           BigInt       @default(0)
+  igstMinor           BigInt       @default(0)
+  otherTaxMinor       BigInt       @default(0)
+  taxMinor            BigInt       @default(0)
+  totalMinor          BigInt       @default(0)
   // Income tax withheld from the supplier and paid to the government.
   tdsSection          String?
-  tdsRateBps          Int         @default(0)
-  tdsMinor            BigInt      @default(0)
+  tdsRateBps          Int          @default(0)
+  tdsMinor            BigInt       @default(0)
   // What HMBL owes the supplier: total less TDS.
-  payableMinor        BigInt      @default(0)
+  payableMinor        BigInt       @default(0)
   // Payable in the base currency, as posted.
-  basePayableMinor    BigInt      @default(0)
-  journalId           String?     @unique @db.Uuid
+  basePayableMinor    BigInt       @default(0)
+  journalId           String?      @unique @db.Uuid
   submittedAt         DateTime?
-  submittedById       String?     @db.Uuid
+  submittedById       String?      @db.Uuid
   approvedAt          DateTime?
-  approvedById        String?     @db.Uuid
+  approvedById        String?      @db.Uuid
   rejectedReason      String?
-  voidDate            DateTime?   @db.Date
+  voidDate            DateTime?    @db.Date
   voidedAt            DateTime?
   voidReason          String?
-  createdById         String      @db.Uuid
-  isDemo              Boolean     @default(false)
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  createdById         String       @db.Uuid
+  // Set when the migration created this as an open balance from the old system.
+  openingItemId       String?      @unique @db.Uuid
+  openingItem         OpeningItem? @relation(fields: [openingItemId], references: [id], onDelete: Restrict)
+  isDemo              Boolean      @default(false)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
   lines          VendorBillLine[]
   allocations    VendorPaymentAllocation[]
@@ -4297,4 +4309,95 @@ model ImportRow {
 
   @@unique([batchId, line])
   @@map("import_rows")
+}
+
+// ─── Migration: opening balances at cut-over ─────────────────────────────────
+
+enum OpeningBalanceStatus {
+  DRAFT
+  POSTED
+}
+
+enum OpeningItemKind {
+  RECEIVABLE
+  PAYABLE
+}
+
+/// An entity's books brought over from the old system at the cut-over date
+/// (docs/migration.md): account balances, plus the open invoices and bills
+/// behind receivables and payables, posted as one opening journal.
+model OpeningBalance {
+  id                     String               @id @default(uuid()) @db.Uuid
+  legalEntityId          String               @unique @db.Uuid
+  legalEntity            LegalEntity          @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+  // Balances are as at the end of this day; HMBL OS keeps the books from the next.
+  cutOverDate            DateTime             @db.Date
+  sourceSystem           String
+  status                 OpeningBalanceStatus @default(DRAFT)
+  // Totals read from the old system's own reports on the cut-over date, in
+  // the base currency, to reconcile against. Null until entered.
+  sourceDebitMinor       BigInt?
+  sourceReceivablesMinor BigInt?
+  sourcePayablesMinor    BigInt?
+  sourceInvoiceCount     Int?
+  sourceBillCount        Int?
+  notes                  String?
+  journalId              String?              @unique @db.Uuid
+  postedAt               DateTime?
+  postedById             String?              @db.Uuid
+  createdById            String               @db.Uuid
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  accountLines OpeningAccountLine[]
+  items        OpeningItem[]
+
+  @@map("opening_balances")
+}
+
+/// A balance on an account that isn't a control account, in the base currency.
+model OpeningAccountLine {
+  id          String         @id @default(uuid()) @db.Uuid
+  openingId   String         @db.Uuid
+  opening     OpeningBalance @relation(fields: [openingId], references: [id], onDelete: Cascade)
+  // The line of the file it came from.
+  line        Int
+  accountId   String         @db.Uuid
+  account     LedgerAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  debitMinor  BigInt         @default(0)
+  creditMinor BigInt         @default(0)
+  description String?
+
+  @@unique([openingId, accountId])
+  @@map("opening_account_lines")
+}
+
+/// An invoice a client still owed, or a bill HMBL still owed, at cut-over.
+model OpeningItem {
+  id              String          @id @default(uuid()) @db.Uuid
+  openingId       String          @db.Uuid
+  opening         OpeningBalance  @relation(fields: [openingId], references: [id], onDelete: Cascade)
+  kind            OpeningItemKind
+  line            Int
+  clientId        String?         @db.Uuid
+  client          Client?         @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  vendorId        String?         @db.Uuid
+  vendor          Vendor?         @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  // The invoice or bill number in the old system.
+  reference       String
+  documentDate    DateTime        @db.Date
+  dueDate         DateTime        @db.Date
+  currency        String          @db.Char(3)
+  // Still owed at cut-over, in the document's currency and in the base currency.
+  amountMinor     BigInt
+  fxRate          Decimal?        @db.Decimal(18, 8)
+  baseAmountMinor BigInt
+
+  invoice SalesInvoice?
+  bill    VendorBill?
+
+  @@unique([openingId, kind, line])
+  @@index([clientId])
+  @@index([vendorId])
+  @@map("opening_items")
 }

@@ -138,7 +138,14 @@ async function revenueAndCollections(
   const dates = { gte: range.from, lte: range.to };
   const [invoices, credits, receipts] = await Promise.all([
     db.salesInvoice.findMany({
-      where: { legalEntityId, kind: "TAX", status: "ISSUED", invoiceDate: dates },
+      // Opening balances are amounts still owed, not revenue invoiced here.
+      where: {
+        legalEntityId,
+        kind: "TAX",
+        status: "ISSUED",
+        invoiceDate: dates,
+        openingItemId: null,
+      },
       select: { subtotalMinor: true, currency: true, fxRate: true },
     }),
     db.creditNote.findMany({

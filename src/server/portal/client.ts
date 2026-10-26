@@ -385,7 +385,8 @@ const invoiceListSelect = {
 export async function listClientInvoices(actor: PortalActor, now = new Date()) {
   const clientId = clientOf(actor, "invoices.view");
   const invoices = await db.salesInvoice.findMany({
-    where: { clientId, status: "ISSUED" },
+    // Opening balances carried from the old system have no invoice document to show.
+    where: { clientId, status: "ISSUED", openingItemId: null },
     orderBy: [{ invoiceDate: "desc" }, { number: "desc" }],
     select: invoiceListSelect,
   });
@@ -409,7 +410,7 @@ export async function listClientInvoices(actor: PortalActor, now = new Date()) {
 export async function getClientInvoice(actor: PortalActor, invoiceId: string) {
   const clientId = clientOf(actor, "invoices.view");
   const inv = await db.salesInvoice.findFirst({
-    where: { id: known(invoiceId), clientId, status: "ISSUED" },
+    where: { id: known(invoiceId), clientId, status: "ISSUED", openingItemId: null },
     select: {
       ...invoiceListSelect,
       clientName: true,

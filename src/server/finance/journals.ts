@@ -187,7 +187,9 @@ export async function getJournal(actor: Actor, id: string) {
     },
   });
   const scope = { legalEntityId: journal.legalEntityId };
-  const manual = journal.source === "MANUAL" || journal.source === "OPENING_BALANCE";
+  // The migration's opening journals have a source and are corrected through their documents.
+  const manual =
+    (journal.source === "MANUAL" || journal.source === "OPENING_BALANCE") && !journal.sourceId;
   const draft = journal.status === "DRAFT";
   return {
     ...journal,
@@ -308,6 +310,11 @@ export async function reverseManualJournal(actor: Actor, id: string, raw: Revers
   authorize(actor, "finance.void", { legalEntityId: journal.legalEntityId });
   if (journal.source !== "MANUAL" && journal.source !== "OPENING_BALANCE") {
     throw new ConflictError("Correct this journal through the document that posted it.");
+  }
+  if (journal.sourceId) {
+    throw new ConflictError(
+      "This journal posted opening balances from the old system. Correct an opening invoice with a credit note, or void an opening bill.",
+    );
   }
   const { date, reason } = parseInput(reverseInput, raw);
   return db.$transaction((tx) => reverseJournal(tx, actor, id, { date: date!, reason }));

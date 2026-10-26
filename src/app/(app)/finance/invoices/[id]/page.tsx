@@ -84,7 +84,7 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
         ]}
         actions={
           <>
-            {inv.status !== "DISCARDED" ? (
+            {inv.status !== "DISCARDED" && !inv.openingItemId ? (
               <Button asChild>
                 <Link href={`/print/invoices/${inv.id}`}>
                   <Printer aria-hidden />
@@ -164,6 +164,16 @@ export default async function InvoicePage({ params }: PageProps<"/finance/invoic
         }
       />
 
+      {inv.openingItemId ? (
+        <div className="mb-6">
+          <Alert tone="info" title="Opening balance from the old system">
+            This is what the client still owed on this invoice at the cut-over date, brought over
+            from the old books so receipts can be allocated to it. HMBL OS didn&apos;t issue it, so
+            it carries the balance as one line against opening balance equity, with no tax and no
+            printable copy. Correct a wrong balance with a credit note.
+          </Alert>
+        </div>
+      ) : null}
       {inv.status === "DRAFT" && !inv.lines.length ? (
         <div className="mb-6">
           <Alert tone="info" title="No lines yet">
