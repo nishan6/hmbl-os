@@ -29,7 +29,7 @@ test("finance posts a manual journal and sees it in the trial balance", async ({
     .getByRole("navigation", { name: "Breadcrumb" })
     .getByRole("link", { name: "Finance" })
     .click();
-  await page.getByRole("link", { name: "Reports", exact: true }).click();
+  await page.getByRole("main").getByRole("link", { name: "Reports", exact: true }).click();
   await page.getByRole("link", { name: "Trial balance" }).click();
   await expect(page.getByRole("link", { name: "Professional fees" })).toBeVisible();
   await expect(page.getByRole("row", { name: /Totals/ })).toBeVisible();
@@ -380,7 +380,7 @@ test("finance reads the statements, downloads one, and closes and reopens a mont
   await expect(page.getByRole("heading", { level: 2, name: "Money owed" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Cash and bank" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Reports", exact: true }).click();
+  await page.getByRole("main").getByRole("link", { name: "Reports", exact: true }).click();
   await page.getByRole("link", { name: "Profit and loss" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Profit and loss" })).toBeVisible();
   await page.getByRole("combobox", { name: "Compare with" }).selectOption({
