@@ -22,6 +22,8 @@ for (const colorScheme of ["light", "dark"] as const) {
     test("sign-in meets WCAG 2.2 AA", async ({ page }) => {
       await page.goto("/sign-in");
       await expectNoViolations(page);
+      await page.goto("/sign-in/link/not-a-real-link");
+      await expectNoViolations(page);
     });
 
     test("the two-factor code step meets WCAG 2.2 AA", async ({ page }) => {
@@ -280,6 +282,12 @@ for (const colorScheme of ["light", "dark"] as const) {
           await expectNoViolations(page);
         });
       }
+      await test.step("a user's page", async () => {
+        await page.goto("/admin/users");
+        await page.getByRole("link", { name: "Demo Viewer" }).click();
+        await expect(page.getByRole("heading", { level: 1, name: "Demo Viewer" })).toBeVisible();
+        await expectNoViolations(page);
+      });
       for (const [list, link] of [
         ["/finance/expense-claims", /^EXP\//],
         ["/finance/advances", /^ADV\//],
