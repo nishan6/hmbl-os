@@ -56,12 +56,17 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # The restore check test dumps and restores with the command-line tools.
-      # They must not be newer than the server: a newer pg_dump writes
-      # settings Postgres 16 rejects.
+      # They must be the server's version: a newer pg_dump writes settings
+      # Postgres 16 rejects. Run them from the same image as the service.
       - name: Postgres 16 client tools
         run: |
-          sudo apt-get install -y --no-install-recommends postgresql-client-16
-          echo /usr/lib/postgresql/16/bin >> "$GITHUB_PATH"
+          mkdir -p "$RUNNER_TEMP/pg16"
+          for tool in pg_dump pg_restore; do
+            printf '#!/bin/sh\nexec docker run --rm -i --network host --user "$(id -u):$(id -g)" -v /tmp:/tmp postgres:16-alpine %s "$@"\n' "$tool" > "$RUNNER_TEMP/pg16/$tool"
+            chmod +x "$RUNNER_TEMP/pg16/$tool"
+          done
+          echo "$RUNNER_TEMP/pg16" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/pg16/pg_dump" --version
 
       - name: Create test database
         run: PGPASSWORD=hmbl psql -h localhost -U hmbl -d hmbl_ci -c "CREATE DATABASE hmbl_ci_test"
