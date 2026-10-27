@@ -15,6 +15,7 @@ import { readinessContext, type ReadinessContext } from "./context";
 import { controlAccounts, documentsPosted, duplicatePostings, journalsBalance } from "./finance";
 import { auditCoverage, migrationsApplied, protectiveTriggers } from "./database";
 import { accessControl, backups, configuration, demoIsolation } from "./environment";
+import { recentErrors, restoreProven, scheduledJobs } from "./monitoring";
 
 /*
  * Runs the production-readiness checks and keeps each run as evidence
@@ -36,6 +37,9 @@ const CHECKS: { area: keyof typeof AREAS; key: string; run: Check }[] = [
   { area: "access", key: "access", run: accessControl },
   { area: "configuration", key: "configuration", run: configuration },
   { area: "backups", key: "backups", run: backups },
+  { area: "backups", key: "restore-proven", run: restoreProven },
+  { area: "monitoring", key: "recent-errors", run: recentErrors },
+  { area: "monitoring", key: "scheduled-jobs", run: scheduledJobs },
 ];
 
 /** Who may run the checks and read their results: owners and administrators. */
@@ -43,10 +47,16 @@ function authorizeReadiness(actor: Actor) {
   authorizeEverywhere(actor, "organisation.configure");
 }
 
-/** Runs every check. A check that throws fails with the error's message, and the rest still run. */
-export async function runChecks(context: ReadinessContext): Promise<CheckResult[]> {
+/**
+ * Runs every check, or those in `areas`. A check that throws fails with the
+ * error's message, and the rest still run.
+ */
+export async function runChecks(
+  context: ReadinessContext,
+  areas?: readonly string[],
+): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
-  for (const check of CHECKS) {
+  for (const check of CHECKS.filter((c) => !areas || areas.includes(c.area))) {
     try {
       results.push(await check.run(context));
     } catch (error) {

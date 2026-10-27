@@ -5,17 +5,22 @@
  *   15 6 * * *  cd /srv/hmbl-os && pnpm notifications:run
  *
  * Safe to run more often: every notification is keyed, so nobody is
- * notified twice for the same thing.
+ * notified twice for the same thing. Each run is recorded, so the readiness
+ * checks notice when it stops running or fails (docs/monitoring.md).
  */
 import "dotenv/config";
 import { runSweep } from "@/server/notifications/sweep";
 import { deliverPending } from "@/server/notifications/delivery";
+import { runJob } from "@/server/monitoring/jobs";
 import { db } from "@/server/db";
 
 async function main() {
-  const created = await runSweep();
-  const delivered = await deliverPending();
-  console.log(JSON.stringify({ created, delivered }));
+  const summary = await runJob("notifications", async () => {
+    const created = await runSweep();
+    const delivered = await deliverPending();
+    return JSON.parse(JSON.stringify({ created, delivered }));
+  });
+  console.log(JSON.stringify(summary));
 }
 
 main()

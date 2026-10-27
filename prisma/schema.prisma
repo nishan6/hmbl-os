@@ -4449,3 +4449,66 @@ model ReadinessRun {
   @@index([ranAt])
   @@map("readiness_runs")
 }
+
+/// A backup restored into a scratch database and checked (docs/backups.md),
+/// kept as evidence. Append-only.
+model RestoreCheck {
+  id            String   @id @default(uuid()) @db.Uuid
+  checkedAt     DateTime @default(now()) @db.Timestamptz(3)
+  // The live database the backup is of.
+  database      String
+  backupFile    String
+  backupTakenAt DateTime @db.Timestamptz(3)
+  backupBytes   BigInt
+  passed        Boolean
+  durationMs    Int
+  actorLabel    String
+  // CheckResult[] (src/lib/readiness.ts).
+  results       Json
+
+  @@index([database, checkedAt])
+  @@map("restore_checks")
+}
+
+// ─── Monitoring ──────────────────────────────────────────────────────────────
+
+/// A server error, with the reference people see on the error page
+/// (docs/monitoring.md). Pruned after 90 days.
+model AppError {
+  id         String   @id @default(uuid()) @db.Uuid
+  occurredAt DateTime @default(now()) @db.Timestamptz(3)
+  // Next's error digest: the reference shown to the person.
+  digest     String?
+  method     String
+  // The route's file path, never the URL, so no ids or query strings.
+  routePath  String
+  // render, route, action or proxy.
+  routeType  String
+  name       String
+  // The first 300 characters of the message.
+  message    String
+
+  @@index([occurredAt])
+  @@index([digest])
+  @@map("app_errors")
+}
+
+enum JobStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+/// One run of a scheduled job, such as `pnpm notifications:run`.
+model JobRun {
+  id         String    @id @default(uuid()) @db.Uuid
+  job        String
+  status     JobStatus
+  startedAt  DateTime  @default(now()) @db.Timestamptz(3)
+  finishedAt DateTime? @db.Timestamptz(3)
+  summary    Json?
+  error      String?
+
+  @@index([job, startedAt])
+  @@map("job_runs")
+}

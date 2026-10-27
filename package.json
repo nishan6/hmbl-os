@@ -23,6 +23,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:backup": "bash scripts/backup-db.sh",
+    "db:restore-check": "tsx --conditions=react-server --tsconfig tsconfig.json scripts/restore-check.ts",
     "postinstall": "prisma generate",
     "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test",
     "user:create": "tsx --conditions=react-server --tsconfig tsconfig.json scripts/create-user.ts",

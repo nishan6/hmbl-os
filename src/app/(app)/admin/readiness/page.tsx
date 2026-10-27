@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { canSeeReadiness, getReadinessRun, listReadinessRuns } from "@/server/readiness/runs";
+import { latestRestoreChecks } from "@/server/backups/history";
+import { recentErrors } from "@/server/monitoring/errors";
 import { AREAS, overall, type CheckState } from "@/lib/readiness";
 import { formatDateTime } from "@/lib/format";
 import { ActionButton } from "@/components/ui/action-button";
@@ -33,9 +35,11 @@ export default async function ReadinessPage({ searchParams }: PageProps<"/admin/
   if (!canSeeReadiness(actor)) notFound();
   const params = await searchParams;
   const runId = typeof params.run === "string" ? params.run : undefined;
-  const [run, runs] = await Promise.all([
+  const [run, runs, restores, errors] = await Promise.all([
     getReadinessRun(actor, runId).catch(() => notFound()),
     listReadinessRuns(actor),
+    latestRestoreChecks(actor, 5),
+    recentErrors(actor, { limit: 20 }),
   ]);
   const latest = runs[0]?.id === run?.id;
   const verdict = run
@@ -165,6 +169,75 @@ export default async function ReadinessPage({ searchParams }: PageProps<"/admin/
           </Table>
         </Section>
       ) : null}
+      <Section
+        title="Restore checks"
+        description="Backups restored into a scratch database and checked with pnpm db:restore-check. Run one at least monthly."
+      >
+        {restores.length ? (
+          <Table dense>
+            <THead>
+              <TR>
+                <TH>When</TH>
+                <TH>Backup</TH>
+                <TH>Taken</TH>
+                <TH align="right">Seconds</TH>
+                <TH>Result</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {restores.map((r) => (
+                <TR key={r.id}>
+                  <TD>{formatDateTime(r.checkedAt)}</TD>
+                  <TD className="font-mono text-xs">{r.backupFile}</TD>
+                  <TD>{formatDateTime(r.backupTakenAt)}</TD>
+                  <TD align="right">{(r.durationMs / 1000).toFixed(1)}</TD>
+                  <TD>
+                    <StatusBadge {...STATE[r.passed ? "pass" : "fail"]} />
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        ) : (
+          <EmptyState
+            title="No backup has been test-restored"
+            description="Run pnpm db:restore-check on the computer that runs HMBL OS."
+          />
+        )}
+      </Section>
+      <Section
+        title="Server errors"
+        description="The latest 20. A person who saw an error page can quote its reference, which is listed here. Kept for 90 days."
+      >
+        {errors.length ? (
+          <Table dense>
+            <THead>
+              <TR>
+                <TH>When</TH>
+                <TH>Reference</TH>
+                <TH>Where</TH>
+                <TH>Error</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {errors.map((e) => (
+                <TR key={e.id}>
+                  <TD className="whitespace-nowrap">{formatDateTime(e.occurredAt)}</TD>
+                  <TD className="font-mono text-xs">{e.digest ?? "—"}</TD>
+                  <TD className="text-xs">
+                    {e.method} {e.routePath}
+                  </TD>
+                  <TD className="text-xs break-words">
+                    {e.name}: {e.message}
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        ) : (
+          <EmptyState title="No server errors recorded" />
+        )}
+      </Section>
     </>
   );
 }

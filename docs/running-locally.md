@@ -109,7 +109,11 @@ docker compose exec -T postgres pg_restore -U hmbl --clean --if-exists -d hmbl_l
 
 Then copy the documents back: `cp -Rn backups/storage/. storage/`.
 
-Try a restore once into a scratch database (`createdb -U hmbl hmbl_restore_test`, then restore with `-d hmbl_restore_test`) so you know it works before you need it.
+Prove the backups restore, once a month: `pnpm db:restore-check` restores the newest backup into a scratch database, checks the books and documents in it, and keeps the result (see [backups.md](backups.md)).
+
+## 7. Send reminders every day
+
+`pnpm notifications:run` creates the date-based reminders (quotes expiring, invoices overdue, milestones coming up). Schedule it daily like the backup, e.g. `15 6 * * * cd /path/to/hmbl-os && pnpm notifications:run >> backups/notifications.log 2>&1`. Each run is recorded, and the readiness checks warn if it stops ([monitoring.md](monitoring.md)).
 
 ## Updating to a new version
 

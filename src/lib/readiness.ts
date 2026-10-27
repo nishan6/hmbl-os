@@ -20,6 +20,7 @@ export const AREAS = {
   access: "Access",
   configuration: "Configuration",
   backups: "Backups",
+  monitoring: "Monitoring",
 } as const;
 
 export type Area = keyof typeof AREAS;
@@ -78,6 +79,9 @@ export function hoursSince(then: Date, now: Date): number {
 export const BACKUP_WARN_HOURS = 26;
 /** A backup older than this many hours fails in production. */
 export const BACKUP_FAIL_HOURS = 7 * 24;
+
+/** A restore check older than this many days is a warning: prove backups restore monthly. */
+export const RESTORE_CHECK_WARN_DAYS = 30;
 
 /** The database name in a Postgres connection string. */
 export function databaseName(url: string): string {
