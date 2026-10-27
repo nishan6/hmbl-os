@@ -15,6 +15,7 @@ import {
   LineChart,
   Plane,
   ScrollText,
+  ShieldCheck,
   ShoppingCart,
   Theater,
   UserCog,
@@ -129,6 +130,12 @@ export const NAV: NavGroup[] = [
         icon: Plug,
         permission: "organisation.view",
         href: "/admin/integrations",
+      },
+      {
+        label: "Readiness",
+        icon: ShieldCheck,
+        permission: "organisation.configure",
+        href: "/admin/readiness",
       },
       { label: "Users", icon: UserCog, permission: "users.view", href: "/admin/users" },
       {

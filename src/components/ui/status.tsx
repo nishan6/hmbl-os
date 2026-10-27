@@ -97,6 +97,8 @@ export const STATUSES = {
   delayed: { label: "Delayed", icon: Clock, tone: "warning" },
   issue: { label: "Issue", icon: TriangleAlert, tone: "danger" },
   information: { label: "Information", icon: Info, tone: "neutral" },
+  passed: { label: "Passed", icon: CircleCheck, tone: "success" },
+  warning: { label: "Warning", icon: TriangleAlert, tone: "warning" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon; tone: Tone }>;
 
 export type StatusKey = keyof typeof STATUSES;
