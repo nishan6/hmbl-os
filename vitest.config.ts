@@ -27,6 +27,17 @@ export default defineConfig({
           fileParallelism: false,
         },
       },
+      {
+        extends: true,
+        test: {
+          // Volume timings (docs/performance.md); slow, so only with pnpm test:perf.
+          name: "perf",
+          environment: "node",
+          include: ["tests/perf/**/*.test.ts"],
+          globalSetup: ["tests/integration/global-setup.ts"],
+          setupFiles: ["tests/setup.ts", "tests/integration/setup.ts"],
+        },
+      },
     ],
   },
 });

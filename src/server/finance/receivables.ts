@@ -79,10 +79,16 @@ export async function receivablesAgeing(actor: Actor, legalEntityId: string, asA
     return r;
   };
 
+  // Looked up by id, not searched per row: a linear search made this
+  // quadratic in the number of invoices (docs/performance.md).
+  const creditsByInvoice = new Map(credits.map((c) => [c.invoiceId, c]));
+  const paidByInvoice = Map.groupBy(allocations, (a) => a.invoiceId);
+  const usedByReceipt = Map.groupBy(allocations, (a) => a.receiptId);
+
   const open = [];
   for (const inv of invoices) {
-    const credit = credits.find((c) => c.invoiceId === inv.id);
-    const paid = allocations.filter((a) => a.invoiceId === inv.id);
+    const credit = creditsByInvoice.get(inv.id);
+    const paid = paidByInvoice.get(inv.id) ?? [];
     const outstandingMinor =
       inv.totalMinor -
       (credit?._sum.totalMinor ?? 0n) -
@@ -100,9 +106,7 @@ export async function receivablesAgeing(actor: Actor, legalEntityId: string, asA
     open.push({ ...inv, outstandingMinor, outstandingBaseMinor, daysOverdue: days, bucket });
   }
   for (const rc of receipts) {
-    const used = allocations
-      .filter((a) => a.receiptId === rc.id)
-      .reduce((s, a) => s + a.receiptBaseMinor, 0n);
+    const used = (usedByReceipt.get(rc.id) ?? []).reduce((s, a) => s + a.receiptBaseMinor, 0n);
     const onAccount = rc.grossBaseMinor - used;
     if (!onAccount) continue;
     const r = row(rc.clientId, rc.client.name);

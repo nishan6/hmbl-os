@@ -88,9 +88,13 @@ export async function payablesAgeing(actor: Actor, legalEntityId: string, asAt: 
     return r;
   };
 
+  // Looked up by id, not searched per row (docs/performance.md).
+  const paidByBill = Map.groupBy(allocations, (a) => a.billId);
+  const usedByPayment = Map.groupBy(allocations, (a) => a.paymentId);
+
   const open = [];
   for (const bill of bills) {
-    const paid = allocations.filter((a) => a.billId === bill.id);
+    const paid = paidByBill.get(bill.id) ?? [];
     const outstandingMinor = bill.payableMinor - paid.reduce((s, a) => s + a.amountMinor, 0n);
     const outstandingBaseMinor =
       bill.basePayableMinor - paid.reduce((s, a) => s + a.billBaseMinor, 0n);
@@ -110,9 +114,7 @@ export async function payablesAgeing(actor: Actor, legalEntityId: string, asAt: 
     });
   }
   for (const p of payments) {
-    const used = allocations
-      .filter((a) => a.paymentId === p.id)
-      .reduce((s, a) => s + a.paymentBaseMinor, 0n);
+    const used = (usedByPayment.get(p.id) ?? []).reduce((s, a) => s + a.paymentBaseMinor, 0n);
     const advance = p.baseMinor - used;
     if (!advance) continue;
     const r = row(p.vendorId, p.vendor.name);
