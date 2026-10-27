@@ -99,8 +99,8 @@ export default async function ProjectBudgetPage({ params }: PageProps<"/projects
             <h3 className="text-text mb-3 text-sm font-semibold">Revenue and profit</h3>
             <dl className="flex flex-col gap-2 text-base">
               <Figure label="Expected revenue" value={money(profit.expectedRevenueMinor)} strong />
-              <Figure label="Invoiced" value={<span className="text-muted">With Finance</span>} />
-              <Figure label="Collected" value={<span className="text-muted">With Finance</span>} />
+              <Figure label="Invoiced" value={money(budget.billing.invoicedMinor)} />
+              <Figure label="Collected" value={money(budget.billing.collectedMinor)} />
               <Figure label="Estimated gross profit" value={money(profit.grossProfitMinor)} />
               <Figure
                 label="Estimated gross margin"
@@ -108,8 +108,8 @@ export default async function ProjectBudgetPage({ params }: PageProps<"/projects
               />
             </dl>
             <p className="text-muted mt-3 text-xs">
-              Profit is expected revenue less the forecast cost. Invoicing and receipts come with
-              Finance.
+              Profit is expected revenue less the forecast cost. Invoiced is issued tax invoices
+              less credit notes; collected is what has been received against them, tax included.
             </p>
           </Panel>
         </div>

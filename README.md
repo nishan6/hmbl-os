@@ -2,7 +2,7 @@
 
 The integrated operating system for HMBL Group: commercial, projects, production, crew, equipment, procurement, travel, finance and documents in one application.
 
-Status: **Stage 1, foundations.** No business modules are built yet. See [docs/architecture.md](docs/architecture.md) for what exists and [docs/decisions.md](docs/decisions.md) for open policy decisions.
+Status: **Version 1 built, not yet in production use.** All nine stages of the specification are implemented and tested. Going live needs a few decisions and steps only HMBL can take; [docs/production-readiness.md](docs/production-readiness.md) lists them, with the evidence for everything else. Open policy decisions and their working defaults are in [docs/decisions.md](docs/decisions.md).
 
 ## Stack
 
@@ -29,30 +29,56 @@ Owner, Administrator and Finance demo users need a two-factor code. Add the demo
 
 ## Checks
 
-| Command             | What it runs                           |
-| ------------------- | -------------------------------------- |
-| `pnpm lint`         | ESLint, zero warnings allowed          |
-| `pnpm typecheck`    | Route type generation and `tsc`        |
-| `pnpm format:check` | Prettier                               |
-| `pnpm test`         | Vitest unit and integration tests      |
-| `pnpm test:e2e`     | Playwright against a production build  |
-| `pnpm check`        | lint, typecheck, format and unit tests |
+| Command                 | What it runs                                                     |
+| ----------------------- | ---------------------------------------------------------------- |
+| `pnpm lint`             | ESLint, zero warnings allowed                                    |
+| `pnpm typecheck`        | Route type generation and `tsc`                                  |
+| `pnpm format:check`     | Prettier                                                         |
+| `pnpm test`             | Vitest unit and integration tests                                |
+| `pnpm test:perf`        | Timed reads at about three years of volume, against a budget     |
+| `pnpm test:e2e`         | Playwright against a production build                            |
+| `pnpm check`            | lint, typecheck, format, unit and integration tests              |
+| `pnpm db:drift`         | Fails if the schema and the migrations differ                    |
+| `pnpm readiness`        | Production readiness checks against `DATABASE_URL`               |
+| `pnpm db:restore-check` | Restores the latest backup into a scratch database and checks it |
 
 Integration tests use `TEST_DATABASE_URL`, apply migrations to it and empty it before each test. Run `pnpm build` and `pnpm db:seed` before `pnpm test:e2e`; Playwright starts the built app on port 3100. If Chromium is already installed elsewhere, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its path instead of running `pnpm exec playwright install chromium`.
 
-CI runs every check, migrations included, on each pull request against a fresh Postgres service.
+CI runs every check except the readiness and restore commands, migrations included, on each pull request against a fresh Postgres service. More in [docs/testing.md](docs/testing.md).
 
 ## Environments
 
-Development and test use separate databases (`DATABASE_URL`, `TEST_DATABASE_URL`). Integration tests refuse to run against the development database. For now HMBL OS runs on one computer with its own `hmbl_live` database and daily backups; see [docs/running-locally.md](docs/running-locally.md). There is no cloud deployment configuration yet.
+Development and test use separate databases (`DATABASE_URL`, `TEST_DATABASE_URL`). Integration tests refuse to run against the development database. For now HMBL OS runs on one computer with its own `hmbl_live` database and daily backups; see [docs/running-locally.md](docs/running-locally.md) to install it and [docs/deployment.md](docs/deployment.md) to update and roll back. There is no cloud deployment configuration.
 
 ## Documentation
 
-- [Architecture](docs/architecture.md)
-- [Authentication and permissions](docs/auth-and-permissions.md)
-- [Organisation structure](docs/organisation.md)
-- [Audit log](docs/audit-log.md)
-- [Numbering schemes](docs/numbering.md)
-- [Design system and app shell](docs/design-system.md)
+**Using and running HMBL OS**
+
+- [User guide](docs/user-guide.md)
 - [Running HMBL OS on your own computer](docs/running-locally.md)
-- [Decision register](docs/decisions.md)
+- [Deploying, updating and rolling back](docs/deployment.md) (environment variables and migrations)
+- [Backups and restore checks](docs/backups.md)
+- [Production readiness checks](docs/readiness.md) and [checklist](docs/production-readiness.md)
+- [Monitoring and error handling](docs/monitoring.md)
+- [Decision register](docs/decisions.md) (known limitations and open decisions)
+
+**How it is built**
+
+- [Architecture and module boundaries](docs/architecture.md)
+- [Data model](docs/data-model.md)
+- [Authentication and permissions](docs/auth-and-permissions.md)
+- [Security](docs/security.md)
+- [Audit log](docs/audit-log.md)
+- [Design system and app shell](docs/design-system.md)
+- [Testing guide](docs/testing.md) and [performance](docs/performance.md)
+
+**Modules**
+
+- Organisation and set-up: [organisation](docs/organisation.md), [master data](docs/master-data.md), [numbering](docs/numbering.md)
+- Commercial: [CRM](docs/crm.md), [quotes and pricing](docs/commercial.md)
+- Projects: [projects](docs/projects.md), [budget](docs/budget.md), [change control](docs/change-control.md), [schedule](docs/schedule.md), [resources](docs/resources.md), [closeout](docs/closeout.md)
+- Operations: [crew](docs/crew.md), [equipment](docs/equipment.md), [procurement](docs/procurement.md), [travel](docs/travel.md), [logistics](docs/logistics.md), [show day](docs/production.md), [offline field app](docs/offline.md)
+- Finance: [ledger](docs/ledger.md), [invoicing](docs/invoicing.md), [receipts](docs/receipts.md), [payables](docs/payables.md), [expenses](docs/expenses.md), [banking](docs/banking.md), [period close](docs/period-close.md), [financial reports](docs/financial-reports.md)
+- Shared: [documents](docs/documents.md), [notifications and approvals](docs/notifications.md), [dashboards](docs/reporting.md)
+- Outside HMBL: [portal access](docs/portal.md), [client portal](docs/client-portal.md), [vendor and freelancer portal](docs/vendor-portal.md)
+- Data in and out: [integrations](docs/integrations.md), [imports](docs/imports.md), [data migration](docs/migration.md)

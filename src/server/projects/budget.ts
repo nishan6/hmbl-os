@@ -101,8 +101,9 @@ export async function budgetFigures(
 export async function getProjectBudget(actor: Actor, id: string) {
   const project = await loadProject(actor, id);
   if (!canSeeProjectCosts(actor, project.legalEntityId)) throw new ForbiddenError();
-  const [figures, budgetProblems, operationsProblems, entries] = await Promise.all([
+  const [figures, billing, budgetProblems, operationsProblems, entries] = await Promise.all([
     budgetFigures(db, project),
+    billingFigures(id),
     checkBudgetIntegrity(db, id),
     checkOperationsIntegrity(db, id),
     db.projectCostEntry.findMany({
@@ -115,7 +116,39 @@ export async function getProjectBudget(actor: Actor, id: string) {
       },
     }),
   ]);
-  return { project, ...figures, integrity: [...budgetProblems, ...operationsProblems], entries };
+  return {
+    project,
+    ...figures,
+    billing,
+    integrity: [...budgetProblems, ...operationsProblems],
+    entries,
+  };
+}
+
+/**
+ * What Finance has invoiced and collected for the project, in its currency
+ * (invoices for a project are always in the project's currency). Invoiced is
+ * issued tax invoices before tax, less issued credit notes; proformas and
+ * opening balances are not revenue invoiced here. Collected is what receipts
+ * have cleared on those invoices, tax included.
+ */
+async function billingFigures(projectId: string) {
+  const invoice = { projectId, kind: "TAX", status: "ISSUED", openingItemId: null } as const;
+  const [invoiced, credited, collected] = await Promise.all([
+    db.salesInvoice.aggregate({ where: invoice, _sum: { subtotalMinor: true } }),
+    db.creditNote.aggregate({
+      where: { status: "ISSUED", invoice },
+      _sum: { subtotalMinor: true },
+    }),
+    db.receiptAllocation.aggregate({
+      where: { voidedAt: null, receipt: { status: "POSTED" }, invoice },
+      _sum: { amountMinor: true },
+    }),
+  ]);
+  return {
+    invoicedMinor: (invoiced._sum.subtotalMinor ?? 0n) - (credited._sum.subtotalMinor ?? 0n),
+    collectedMinor: collected._sum.amountMinor ?? 0n,
+  };
 }
 
 // ─── Draft budget lines (before approval) ────────────────────────────────────

@@ -41,7 +41,7 @@ All amounts are integer minor units.
 | Expected revenue       | Contract value, including any contingency, + approved revenue changes                                                                                 |
 | Estimated gross profit | Expected revenue − forecast cost                                                                                                                      |
 | Estimated gross margin | Gross profit ÷ expected revenue, in basis points, truncated                                                                                           |
-| Invoiced, collected    | Shown as "With Finance" until Stage 4                                                                                                                 |
+| Invoiced, collected    | Issued tax invoices before tax less credit notes; and what receipts have cleared on them, tax included                                                |
 
 Because an actual cost drawn against a commitment lowers that commitment by the same amount, moving a cost from committed to actual never counts it twice.
 

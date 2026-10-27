@@ -56,5 +56,4 @@ The same page lists TDS withheld this financial year by month and section, with 
 ## Not covered yet
 
 - **Reverse charge (RCM)** on imports of services and from unregistered suppliers: bills from outside India carry no GST, and self-invoicing under RCM is left to the accountant for now.
-- **Purchase orders** and matching bills to them come with procurement.
 - TDS challans and the quarterly 26Q return.

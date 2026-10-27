@@ -38,7 +38,7 @@ Version 1 is the original budget. It is recorded when the baseline is fixed, eit
 
 ## Billing milestones
 
-Change orders don't change billing milestones. Extra revenue from a change is invoiced by Finance (Stage 4), using the change order as its source.
+Change orders don't change billing milestones. Extra revenue from a change is invoiced by Finance as an invoice for the project; the invoice doesn't link to the change order, so name the change order in the invoice's lines.
 
 ## Audit events
 

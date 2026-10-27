@@ -2,7 +2,7 @@
 
 Equipment covers what HMBL owns or leases: fixtures, audio, video, staging, power and stock (spec §13). Like crew, it is group-wide. Each asset can record which company owns it. Code: `src/server/equipment/` and `src/lib/equipment.ts`. Screens: **Equipment** in the sidebar.
 
-This page covers the inventory, maintenance, and booking equipment onto projects with dispatch and return. Rentals from vendors and purchase orders come with procurement (Stage 5, PR 5).
+This page covers the inventory, maintenance, and booking equipment onto projects with dispatch and return. Rentals from vendors are bought through purchase orders ([procurement.md](procurement.md)).
 
 ## Categories
 

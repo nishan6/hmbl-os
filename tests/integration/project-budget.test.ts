@@ -16,8 +16,12 @@ import {
   ensureCostCodeDefaults,
   setCostCodeArchived,
 } from "@/server/projects/cost-codes";
+import { createCreditNote, creditableLines, issueCreditNote } from "@/server/finance/credit-notes";
+import { createInvoice, issueInvoice } from "@/server/finance/invoices";
+import { recordReceipt, voidReceipt } from "@/server/finance/receipts";
 import { ConflictError, ForbiddenError } from "@/lib/errors";
 import { makeActor } from "../helpers/actors";
+import { giveBooks, issueSimpleInvoice, makeBankAccount } from "../helpers/finance";
 import { makeQuotingEntity } from "../helpers/commercial";
 import { makeAcceptedProject } from "../helpers/projects";
 
@@ -69,6 +73,64 @@ describe("the budget of a project from a quote", () => {
         cost: "1000",
       }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("what Finance has invoiced and collected", () => {
+  it("counts issued tax invoices before tax less credit notes, and live receipts", async () => {
+    const { project } = await makeAcceptedProject();
+    const entityId = project.legalEntityId;
+    await giveBooks(entityId);
+    const finance = await makeActor("finance");
+    const pm = await makeActor("project_manager");
+    const milestone = await db.projectMilestone.findFirstOrThrow({
+      where: { projectId: project.id, position: 1 },
+    });
+    await db.client.update({
+      where: { id: project.clientId! },
+      data: { countryCode: "IN", region: "Assam", addressLine1: "1 Test Road", city: "Guwahati" },
+    });
+    const draft = await createInvoice(finance, entityId, {
+      clientId: project.clientId!,
+      projectId: project.id,
+      milestoneId: milestone.id,
+    });
+    expect((await getProjectBudget(pm, project.id)).billing).toEqual({
+      invoicedMinor: 0n,
+      collectedMinor: 0n,
+    });
+
+    const invoice = await issueInvoice(finance, draft.id);
+    expect(invoice.totalMinor).toBe(82_600_00n);
+    const date = invoice.invoiceDate.toISOString().slice(0, 10);
+    const [line] = await creditableLines(finance, invoice.id);
+    const note = await createCreditNote(finance, invoice.id, {
+      date,
+      reason: "One day cancelled",
+      lines: [{ invoiceLineId: line!.id, amount: "10000" }],
+    });
+    await issueCreditNote(finance, note.id);
+    const bank = await makeBankAccount(entityId);
+    const paid = await recordReceipt(finance, entityId, {
+      clientId: project.clientId!,
+      depositAccountId: bank.ledgerAccountId,
+      date,
+      method: "BANK_TRANSFER",
+      reference: "UTR1",
+      currency: "INR",
+      amount: "50000",
+      allocations: [{ invoiceId: invoice.id, amount: "50000" }],
+    });
+    // The client's other invoices are not this project's.
+    await issueSimpleInvoice(finance, entityId, project.clientId!);
+
+    expect((await getProjectBudget(pm, project.id)).billing).toEqual({
+      invoicedMinor: 60_000_00n,
+      collectedMinor: 50_000_00n,
+    });
+
+    await voidReceipt(finance, paid.id, { date, reason: "Bounced" });
+    expect((await getProjectBudget(pm, project.id)).billing.collectedMinor).toBe(0n);
   });
 });
 

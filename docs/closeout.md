@@ -12,11 +12,11 @@ The **Closeout** tab is the checklist a project works through before it closes (
 
 People with `projects.edit` mark each item done, or not applicable with a note, and can reopen it, once the project is approved. **Final report filed** needs a current, unarchived document in the _Closeout report_ category first. Each change is audited as `closeout.item_updated`.
 
-Until Finance (Stage 4) tracks invoices, payments, bills and expenses, those items are confirmed by hand. Stage 4 can tick them automatically.
+**All client invoices issued**, **Client payments collected** and **Expenses reconciled** are confirmed by hand: HMBL OS doesn't yet check them against Finance's invoices, receipts and expense claims. The project's budget page shows what has been invoiced and collected to help.
 
 ## Checked from the records
 
-Three items are checked against what Stage 5 records, every time the tab loads. Each problem is listed under its item, linked to the record that fixes it:
+Three items are checked against the operations records, every time the tab loads. Each problem is listed under its item, linked to the record that fixes it:
 
 | Item                  | Open while                                                                                                                                                                                                                                                            |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

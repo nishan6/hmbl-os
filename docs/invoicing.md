@@ -71,4 +71,4 @@ A credit note is against one issued invoice. Each of its lines credits part of o
 
 ## Outstanding and status
 
-Invoiced, credited and received stay separate figures. Outstanding is total less issued credit notes less receipts allocated (receipts arrive with the next part of Stage 4). An issued invoice shows as Due, Overdue (past its due date), Partially paid, Paid, or Credited (cleared by credit notes alone).
+Invoiced, credited and received stay separate figures. Outstanding is total less issued credit notes less receipts allocated ([receipts.md](receipts.md)). An issued invoice shows as Due, Overdue (past its due date), Partially paid, Paid, or Credited (cleared by credit notes alone).
