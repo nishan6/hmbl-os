@@ -18,6 +18,13 @@ enum UserStatus {
   DISABLED
 }
 
+enum AccountLinkPurpose {
+  // A new staff member chooses their password.
+  INVITE
+  // An existing staff member sets a new password, and two-factor if it was reset.
+  RESET
+}
+
 // STAFF sign in to HMBL OS. EXTERNAL people (client contacts, vendors and
 // freelancers) sign in to the portal only and can never hold a role
 // (docs/portal.md); a database trigger enforces both.
@@ -68,6 +75,8 @@ model User {
   crewMember             CrewMember?                  @relation("CrewMemberUser")
   portalAccount          PortalAccount?               @relation("PortalAccountUser")
   portalInvitesSent      PortalInvitation[]           @relation("PortalInvitedBy")
+  accountLinksSent       AccountLink[]                @relation("AccountLinkCreatedBy")
+  accountLinks           AccountLink[]                @relation("AccountLinkUser")
   portalAccountsRevoked  PortalAccount[]              @relation("PortalAccountRevokedBy")
   portalShares           PortalShare[]                @relation("PortalSharedBy")
   portalSharesRevoked    PortalShare[]                @relation("PortalShareRevokedBy")
@@ -4511,4 +4520,33 @@ model JobRun {
 
   @@index([job, startedAt])
   @@map("job_runs")
+}
+
+/// A one-use link an administrator hands to a staff member to join HMBL OS or
+/// set a new password (docs/auth-and-permissions.md). Only a hash of the
+/// secret is kept.
+model AccountLink {
+  id             String             @id @default(uuid()) @db.Uuid
+  purpose        AccountLinkPurpose
+  // Lower case. Using the link needs this address as well.
+  email          String
+  name           String
+  // INVITE: the roles to grant, as [{ roleKey, legalEntityId | null }].
+  roles          Json               @default("[]")
+  // RESET: also remove the person's authenticator app.
+  resetTwoFactor Boolean            @default(false)
+  // RESET: whose password; INVITE: the account it created.
+  userId         String?            @db.Uuid
+  user           User?              @relation("AccountLinkUser", fields: [userId], references: [id], onDelete: Restrict)
+  tokenHash      String             @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  revokedAt      DateTime?
+  createdById    String             @db.Uuid
+  createdBy      User               @relation("AccountLinkCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt      DateTime           @default(now())
+
+  @@index([email])
+  @@index([userId])
+  @@map("account_links")
 }

@@ -29,6 +29,8 @@ const GUARDS =
 const PUBLIC_PAGES: Record<string, string> = {
   "sign-in/page.tsx": "the sign-in form",
   "invite/[token]/page.tsx": "accepting a portal invitation; the token is the key",
+  "sign-in/link/[token]/page.tsx":
+    "joining or setting a new password from a staff link; the token is the key",
 };
 const PUBLIC_ROUTES: Record<string, string> = {
   "api/auth/[...all]/route.ts": "Better Auth's own sign-in endpoints, rate limited",
@@ -38,6 +40,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
 const PUBLIC_ACTIONS: Record<string, string> = {
   "invite/[token]/actions.ts#acceptInvitationAction":
     "accepting a portal invitation; the token and the invited email are checked",
+  "sign-in/link/[token]/actions.ts#redeemLinkAction":
+    "using a staff invitation or password link; the token and the email it names are checked",
   "(app)/actions.ts#setThemePreference": "only sets the light or dark theme cookie",
 };
 

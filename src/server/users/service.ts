@@ -15,18 +15,20 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@
 import { parseInput } from "@/lib/parse";
 import { createUserInput, type CreateUserInput } from "./schemas";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** null: every legal entity. */
-type EntityScope = string | null;
+export type EntityScope = string | null;
 
 /** Does the caller hold `permission` across the whole of `scope`? */
-function holds(grants: Grant[], permission: Permission, scope: EntityScope): boolean {
+export function holds(grants: Grant[], permission: Permission, scope: EntityScope): boolean {
   const actor = { id: "", name: "", email: "", grants };
   return scope === null
     ? canEverywhere(actor, permission)
     : can(actor, permission, { legalEntityId: scope });
 }
 
-function check(caller: Caller, permission: Permission, scope: EntityScope = null) {
+export function check(caller: Caller, permission: Permission, scope: EntityScope = null) {
   if (caller === "system") return;
   if (!holds(caller.grants, permission, scope)) throw new ForbiddenError();
 }
@@ -35,7 +37,7 @@ function check(caller: Caller, permission: Permission, scope: EntityScope = null
  * An actor may only hand out permissions they hold themselves, over the same
  * entities, so nobody can escalate by assigning a stronger or wider role.
  */
-async function assertCanGrant(caller: Caller, roleIds: string[], scope: EntityScope = null) {
+export async function assertCanGrant(caller: Caller, roleIds: string[], scope: EntityScope = null) {
   if (caller === "system" || roleIds.length === 0) return;
   const rolePermissions = await db.rolePermission.findMany({
     where: { roleId: { in: roleIds } },
@@ -48,13 +50,13 @@ async function assertCanGrant(caller: Caller, roleIds: string[], scope: EntitySc
   }
 }
 
-async function assertEntityExists(scope: EntityScope) {
+export async function assertEntityExists(scope: EntityScope) {
   if (scope === null) return;
   const entity = await db.legalEntity.findUnique({ where: { id: scope } });
   if (!entity || entity.status !== "ACTIVE") throw new ValidationError("Unknown legal entity.");
 }
 
-async function rolesByKey(keys: string[]) {
+export async function rolesByKey(keys: string[]) {
   const roles = await db.role.findMany({ where: { key: { in: keys } } });
   const missing = keys.filter((k) => !roles.some((r) => r.key === k));
   if (missing.length) throw new ValidationError(`Unknown role: ${missing.join(", ")}`);
@@ -224,6 +226,23 @@ export async function disableUser(caller: Caller, userId: string) {
   });
 }
 
+/** Lets a disabled user sign in again, with the roles they still hold. */
+export async function enableUser(caller: Caller, userId: string) {
+  check(caller, "users.archive");
+  const target = await db.user.findUnique({ where: { id: userId } });
+  if (!target || target.kind !== "STAFF") throw new NotFoundError();
+  if (target.status === "ACTIVE") return;
+  await db.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { status: "ACTIVE" } });
+    await recordAudit(tx, caller, {
+      action: "user.enabled",
+      targetType: "user",
+      targetId: userId,
+      changes: { status: { from: "DISABLED", to: "ACTIVE" } },
+    });
+  });
+}
+
 export async function listUsers(caller: Actor) {
   authorize(caller, "users.view");
   // Portal users are listed under Portal access, never as staff.
@@ -243,6 +262,51 @@ export async function listUsers(caller: Actor) {
       },
     },
   });
+}
+
+/** One staff member with their roles, for the user page. */
+export async function getUser(caller: Actor, userId: string) {
+  authorize(caller, "users.view");
+  if (!UUID.test(userId)) throw new NotFoundError();
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      kind: true,
+      status: true,
+      twoFactorEnabled: true,
+      createdAt: true,
+      roles: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          legalEntityId: true,
+          createdAt: true,
+          role: { select: { key: true, name: true } },
+          legalEntity: { select: { code: true, legalName: true } },
+          grantedBy: { select: { name: true } },
+        },
+      },
+    },
+  });
+  if (!user || user.kind !== "STAFF") throw new NotFoundError();
+  return user;
+}
+
+/** Roles and legal entities to choose from when granting a role. */
+export async function roleOptions(caller: Actor) {
+  authorize(caller, "users.view");
+  const [roles, entities] = await Promise.all([
+    db.role.findMany({ orderBy: { name: "asc" }, select: { key: true, name: true } }),
+    db.legalEntity.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { code: "asc" },
+      select: { id: true, code: true, legalName: true },
+    }),
+  ]);
+  return { roles, entities };
 }
 
 /**

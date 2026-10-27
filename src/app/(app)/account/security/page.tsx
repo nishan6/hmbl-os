@@ -4,6 +4,8 @@ import { PageHeader, Panel, Section } from "@/components/ui/page";
 import { Tag } from "@/components/ui/status";
 import { TwoFactorSetup } from "@/components/account/two-factor-setup";
 import { ManageTwoFactor } from "@/components/account/manage-two-factor";
+import { ChangePassword } from "@/components/account/change-password";
+import { changePasswordAction } from "./actions";
 
 export const metadata = { title: "Sign-in security" };
 
@@ -42,6 +44,14 @@ export default async function SecurityPage() {
           ) : (
             <TwoFactorSetup doneHref="/account/security" />
           )}
+        </Panel>
+      </Section>
+      <Section
+        title="Password"
+        description="Changing it signs you out on every other device. If you've forgotten it, ask an administrator for a password link."
+      >
+        <Panel>
+          <ChangePassword action={changePasswordAction} />
         </Panel>
       </Section>
     </>
