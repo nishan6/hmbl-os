@@ -59,6 +59,7 @@ describe("design tokens", () => {
     ["--hm-text-muted", "--hm-bg"],
     ["--hm-text-muted", "--hm-sidebar"],
     ["--hm-text-on-accent", "--hm-accent-fill"],
+    ["--hm-text-on-accent", "--hm-accent-fill-hover"],
     ["--hm-text-on-danger", "--hm-danger"],
     ["--hm-text-muted", "--hm-surface-2"],
     ["--hm-accent", "--hm-bg"],
