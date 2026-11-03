@@ -80,7 +80,7 @@ pnpm start
 
 Open <http://localhost:3000> and sign in. Because Owner is a role that requires two-factor, you'll be asked to set it up with an authenticator app first. Then go to **Administration → Organisation → New legal entity** and add HMBL Entertainment with its registered name, country, currency and tax registrations.
 
-To stop it, press `Ctrl+C` in that terminal. Start it again with `pnpm start`.
+HMBL OS answers only on this computer (`pnpm start` listens on 127.0.0.1), so nobody else on the same Wi-Fi can open it over an unencrypted connection. Keep the Terminal window open while you use it. To stop it, press `Ctrl+C` in that terminal. Start it again with `pnpm start`.
 
 ## Check it is ready
 
