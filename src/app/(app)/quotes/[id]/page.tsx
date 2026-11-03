@@ -12,7 +12,7 @@ import { PAYMENT_TRIGGERS } from "@/server/master-data/schemas";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { formatBps } from "@/lib/percent";
-import { PRICING_METHODS } from "@/lib/pricing";
+import { marginAndMarkup, PRICING_METHODS } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Alert, DetailList, EmptyState, PageHeader, Panel, Section } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
@@ -323,9 +323,7 @@ export default async function QuotePage({ params, searchParams }: PageProps<"/qu
                           {quote.showCosts ? (
                             <TD align="right">
                               {l.netMinor > 0n
-                                ? formatBps(
-                                    Number(((l.netMinor - l.costMinor) * 10000n) / l.netMinor),
-                                  )
+                                ? formatBps(marginAndMarkup(l.netMinor, l.costMinor).marginBps!)
                                 : "—"}
                             </TD>
                           ) : null}

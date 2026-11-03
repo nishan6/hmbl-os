@@ -8,6 +8,8 @@ import { loadFinancePage, param } from "../../_components/load";
 import { recordAdvanceAction } from "../actions";
 import { AdvanceForm } from "./advance-form";
 
+import { defaultMoneyAccount } from "@/lib/settlement";
+
 export const metadata = { title: "Pay an advance" };
 
 export default async function NewAdvancePage({ searchParams }: PageProps<"/finance/advances/new">) {
@@ -34,7 +36,7 @@ export default async function NewAdvancePage({ searchParams }: PageProps<"/finan
           personId: param(params.person) ?? "",
           date: toDateOnly(new Date()),
           method: "BANK_TRANSFER",
-          paidFromId: options.accounts[0]?.id ?? "",
+          paidFromId: defaultMoneyAccount(options.accounts, entity.baseCurrency)?.id ?? "",
         }}
         cancelHref={back}
       />

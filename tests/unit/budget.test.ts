@@ -7,6 +7,7 @@ import {
   type CostEntryFigures,
   type LineInput,
 } from "@/lib/budget";
+import { marginAndMarkup } from "@/lib/pricing";
 
 let n = 0;
 const entry = (
@@ -128,8 +129,16 @@ describe("budget figures", () => {
     expect(profitFigures(220_000n, 0n, total.forecastMinor)).toEqual({
       expectedRevenueMinor: 220_000n,
       grossProfitMinor: 65_000n,
-      marginBps: 2954,
+      // 29.545…% rounds to 29.55%, as the quote shows it.
+      marginBps: 2955,
     });
     expect(profitFigures(0n, 0n, 1_000n).marginBps).toBeNull();
+  });
+
+  it("rounds the margin the same way as the quote it came from", () => {
+    // ₹19,40,000 revenue against ₹12,50,000 cost is 35.567%: 35.57%, not 35.56%.
+    const { marginBps } = profitFigures(19_40_000_00n, 0n, 12_50_000_00n);
+    expect(marginBps).toBe(marginAndMarkup(19_40_000_00n, 12_50_000_00n).marginBps);
+    expect(marginBps).toBe(3557);
   });
 });

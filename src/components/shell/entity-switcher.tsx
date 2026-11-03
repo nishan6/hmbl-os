@@ -24,14 +24,14 @@ export function EntitySwitcher({
     );
   }
   return (
-    <label className="text-secondary flex items-center gap-1.5 text-sm">
-      <Building2 className="size-4" aria-hidden />
+    <label className="text-secondary flex min-w-0 items-center gap-1.5 text-sm">
+      <Building2 className="size-4 shrink-0" aria-hidden />
       <span className="sr-only">Legal entity</span>
       <select
         value={selectedId ?? "all"}
         disabled={pending}
         onChange={(e) => startTransition(() => setEntityContext(e.target.value))}
-        className="h-control-sm text-text hover:border-border max-w-48 rounded-md border border-transparent bg-transparent pr-6 pl-1 text-sm"
+        className="h-control-sm text-text hover:border-border max-w-48 min-w-0 truncate rounded-md border border-transparent bg-transparent pr-6 pl-1 text-sm"
       >
         <option value="all">All entities</option>
         {entities.map((e) => (

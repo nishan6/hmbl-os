@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { marginAndMarkup } from "@/lib/pricing";
 import { Pencil, Theater } from "lucide-react";
 import { requireActorOrRedirect } from "@/server/auth/session";
 import { can } from "@/server/permissions/authorize";
@@ -65,8 +66,8 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
       : date(p.eventStartDate ?? p.eventEndDate);
   const source = p.sourceQuoteVersion;
   const margin =
-    p.budgetCostMinor !== null && p.contractValueMinor > 0n
-      ? Number(((p.contractValueMinor - p.budgetCostMinor) * 10000n) / p.contractValueMinor)
+    p.budgetCostMinor !== null
+      ? marginAndMarkup(p.contractValueMinor, p.budgetCostMinor).marginBps
       : null;
   const narrative = [
     { title: "Description", text: p.description },
@@ -309,7 +310,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
           {p.milestones.length ? (
             <Section
               title="Billing milestones"
-              description="From the quote's payment terms. Invoicing comes with Finance."
+              description="From the quote's payment terms. Finance invoices each one from Finance → Invoices."
             >
               <Table dense>
                 <THead>

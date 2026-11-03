@@ -46,10 +46,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="h-topbar border-separator bg-bg/85 sticky top-0 z-30 flex items-center gap-2 border-b px-3 backdrop-blur sm:px-4">
           <MobileNav visible={visible} />
-          <div className="lg:hidden">
+          <div className="shrink-0 lg:hidden">
             <Brand />
           </div>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex min-w-0 items-center gap-3">
             <EntitySwitcher entities={entities} selectedId={selectedId} />
             <NotificationsLink unread={unread} />
             <UserMenu name={actor.name} email={actor.email} theme={theme} />

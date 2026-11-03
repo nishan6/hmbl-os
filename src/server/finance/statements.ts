@@ -1,5 +1,6 @@
 import "server-only";
 import type { AccountSubtype, AccountType } from "@/generated/prisma/enums";
+import { roundDiv } from "@/lib/pricing";
 import { db } from "@/server/db";
 import { authorize, type Actor } from "@/server/permissions/authorize";
 import { getLegalEntity } from "@/server/organisation/service";
@@ -215,7 +216,8 @@ export async function projectProfitability(actor: Actor, legalEntityId: string, 
           ...r,
           marginMinor,
           // Basis points of revenue, so the page can show 12.34%.
-          marginBps: r.revenueMinor > 0n ? Number((marginMinor * 10_000n) / r.revenueMinor) : null,
+          marginBps:
+            r.revenueMinor > 0n ? Number(roundDiv(marginMinor * 10_000n, r.revenueMinor)) : null,
         };
       })
       .sort((a, b) => a.project.number.localeCompare(b.project.number)),
