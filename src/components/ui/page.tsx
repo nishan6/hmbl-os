@@ -38,12 +38,12 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <header className="mb-6 flex flex-col gap-2">
+    <header className="mb-8 flex flex-col gap-2">
       {breadcrumbs ? <Breadcrumbs items={breadcrumbs} /> : null}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-text text-lg font-semibold tracking-tight">{title}</h1>
-          {description ? <p className="text-secondary mt-0.5 text-base">{description}</p> : null}
+          <h1 className="text-text text-xl font-bold">{title}</h1>
+          {description ? <p className="text-secondary mt-1 text-base">{description}</p> : null}
         </div>
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
       </div>
@@ -67,13 +67,13 @@ export function Section({
 }) {
   const id = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   return (
-    <section aria-labelledby={id} className={cn("mb-8", className)}>
+    <section aria-labelledby={id} className={cn("mb-10", className)}>
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
           <h2 id={id} className="text-md text-text font-semibold">
             {title}
           </h2>
-          {description ? <p className="text-secondary text-sm">{description}</p> : null}
+          {description ? <p className="text-secondary mt-0.5 text-sm">{description}</p> : null}
         </div>
         {actions}
       </div>
@@ -85,7 +85,7 @@ export function Section({
 export function Panel({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("border-separator bg-surface rounded-lg border p-4 shadow-sm", className)}
+      className={cn("border-separator bg-surface rounded-lg border p-5 shadow-sm", className)}
       {...props}
     />
   );
@@ -98,7 +98,7 @@ export function DetailList({ items }: { items: { label: string; value: React.Rea
       {items.map(({ label, value }) => (
         <div key={label} className="min-w-0">
           <dt className="text-muted text-xs">{label}</dt>
-          <dd className="text-text mt-0.5 truncate text-base">{value ?? "—"}</dd>
+          <dd className="text-text mt-0.5 truncate text-base font-medium">{value ?? "—"}</dd>
         </div>
       ))}
     </dl>
@@ -120,9 +120,13 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="border-border flex flex-col items-center rounded-lg border border-dashed px-6 py-12 text-center">
-      {Icon ? <Icon className="text-muted mb-3 size-6" aria-hidden /> : null}
-      <Title className="text-md text-text font-medium">{title}</Title>
+    <div className="border-separator bg-surface-2 flex flex-col items-center rounded-lg border px-6 py-14 text-center">
+      {Icon ? (
+        <span className="bg-sunken text-secondary mb-4 flex size-11 items-center justify-center rounded-full">
+          <Icon className="size-5" aria-hidden />
+        </span>
+      ) : null}
+      <Title className="text-md text-text font-semibold">{title}</Title>
       {description ? (
         <p className="text-secondary mt-1 max-w-prose text-base">{description}</p>
       ) : null}
@@ -137,10 +141,10 @@ export function Skeleton({ className }: { className?: string }) {
 
 type AlertTone = "info" | "success" | "warning" | "danger";
 const alertTones: Record<AlertTone, string> = {
-  info: "border-info/30 bg-info-soft text-info",
-  success: "border-success/30 bg-success-soft text-success",
-  warning: "border-warning/30 bg-warning-soft text-warning",
-  danger: "border-danger/30 bg-danger-soft text-danger",
+  info: "border-info/20 bg-info-soft text-info",
+  success: "border-success/20 bg-success-soft text-success",
+  warning: "border-warning/20 bg-warning-soft text-warning",
+  danger: "border-danger/20 bg-danger-soft text-danger",
 };
 
 export function Alert({
@@ -155,9 +159,9 @@ export function Alert({
   return (
     <div
       role={tone === "danger" ? "alert" : "status"}
-      className={cn("rounded-md border px-3 py-2 text-sm", alertTones[tone])}
+      className={cn("rounded-md border px-3.5 py-2.5 text-sm", alertTones[tone])}
     >
-      <p className="font-medium">{title}</p>
+      <p className="font-semibold">{title}</p>
       {children ? <div className="text-text mt-0.5">{children}</div> : null}
     </div>
   );

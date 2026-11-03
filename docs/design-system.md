@@ -43,6 +43,7 @@ The target is WCAG 2.2 AA.
 | `Table`, `THead`, `TBody`, `TR`, `TH`, `TD`                  | `components/ui/table.tsx`                     | `align="right"` for numbers and money; sticky header; horizontal scroll                         |
 | `PageHeader`, `Section`, `Panel`, `DetailList`, `EmptyState` | `components/ui/page.tsx`                      | Page structure: hierarchy and spacing first, cards only where they help                         |
 | `Alert`, `Skeleton`, `Breadcrumbs`                           | `components/ui/page.tsx`                      | Feedback, loading and wayfinding                                                                |
+| `tabList`, `tab`                                             | `components/ui/tabs.ts`                       | Section tabs as a segmented control; each tab is a link with `aria-current="page"`              |
 | `ActionButton`                                               | `components/ui/action-button.tsx`             | One-click server actions (archive, make default) with an inline error and optional confirmation |
 | `useForm`, `FormAlert`                                       | `components/ui/use-form.ts`, `form-alert.tsx` | Form state for server actions: keeps values after an error, resets after success                |
 
@@ -52,8 +53,8 @@ Formatting helpers live in `src/lib/format.ts`: `formatMoney` takes integer mino
 
 `src/app/(app)/layout.tsx` wraps every signed-in page.
 
-- **Sidebar** (`components/shell/sidebar.tsx`): the information architecture from the spec. The server decides which items the user may see; modules that aren't built yet are shown as "Planned" without a link. Below 1024px it becomes a drawer (`mobile-nav.tsx`).
-- **Top bar**: the entity switcher and the account menu. The entity switcher appears when a user can see more than one legal entity and narrows entity-owned lists such as number formats and the audit log; the choice is kept in an http-only cookie and checked against the user's permissions on every request. The account menu holds the theme choice and sign-out.
+- **Sidebar** (`components/shell/sidebar.tsx`): a translucent material layer holding the information architecture from the spec; the current page is tinted and its icon takes the accent. The server decides which items the user may see; modules that aren't built yet are shown as "Planned" without a link. Below 1024px it becomes a drawer (`mobile-nav.tsx`).
+- **Top bar**: a translucent bar that blurs content scrolling beneath it, holding the entity switcher and the account menu. The entity switcher appears when a user can see more than one legal entity and narrows entity-owned lists such as number formats and the audit log; the choice is kept in an http-only cookie and checked against the user's permissions on every request. The account menu holds the theme choice and sign-out.
 - **States**: `loading.tsx` shows skeletons, `error.tsx` shows a retry with the error reference only, and `not-found.tsx` is also what users see for records outside their entities.
 
 Hiding a navigation item is never the access control. Each page and service checks permissions on the server; the e2e suite checks that a user without `audit.view` gets "Page not found" at `/admin/audit`.
