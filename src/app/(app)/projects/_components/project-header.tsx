@@ -4,6 +4,7 @@ import { PageHeader, type Crumb } from "@/components/ui/page";
 import { StatusBadge, Tag } from "@/components/ui/status";
 import type { ProjectStatus } from "@/server/projects/lifecycle";
 import { PROJECT_STATUS } from "./status";
+import { tab, tabList } from "@/components/ui/tabs";
 
 const TABS = [
   { path: "", label: "Overview" },
@@ -73,19 +74,13 @@ export function ProjectHeader({
         actions={actions}
       />
       {crumb ? null : (
-        <nav
-          aria-label="Project"
-          className="border-separator mb-6 flex gap-4 overflow-x-auto border-b"
-        >
+        <nav aria-label="Project" className={tabList}>
           {TABS.filter((t) => showCosts || !("costs" in t)).map((t) => (
             <Link
               key={t.path}
               href={`${base}${t.path}`}
               aria-current={t.path === current ? "page" : undefined}
-              className={cn(
-                "text-secondary hover:text-text -mb-px border-b-2 border-transparent pb-2 text-base whitespace-nowrap",
-                "aria-[current=page]:border-accent aria-[current=page]:text-text aria-[current=page]:font-medium",
-              )}
+              className={cn(tab)}
             >
               {t.label}
             </Link>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 import { PageHeader, Panel } from "@/components/ui/page";
 import { Tag } from "@/components/ui/status";
+import { tab, tabList } from "@/components/ui/tabs";
 
 type EntityOption = { id: string; code: string; isDemo: boolean };
 
@@ -62,19 +63,13 @@ export function ReportHeader({
           ) : null
         }
       />
-      <nav
-        aria-label="Dashboards"
-        className="border-separator mb-6 flex gap-4 overflow-x-auto border-b"
-      >
+      <nav aria-label="Dashboards" className={tabList}>
         {tabs.map((t) => (
           <Link
             key={t.key}
             href={t.href}
             aria-current={t.key === current ? "page" : undefined}
-            className={cn(
-              "text-secondary hover:text-text -mb-px border-b-2 border-transparent pb-2 text-base whitespace-nowrap",
-              "aria-[current=page]:border-accent aria-[current=page]:text-text aria-[current=page]:font-medium",
-            )}
+            className={cn(tab)}
           >
             {t.label}
           </Link>

@@ -105,7 +105,7 @@
   --hm-accent: #4ea1ff;
   --hm-accent-hover: #6fb2ff;
   --hm-accent-fill: #0a6bdc;
-  --hm-accent-fill-hover: #1a78e8;
+  --hm-accent-fill-hover: #0a60c4;
   --hm-accent-soft: #11263f;
   --hm-focus: #4ea1ff;
   --hm-success: #4fd17e;
@@ -248,7 +248,7 @@
     --hm-accent: #4ea1ff;
     --hm-accent-hover: #6fb2ff;
     --hm-accent-fill: #0a6bdc;
-    --hm-accent-fill-hover: #1a78e8;
+    --hm-accent-fill-hover: #0a60c4;
     --hm-accent-soft: #11263f;
     --hm-focus: #4ea1ff;
     --hm-success: #4fd17e;
@@ -304,6 +304,24 @@
 @utility material {
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* A soft wash of the accent behind signed-out pages. */
+@utility backdrop-glow {
+  background:
+    radial-gradient(60rem 30rem at 50% -10%, var(--color-accent-soft), transparent 70%),
+    var(--color-bg);
+}
+
+/* A quiet chevron in place of the browser's own select arrow. */
+@layer components {
+  .select-chevron {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238e8e93' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 6.5 3-3 3 3M5 9.5l3 3 3-3'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1rem;
+  }
 }
 
 @utility tabular {
