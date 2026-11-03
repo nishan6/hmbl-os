@@ -9,6 +9,7 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { formatBps } from "@/lib/percent";
 import { splitByPercent } from "@/lib/pricing";
 import { PrintButton } from "../../_components/print-button";
+import { HmblLockup } from "@/components/shell/brand";
 
 export const metadata = { title: "Quote" };
 
@@ -89,6 +90,7 @@ export default async function QuoteDocumentPage({
 
         <header className="flex flex-wrap justify-between gap-6">
           <div>
+            <HmblLockup className="mb-4 h-6" title="HMBL Entertainment" />
             <p className="text-md font-semibold">
               {doc.entity.tradingName ?? doc.entity.legalName}
             </p>
