@@ -81,6 +81,14 @@ describe("design tokens", () => {
       expect(contrast(values.get(fg)!, values.get(bg)!)).toBeGreaterThanOrEqual(4.5);
     });
 
+    // WCAG 1.4.1: a link with no underline at rest must differ from the text
+    // around it by 3:1 (axe link-in-text-block).
+    it(`${theme}: links stand out from body text at 3:1`, () => {
+      expect(contrast(values.get("--hm-accent")!, values.get("--hm-text")!)).toBeGreaterThanOrEqual(
+        3,
+      );
+    });
+
     it(`${theme}: the focus ring stands out from surfaces at 3:1`, () => {
       for (const bg of ["--hm-bg", "--hm-surface", "--hm-sidebar"]) {
         expect(contrast(values.get("--hm-focus")!, values.get(bg)!), bg).toBeGreaterThanOrEqual(3);
