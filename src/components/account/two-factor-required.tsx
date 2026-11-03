@@ -8,7 +8,7 @@ export function TwoFactorRequired({ name }: { name: string }) {
     <main id="main" className="flex flex-1 justify-center px-4 py-12">
       <div className="w-full max-w-lg">
         <div className="mb-8 flex items-center justify-between">
-          <Brand href={null} />
+          <Brand href={null} size="lg" />
           <SignOutLink />
         </div>
         <div className="border-separator bg-surface rounded-lg border p-6 shadow-md">

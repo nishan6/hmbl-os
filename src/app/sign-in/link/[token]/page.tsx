@@ -23,7 +23,7 @@ export default async function AccountLinkPage({ params }: PageProps<"/sign-in/li
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-md">
         <div className="mb-8 flex justify-center">
-          <Brand href={null} />
+          <Brand href={null} size="lg" />
         </div>
         <div className="border-separator bg-surface rounded-lg border p-6 shadow-md">
           {!link ? (
