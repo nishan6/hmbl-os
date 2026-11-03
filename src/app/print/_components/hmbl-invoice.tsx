@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HmblLockup } from "@/components/shell/brand";
+import { HMBL_MARK } from "@/components/shell/logo-paths";
 import { GST_STATES, rupeesInWords, type SupplyType } from "@/lib/gst";
 import {
   documentDate,
@@ -260,7 +261,8 @@ export function HmblInvoice(d: HmblInvoiceProps) {
         <section className="flex break-inside-avoid flex-wrap items-start justify-between gap-6">
           <div>
             <h2 className="text-xs font-bold uppercase">Total due</h2>
-            <p className="hatch tabular mt-2 px-6 py-2 text-[1.75rem] font-light tracking-wide">
+            <p className="tabular relative isolate mt-2 overflow-hidden px-6 py-2 text-[1.75rem] font-light tracking-wide">
+              <HmblPattern />
               {money(due)}
             </p>
             {d.currency === "INR" ? (
@@ -338,6 +340,36 @@ export function HmblInvoice(d: HmblInvoiceProps) {
         {d.website ? <footer className="text-center text-xs font-bold">{d.website}</footer> : null}
       </main>
     </div>
+  );
+}
+
+/**
+ * The security pattern behind the total due on HMBL's invoices: the HMBL mark
+ * repeated in fine diagonal rows. Drawn as SVG so it prints even when the
+ * browser leaves background graphics out.
+ */
+function HmblPattern() {
+  const [, , w, h] = HMBL_MARK.viewBox.split(" ").map(Number);
+  // Each mark is 11px wide, with a little air along and between the rows.
+  const markWidth = 11;
+  const markHeight = (markWidth * h!) / w!;
+  return (
+    <svg aria-hidden className="text-text absolute inset-0 -z-10 h-full w-full opacity-30">
+      <defs>
+        <pattern
+          id="hmbl-total-pattern"
+          width={markWidth + 2}
+          height={markHeight * 2.2}
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate(-45)"
+        >
+          <svg viewBox={HMBL_MARK.viewBox} width={markWidth} height={markHeight}>
+            <path d={HMBL_MARK.d} fill="currentColor" />
+          </svg>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#hmbl-total-pattern)" />
+    </svg>
   );
 }
 
