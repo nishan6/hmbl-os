@@ -131,10 +131,12 @@ export default async function HomePage() {
               <li key={href}>
                 <Link
                   href={href}
-                  className="border-separator bg-surface hover:border-border-strong flex h-full flex-col gap-1 rounded-lg border p-4 shadow-sm transition-colors"
+                  className="group border-separator bg-surface flex h-full flex-col gap-1 rounded-lg border p-5 shadow-sm transition-[box-shadow,transform] duration-(--duration-base) ease-(--ease-emphasized) hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Icon className="text-accent size-4" aria-hidden />
-                  <span className="text-text text-base font-medium">{label}</span>
+                  <span className="bg-accent-soft text-accent mb-2 flex size-9 items-center justify-center rounded-md">
+                    <Icon className="size-4.5" aria-hidden />
+                  </span>
+                  <span className="text-text text-base font-semibold">{label}</span>
                   <span className="text-secondary text-sm">{description}</span>
                 </Link>
               </li>

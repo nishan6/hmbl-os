@@ -17,8 +17,8 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
 ];
 
 const item =
-  "flex h-8 cursor-default items-center gap-2 rounded-sm px-2 text-base text-text outline-none select-none " +
-  "data-highlighted:bg-hover data-disabled:text-disabled [&_svg]:size-4";
+  "flex h-8 cursor-default items-center gap-2.5 rounded-sm px-2.5 text-base text-text outline-none select-none " +
+  "data-highlighted:bg-accent-fill data-highlighted:text-on-accent data-disabled:text-disabled [&_svg]:size-4";
 
 function applyTheme(theme: Theme) {
   // Instant feedback; the cookie set by the server action keeps it on reload.
@@ -38,7 +38,7 @@ export function UserMenu({ name, email, theme }: { name: string; email: string; 
 
   return (
     <DropdownMenu.Root>
-      <DropdownMenu.Trigger className="bg-accent-soft text-accent flex size-8 items-center justify-center rounded-full text-xs font-semibold hover:opacity-90">
+      <DropdownMenu.Trigger className="bg-accent-soft text-accent ring-separator flex size-8 items-center justify-center rounded-full text-xs font-semibold ring-1 transition-opacity duration-(--duration-fast) hover:opacity-85">
         {/* Initials are decoration; the accessible name spells out whose account it is. */}
         <span aria-hidden>{initials}</span>
         <span className="sr-only">Account: {name}</span>
@@ -47,7 +47,7 @@ export function UserMenu({ name, email, theme }: { name: string; email: string; 
         <DropdownMenu.Content
           align="end"
           sideOffset={6}
-          className="border-separator bg-elevated z-50 min-w-56 rounded-lg border p-1 shadow-lg"
+          className="border-separator bg-material-menu material z-50 min-w-60 rounded-lg border p-1.5 shadow-lg"
         >
           <div className="px-2 py-1.5">
             <p className="text-text text-base font-medium">{name}</p>

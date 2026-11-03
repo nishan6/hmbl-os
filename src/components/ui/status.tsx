@@ -127,7 +127,7 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center gap-1 rounded-sm px-1.5 text-xs font-medium whitespace-nowrap",
+        "inline-flex h-5.5 items-center gap-1 rounded-full px-2 text-xs font-medium whitespace-nowrap",
         tones[tone],
         className,
       )}
@@ -151,7 +151,7 @@ export function Tag({
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center rounded-sm px-1.5 text-xs font-medium whitespace-nowrap",
+        "inline-flex h-5.5 items-center rounded-full px-2 text-xs font-medium whitespace-nowrap",
         tones[tone],
         className,
       )}

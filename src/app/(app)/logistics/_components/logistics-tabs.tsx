@@ -6,6 +6,7 @@ import type {
   TravelRequestStatus,
 } from "@/generated/prisma/enums";
 import type { StatusKey } from "@/components/ui/status";
+import { tab, tabList } from "@/components/ui/tabs";
 
 export const LOGISTICS_TABS = [
   { path: "/logistics", label: "Travel" },
@@ -37,19 +38,13 @@ export const SHIPMENT_STATUS: Record<ShipmentStatus, StatusKey> = {
 /** The travel and logistics sections, under the page header. */
 export function LogisticsTabs({ current }: { current: (typeof LOGISTICS_TABS)[number]["path"] }) {
   return (
-    <nav
-      aria-label="Travel and logistics"
-      className="border-separator mb-6 flex gap-4 overflow-x-auto border-b"
-    >
+    <nav aria-label="Travel and logistics" className={tabList}>
       {LOGISTICS_TABS.map((t) => (
         <Link
           key={t.path}
           href={t.path}
           aria-current={t.path === current ? "page" : undefined}
-          className={cn(
-            "text-secondary hover:text-text -mb-px border-b-2 border-transparent pb-2 text-base whitespace-nowrap",
-            "aria-[current=page]:border-accent aria-[current=page]:text-text aria-[current=page]:font-medium",
-          )}
+          className={cn(tab)}
         >
           {t.label}
         </Link>

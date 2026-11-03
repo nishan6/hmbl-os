@@ -37,14 +37,14 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       >
         Skip to content
       </a>
-      <aside className="w-sidebar border-separator bg-sidebar sticky top-0 hidden h-dvh shrink-0 flex-col overflow-y-auto border-r lg:flex">
-        <div className="h-topbar flex items-center px-3">
+      <aside className="w-sidebar border-separator bg-material-sidebar material sticky top-0 hidden h-dvh shrink-0 flex-col overflow-y-auto border-r lg:flex">
+        <div className="h-topbar flex shrink-0 items-center px-4">
           <Brand />
         </div>
         <SidebarNav visible={visible} />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="h-topbar border-separator bg-bg/85 sticky top-0 z-30 flex items-center gap-2 border-b px-3 backdrop-blur sm:px-4">
+        <header className="h-topbar border-separator bg-material-bar material sticky top-0 z-30 flex items-center gap-2 border-b px-3 sm:px-5">
           <MobileNav visible={visible} />
           <div className="lg:hidden">
             <Brand />
@@ -55,7 +55,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <UserMenu name={actor.name} email={actor.email} theme={theme} />
           </div>
         </header>
-        <main id="main" className="max-w-content mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main id="main" className="max-w-content mx-auto w-full flex-1 px-4 py-8 sm:px-6 lg:px-10">
           {children}
         </main>
       </div>
