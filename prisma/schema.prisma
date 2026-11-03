@@ -1572,12 +1572,20 @@ enum RevenueRecognition {
 
 /// Per-entity finance rules. A missing row means the defaults below.
 model FinanceSettings {
-  legalEntityId        String             @id @db.Uuid
-  legalEntity          LegalEntity        @relation(fields: [legalEntityId], references: [id], onDelete: Cascade)
+  legalEntityId         String             @id @db.Uuid
+  legalEntity           LegalEntity        @relation(fields: [legalEntityId], references: [id], onDelete: Cascade)
   // 1 = January. India's financial year starts in April.
-  fiscalYearStartMonth Int                @default(4)
-  revenueRecognition   RevenueRecognition @default(ON_INVOICE)
-  updatedAt            DateTime           @updatedAt
+  fiscalYearStartMonth  Int                @default(4)
+  revenueRecognition    RevenueRecognition @default(ON_INVOICE)
+  // What every printed invoice carries (docs/invoicing.md, "Printed invoices").
+  // Default terms for new invoices, one per line; each invoice can change its copy.
+  invoiceTerms          String?
+  // The contact block: address, phone numbers and email, one per line.
+  invoiceContact        String?
+  invoiceWebsite        String?
+  invoiceSignatoryName  String?
+  invoiceSignatoryTitle String?
+  updatedAt             DateTime           @updatedAt
 
   @@map("finance_settings")
 }
@@ -1874,6 +1882,12 @@ model SalesInvoice {
   clientAddress        String?
   entityGstin          String?
   clientPoNumber       String?
+  // Terms printed on the invoice, one per line. Starts as the entity's default.
+  terms                String?
+  // On a proforma or commercial invoice, what the client already paid ahead,
+  // printed as (ADVANCE) and taken off the total due. Display only: the money
+  // itself is a receipt held as a client advance. Tax invoices use their receipts.
+  advanceMinor         BigInt            @default(0)
   // What was sold ({SERVICE} in the number), e.g. VLR. A code from the
   // entity's invoice services, kept as text so the issued number reads the same.
   serviceCode          String?
@@ -1922,7 +1936,12 @@ model SalesInvoiceLine {
   invoiceId        String           @db.Uuid
   invoice          SalesInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   position         Int
+  // Heading this line is grouped under on the printed invoice, e.g.
+  // "Production / Operation". Consecutive lines with the same heading form one section.
+  section          String?
   description      String
+  // What the line includes, one item per line (crew roles, kit list).
+  details          String?
   // Services Accounting Code (or HSN for goods).
   sacCode          String?
   quantity         Decimal          @db.Decimal(12, 3)
@@ -2017,6 +2036,8 @@ model BankAccount {
   ifsc                 String?
   swift                String?
   iban                 String?
+  // UPI ID for Indian accounts, e.g. name@okicici.
+  upiId                String?
   currency             String                @db.Char(3)
   // Printed on invoices in this currency.
   showOnInvoices       Boolean               @default(false)

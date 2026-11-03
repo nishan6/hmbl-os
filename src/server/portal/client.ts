@@ -413,6 +413,12 @@ export async function getClientInvoice(actor: PortalActor, invoiceId: string) {
     where: { id: known(invoiceId), clientId, status: "ISSUED", openingItemId: null },
     select: {
       ...invoiceListSelect,
+      project: {
+        select: { number: true, name: true, venue: true, eventStartDate: true, eventEndDate: true },
+      },
+      serviceCode: true,
+      terms: true,
+      advanceMinor: true,
       clientName: true,
       clientAddress: true,
       clientGstin: true,
@@ -447,7 +453,9 @@ export async function getClientInvoice(actor: PortalActor, invoiceId: string) {
         orderBy: { position: "asc" },
         select: {
           id: true,
+          section: true,
           description: true,
+          details: true,
           sacCode: true,
           quantity: true,
           unitPriceMinor: true,
@@ -479,10 +487,18 @@ export async function getClientInvoice(actor: PortalActor, invoiceId: string) {
       ifsc: true,
       swift: true,
       iban: true,
+      upiId: true,
     },
     orderBy: { createdAt: "asc" },
   });
-  return { invoice: inv, bankAccounts };
+  const settled =
+    inv.kind === "TAX" ? (await invoiceSettlements(db, [inv.id])).get(inv.id) : undefined;
+  return {
+    invoice: inv,
+    bankAccounts,
+    paidMinor: settled?.paidMinor ?? 0n,
+    creditedMinor: settled?.creditedMinor ?? 0n,
+  };
 }
 
 // ─── Documents ───────────────────────────────────────────────────────────────

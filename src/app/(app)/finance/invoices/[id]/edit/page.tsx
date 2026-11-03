@@ -50,9 +50,13 @@ export default async function EditInvoicePage({
           clientPoNumber: invoice.clientPoNumber ?? "",
           serviceCode: invoice.serviceCode ?? "",
           notes: invoice.notes ?? "",
+          terms: invoice.terms ?? "",
+          advance: invoice.advanceMinor ? minorToInput(invoice.advanceMinor, invoice.currency) : "",
         }}
         rows={invoice.lines.map((l) => ({
+          section: l.section ?? "",
           description: l.description,
+          details: l.details ?? "",
           sacCode: l.sacCode ?? "",
           quantity: l.quantity.toString(),
           unitPrice: minorToInput(l.unitPriceMinor, invoice.currency),
@@ -65,6 +69,7 @@ export default async function EditInvoicePage({
         services={options.services}
         baseCurrency={entity.baseCurrency}
         cancelHref={`/finance/invoices/${id}`}
+        advance={invoice.kind !== "TAX"}
       />
     </>
   );

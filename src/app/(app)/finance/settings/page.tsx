@@ -11,8 +11,10 @@ import {
   createInvoiceServiceAction,
   updateExpenseCategoryAction,
   updateFinanceSettingsAction,
+  updateInvoiceLayoutAction,
   updateInvoiceServiceAction,
 } from "./actions";
+import { InvoiceLayoutForm } from "./invoice-layout-form";
 import { CategoryForm } from "./category-form";
 import { ServiceForm } from "./service-form";
 import { SettingsForm } from "./settings-form";
@@ -73,6 +75,24 @@ export default async function FinanceSettingsPage({
             action={updateFinanceSettingsAction.bind(null, entity.id)}
             defaults={{ revenueRecognition: settings.revenueRecognition }}
             options={REVENUE_RECOGNITION}
+            disabled={!configure}
+          />
+        </Panel>
+      </Section>
+      <Section
+        title="Printed invoices"
+        description="What every invoice of this company carries, in HMBL's layout. Payment details come from the bank accounts marked to show on invoices."
+      >
+        <Panel>
+          <InvoiceLayoutForm
+            action={updateInvoiceLayoutAction.bind(null, entity.id)}
+            defaults={{
+              invoiceTerms: settings.invoiceTerms ?? "",
+              invoiceContact: settings.invoiceContact ?? "",
+              invoiceWebsite: settings.invoiceWebsite ?? "",
+              invoiceSignatoryName: settings.invoiceSignatoryName ?? "",
+              invoiceSignatoryTitle: settings.invoiceSignatoryTitle ?? "",
+            }}
             disabled={!configure}
           />
         </Panel>

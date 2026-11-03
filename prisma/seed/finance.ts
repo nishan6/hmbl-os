@@ -51,10 +51,24 @@ export async function seedDemoFinance(db: PrismaClient, entities: { id: string }
         ifsc: "DEMO0000001",
         currency: "INR",
         showOnInvoices: true,
+        upiId: "demo@okicici",
         isDemo: true,
       },
     });
   }
+  // What the printed invoice shows below the bank details.
+  await db.financeSettings.upsert({
+    where: { legalEntityId: india.id },
+    update: {},
+    create: {
+      legalEntityId: india.id,
+      invoiceTerms: "60% payment to be paid before the commencement of work.",
+      invoiceContact: "HMBL Demo India, Fort, Mumbai 400 001\n+91 00000 00000\ndemo@example.com",
+      invoiceWebsite: "www.example.com",
+      invoiceSignatoryName: "DEMO Signatory",
+      invoiceSignatoryTitle: "Operations",
+    },
+  });
   await db.$transaction((tx) =>
     postJournal(tx, "system", {
       legalEntityId: india.id,
@@ -86,6 +100,10 @@ export async function seedDemoInvoice(db: PrismaClient, createdById: string) {
   });
   if (await db.salesInvoice.findFirst({ where: { legalEntityId: india.id, isDemo: true } })) return;
   const client = await db.client.findFirstOrThrow({ where: { name: "Demo Arena Live (DEMO)" } });
+  // Printed as "Name | Venue (date)" under PROJECT.
+  const project = await db.project.findFirst({
+    where: { isDemo: true, legalEntityId: india.id, clientId: client.id },
+  });
   const [rate, rental, crew] = await Promise.all([
     db.taxRate.findFirstOrThrow({ where: { countryCode: "IN", isDefault: true } }),
     db.ledgerAccount.findUniqueOrThrow({
@@ -95,17 +113,29 @@ export async function seedDemoInvoice(db: PrismaClient, createdById: string) {
       where: { legalEntityId_code: { legalEntityId: india.id, code: "4020" } },
     }),
   ]);
+  // Lines grouped the way HMBL's invoices group them: a section per kind of work.
   const lines = [
     {
+      section: "Rentals — LED",
       description: "DEMO LED wall rental, 2 days",
+      details: "P3.9 outdoor panels, 12 m × 4 m\nProcessor and spare panels",
       quantity: 2_000n,
       unitPriceMinor: 60_000_00n,
       account: rental,
     },
-    { description: "DEMO show crew", quantity: 1_000n, unitPriceMinor: 45_000_00n, account: crew },
+    {
+      section: "Production / Operation",
+      description: "DEMO show crew",
+      details: null,
+      quantity: 1_000n,
+      unitPriceMinor: 45_000_00n,
+      account: crew,
+    },
   ].map((l, position) => ({
     position,
+    section: l.section,
     description: l.description,
+    details: l.details,
     sacCode: "998596",
     quantity: (Number(l.quantity) / 1000).toFixed(3),
     unitPriceMinor: l.unitPriceMinor,
@@ -123,6 +153,7 @@ export async function seedDemoInvoice(db: PrismaClient, createdById: string) {
     data: {
       legalEntityId: india.id,
       clientId: client.id,
+      projectId: project?.id ?? null,
       invoiceDate: today,
       dueDate: new Date(today.getTime() + 30 * 86_400_000),
       currency: "INR",
@@ -132,6 +163,9 @@ export async function seedDemoInvoice(db: PrismaClient, createdById: string) {
       clientName: client.legalName ?? client.name,
       clientAddress: [client.city, client.region].filter(Boolean).join(", ") || null,
       entityGstin: "27AAAAA0000A1Z5",
+      serviceCode: "VLR",
+      notes: "DEMO event: Arena Live\nVenue: DEMO Dome, Mumbai",
+      terms: "60% payment to be paid before the commencement of work.",
       createdById,
       isDemo: true,
       ...documentTotals(lines),

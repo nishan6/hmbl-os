@@ -18,6 +18,7 @@ const fields = (v: Record<string, string>): BankAccountInput => ({
   ifsc: v.ifsc,
   swift: v.swift,
   iban: v.iban,
+  upiId: v.upiId,
   currency: v.currency ?? "",
   showOnInvoices: v.showOnInvoices ?? "",
 });

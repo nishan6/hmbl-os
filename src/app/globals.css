@@ -324,6 +324,15 @@
   }
 }
 
+/* The hatched box behind the total due on printed invoices. */
+@utility hatch {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-sunken) 0 6px,
+    var(--color-surface) 6px 12px
+  );
+}
+
 @utility tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";

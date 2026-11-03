@@ -59,6 +59,8 @@ export async function saveInvoiceAction(id: string, _: FormState, formData: Form
       clientPoNumber: values.clientPoNumber,
       serviceCode: values.serviceCode,
       notes: values.notes,
+      terms: values.terms,
+      advance: values.advance,
       lines: linesOf<InvoiceLineInput>(values),
     });
   } catch (error) {
