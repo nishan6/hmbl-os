@@ -18,7 +18,7 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
     <main className="backdrop-glow flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
         <div className="mb-10 flex justify-center">
-          <Brand href={null} />
+          <Brand href={null} size="lg" />
         </div>
         <div className="border-separator bg-surface rounded-lg border p-8 shadow-lg">
           <h1 className="text-text text-xl font-bold">Sign in to HMBL OS</h1>

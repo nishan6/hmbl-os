@@ -9,7 +9,7 @@ export default function NotFound() {
   return (
     <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-8 px-4 py-16">
       <div className="flex justify-center">
-        <Brand href={null} />
+        <Brand href={null} size="lg" />
       </div>
       <EmptyState
         titleAs="h1"

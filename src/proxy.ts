@@ -22,6 +22,6 @@ export const config = {
   // offline data. Calendar apps fetch the feed without a session; the secret
   // in its link is the key. Their route handlers check access themselves.
   matcher: [
-    "/((?!sign-in|invite/|api/auth|api/health|api/uploads|api/production|api/calendar/|sw\\.js|_next/static|_next/image|favicon.ico).*)",
+    "/((?!sign-in|invite/|api/auth|api/health|api/uploads|api/production|api/calendar/|sw\\.js|_next/static|_next/image|favicon.ico|icon\\.svg|apple-icon\\.png).*)",
   ],
 };
