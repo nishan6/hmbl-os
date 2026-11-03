@@ -49,7 +49,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <div className="lg:hidden">
             <Brand />
           </div>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             <EntitySwitcher entities={entities} selectedId={selectedId} />
             <NotificationsLink unread={unread} />
             <UserMenu name={actor.name} email={actor.email} theme={theme} />
