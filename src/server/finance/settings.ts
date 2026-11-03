@@ -8,6 +8,7 @@ import { authorize, type Actor } from "@/server/permissions/authorize";
 import { defaultFiscalYearStartMonth } from "@/server/numbering/defaults";
 import { getLegalEntity } from "@/server/organisation/service";
 import { parseInput } from "@/lib/parse";
+import { optionalText } from "@/lib/validation";
 
 type Reader = Pick<Prisma.TransactionClient, "financeSettings" | "legalEntity">;
 
@@ -28,6 +29,11 @@ export async function financeSettingsOf(client: Reader, legalEntityId: string) {
     legalEntityId,
     fiscalYearStartMonth: defaultFiscalYearStartMonth(entity.countryCode),
     revenueRecognition: "ON_INVOICE" as const,
+    invoiceTerms: null,
+    invoiceContact: null,
+    invoiceWebsite: null,
+    invoiceSignatoryName: null,
+    invoiceSignatoryTitle: null,
     updatedAt: null,
   };
 }
@@ -67,6 +73,63 @@ export async function updateFinanceSettings(
     const changes = diffChanges({ revenueRecognition: before.revenueRecognition }, after, [
       "revenueRecognition",
     ]);
+    if (changes) {
+      await recordAudit(tx, actor, {
+        action: "finance_settings.updated",
+        targetType: "legal_entity",
+        targetId: legalEntityId,
+        legalEntityId,
+        changes,
+      });
+    }
+    return after;
+  });
+}
+
+const INVOICE_LAYOUT_FIELDS = [
+  "invoiceTerms",
+  "invoiceContact",
+  "invoiceWebsite",
+  "invoiceSignatoryName",
+  "invoiceSignatoryTitle",
+] as const;
+
+const invoiceLayoutInput = z.object({
+  invoiceTerms: optionalText(2000),
+  invoiceContact: optionalText(1000),
+  invoiceWebsite: optionalText(200),
+  invoiceSignatoryName: optionalText(120),
+  invoiceSignatoryTitle: optionalText(120),
+});
+export type InvoiceLayoutInput = z.input<typeof invoiceLayoutInput>;
+
+/**
+ * What every printed invoice of the entity carries: default terms for new
+ * invoices, the contact block, the website and who signs.
+ */
+export async function updateInvoiceLayout(
+  actor: Actor,
+  legalEntityId: string,
+  raw: InvoiceLayoutInput,
+) {
+  await getLegalEntity(actor, legalEntityId);
+  authorize(actor, "finance.configure", { legalEntityId });
+  const data = parseInput(invoiceLayoutInput, raw);
+  return db.$transaction(async (tx) => {
+    const before = await financeSettingsOf(tx, legalEntityId);
+    const after = await tx.financeSettings.upsert({
+      where: { legalEntityId },
+      create: {
+        legalEntityId,
+        fiscalYearStartMonth: before.fiscalYearStartMonth,
+        revenueRecognition: before.revenueRecognition,
+        ...data,
+      },
+      update: data,
+    });
+    const pick = (r: Record<(typeof INVOICE_LAYOUT_FIELDS)[number], string | null>) =>
+      Object.fromEntries(INVOICE_LAYOUT_FIELDS.map((k) => [k, r[k]]));
+    const changes = diffChanges(pick(before), pick(after), [...INVOICE_LAYOUT_FIELDS]);
     if (changes) {
       await recordAudit(tx, actor, {
         action: "finance_settings.updated",

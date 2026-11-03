@@ -209,7 +209,17 @@ export async function getInvoice(actor: Actor, id: string) {
         },
       },
       client: { select: { id: true, name: true } },
-      project: { select: { id: true, number: true, name: true, status: true } },
+      project: {
+        select: {
+          id: true,
+          number: true,
+          name: true,
+          status: true,
+          venue: true,
+          eventStartDate: true,
+          eventEndDate: true,
+        },
+      },
       milestone: { select: { id: true, label: true, amountMinor: true } },
       sourceInvoice: { select: { id: true, number: true, kind: true } },
       madeFrom: {
@@ -369,11 +379,12 @@ export async function createInvoice(actor: Actor, legalEntityId: string, raw: St
       stateCode: placeOfSupplyCode,
     });
     const currency = project?.currency ?? client.currency;
-    const [defaultRate, revenue] = await Promise.all([
+    const [defaultRate, revenue, settings] = await Promise.all([
       tx.taxRate.findFirst({
         where: { countryCode: position.countryCode, isDefault: true, status: "ACTIVE" },
       }),
       systemAccount(tx, legalEntityId, "REVENUE"),
+      financeSettingsOf(tx, legalEntityId),
     ]);
     const lines: Prisma.SalesInvoiceLineCreateWithoutInvoiceInput[] = [];
     if (milestone && project) {
@@ -422,6 +433,7 @@ export async function createInvoice(actor: Actor, legalEntityId: string, raw: St
         clientAddress: clientAddress(client),
         entityGstin: position.gstin,
         clientPoNumber: project?.clientPoNumber ?? null,
+        terms: settings.invoiceTerms,
         createdById: actor.id,
         ...totals,
         lines: { create: lines },
@@ -444,7 +456,9 @@ export async function createInvoice(actor: Actor, legalEntityId: string, raw: St
 }
 
 const lineInput = z.object({
+  section: optionalText(120),
   description: requiredText(500),
+  details: optionalText(2000),
   sacCode: z
     .string()
     .trim()
@@ -473,6 +487,9 @@ const draftInput = z.object({
   clientPoNumber: optionalText(100),
   serviceCode: optionalText(6),
   notes: optionalText(2000),
+  terms: optionalText(2000),
+  // Proforma and commercial invoices only; see SalesInvoice.advanceMinor.
+  advance: optionalText(30),
   lines: z.array(lineInput).min(1, "Add at least one line").max(200),
 });
 export type InvoiceDraftInput = z.input<typeof draftInput>;
@@ -546,7 +563,9 @@ export async function saveInvoiceDraft(actor: Actor, id: string, raw: InvoiceDra
     const taxRateBps = rate?.rateBps ?? 0;
     return {
       position: i,
+      section: l.section,
       description: l.description,
+      details: l.details,
       sacCode: l.sacCode,
       quantity: (Number(quantityMilli) / 1000).toFixed(3),
       unitPriceMinor,
@@ -558,6 +577,15 @@ export async function saveInvoiceDraft(actor: Actor, id: string, raw: InvoiceDra
     };
   });
   const totals = documentTotals(lines);
+  let advanceMinor = 0n;
+  if (data.advance && before.kind !== "TAX") {
+    const parsed = parseMoneyToMinor(data.advance, data.currency);
+    if (parsed === null || parsed < 0n) throw invalid("advance", "Enter an amount of zero or more");
+    if (parsed > totals.totalMinor) {
+      throw invalid("advance", "The advance can't be more than the invoice total");
+    }
+    advanceMinor = parsed;
+  }
   return db.$transaction(async (tx) => {
     requireDraft(await lockInvoice(tx, id));
     await tx.salesInvoiceLine.deleteMany({ where: { invoiceId: id } });
@@ -575,6 +603,8 @@ export async function saveInvoiceDraft(actor: Actor, id: string, raw: InvoiceDra
         clientPoNumber: data.clientPoNumber,
         serviceCode: data.serviceCode,
         notes: data.notes,
+        terms: data.terms,
+        advanceMinor,
         ...totals,
         lines: { create: lines },
       },
@@ -850,6 +880,9 @@ export async function makeInvoiceFrom(
             clientPoNumber: source.clientPoNumber,
             serviceCode: source.serviceCode,
             notes: source.notes,
+            terms: source.terms,
+            // A tax invoice shows the receipts actually allocated to it instead.
+            advanceMinor: kind === "TAX" ? 0n : source.advanceMinor,
             subtotalMinor: source.subtotalMinor,
             cgstMinor: source.cgstMinor,
             sgstMinor: source.sgstMinor,

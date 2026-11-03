@@ -5,7 +5,7 @@ import { requireActor } from "@/server/auth/session";
 import { attempt, type FormState } from "@/server/http/action-result";
 import { updateExpenseCategory } from "@/server/expenses/categories";
 import { createInvoiceService, updateInvoiceService } from "@/server/finance/invoice-services";
-import { updateFinanceSettings } from "@/server/finance/settings";
+import { updateFinanceSettings, updateInvoiceLayout } from "@/server/finance/settings";
 
 export async function updateFinanceSettingsAction(
   legalEntityId: string,
@@ -17,6 +17,27 @@ export async function updateFinanceSettingsAction(
     async (v) =>
       updateFinanceSettings(await requireActor(), legalEntityId, {
         revenueRecognition: (v.revenueRecognition ?? "") as "ON_INVOICE",
+      }),
+    "Saved",
+  );
+  if (state.status === "success") refresh();
+  return state;
+}
+
+export async function updateInvoiceLayoutAction(
+  legalEntityId: string,
+  _: FormState,
+  formData: FormData,
+) {
+  const state = await attempt(
+    formData,
+    async (v) =>
+      updateInvoiceLayout(await requireActor(), legalEntityId, {
+        invoiceTerms: v.invoiceTerms,
+        invoiceContact: v.invoiceContact,
+        invoiceWebsite: v.invoiceWebsite,
+        invoiceSignatoryName: v.invoiceSignatoryName,
+        invoiceSignatoryTitle: v.invoiceSignatoryTitle,
       }),
     "Saved",
   );

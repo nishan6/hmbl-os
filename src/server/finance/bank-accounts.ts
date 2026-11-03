@@ -26,6 +26,7 @@ const FIELDS = [
   "ifsc",
   "swift",
   "iban",
+  "upiId",
   "currency",
   "showOnInvoices",
   "status",
@@ -54,6 +55,12 @@ const bankInput = z.object({
       "Use an 8 or 11-character SWIFT code",
     ),
   iban: optionalText(34).transform(upper),
+  upiId: optionalText(60)
+    .transform((v) => (v ? v.replace(/\s+/g, "").toLowerCase() : null))
+    .refine(
+      (v) => !v || /^[a-z0-9._-]{2,}@[a-z][a-z0-9.-]{1,}$/.test(v),
+      "Use a UPI ID such as name@okicici",
+    ),
   currency: z.string().trim().toUpperCase().length(3, "Use a three-letter currency code"),
   showOnInvoices: z
     .union([z.boolean(), z.string()])
@@ -212,6 +219,7 @@ export async function invoiceBankAccounts(actor: Actor, legalEntityId: string, c
       ifsc: true,
       swift: true,
       iban: true,
+      upiId: true,
     },
     orderBy: { createdAt: "asc" },
   });

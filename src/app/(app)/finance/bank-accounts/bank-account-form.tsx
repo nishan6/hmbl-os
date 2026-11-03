@@ -47,6 +47,7 @@ export function BankAccountForm({
         {text("ifsc", "IFSC", { description: "Indian accounts", className: "tabular uppercase" })}
         {text("swift", "SWIFT/BIC", { className: "tabular uppercase" })}
         {text("iban", "IBAN", { className: "tabular uppercase" })}
+        {text("upiId", "UPI ID", { description: "Printed on invoices, e.g. name@okicici" })}
       </div>
       <label className="text-text flex items-center gap-2 text-sm">
         <input
