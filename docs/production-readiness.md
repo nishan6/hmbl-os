@@ -15,8 +15,8 @@ Evidence as of 2026-10-26, on `main` plus the Stage 9 pull requests: 90 unit and
 These are not engineering tasks and can't be done in code:
 
 1. **Finance go-live decisions.** 17 rows in [decisions.md](decisions.md) are marked "Finance go-live": the real legal entity's registered name and tax IDs, fiscal year, chart of accounts, SAC code, invoice numbering, TDS on bills, expense limits, year-end profit and the tax summary. Each has a working default; the accountant should confirm or change them before the first real invoice. Three more are marked "Production": sign-in method, roles and permissions, and numbering schemes.
-2. **The live installation.** Create `hmbl_live`, set `.env` as in [deployment.md](deployment.md), create the first owner ([running-locally.md](running-locally.md)), turn on two-factor, and run `pnpm readiness` until nothing fails. A run against `hmbl_dev` correctly warns about the development settings; the live run must show no warnings about demo data, the secret or `APP_ENV`.
-3. **Backups on the live computer.** Schedule `pnpm db:backup` daily and copy `backups/` somewhere other than that computer, then run `pnpm db:restore-check` once and monthly after ([backups.md](backups.md)).
+2. **The live installation.** `pnpm live:setup` does this in one go; by hand: create `hmbl_live`, set `.env` as in [deployment.md](deployment.md), create the first owner ([running-locally.md](running-locally.md)), turn on two-factor, and run `pnpm readiness` until nothing fails. A run against `hmbl_dev` correctly warns about the development settings; the live run must show no warnings about demo data, the secret or `APP_ENV`.
+3. **Backups on the live computer.** `pnpm live:schedule` does this; by hand: schedule `pnpm db:backup` daily and copy `backups/` somewhere other than that computer, then run `pnpm db:restore-check` once and monthly after ([backups.md](backups.md)).
 4. **Opening balances.** Import them and reconcile to the old books' trial balance at cut-over ([migration.md](migration.md)). Until this is done, financial reports cover only what is entered in HMBL OS.
 
 ## Stage 9 verification areas

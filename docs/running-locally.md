@@ -21,6 +21,20 @@ What to know first:
    pnpm install
    ```
 
+## The quick way
+
+Once step 1 is done, two commands do steps 2 to 7 for you:
+
+```bash
+pnpm live:setup      # database, .env, build, first owner, first backup and restore check, readiness
+pnpm live:schedule   # daily backup and reminders, monthly restore check (macOS and Linux cron)
+pnpm start
+```
+
+`pnpm live:setup` (`scripts/go-live.sh`) shows the new `BETTER_AUTH_SECRET` once and waits while you save it, asks for a folder to copy backups to (`BACKUP_COPY_DIR`), and asks for the owner's name, email and password. A development `.env` is kept as `.env.development`. Running it again skips what is already done. On Windows, `pnpm live:schedule` prints the three Task Scheduler entries to make instead.
+
+The rest of this page is the same thing step by step.
+
 ## 2. Start the database
 
 ```bash
@@ -97,7 +111,7 @@ Run it automatically:
 
 - **Windows**: in Task Scheduler, create a daily task that runs `bash.exe` (from Git for Windows) with the argument `scripts/backup-db.sh` and starts in the `hmbl-os` folder.
 
-A backup on the same disk doesn't survive that disk failing or the laptop being lost. **Copy the `backups` folder to an external drive or a cloud folder** (Google Drive, OneDrive, iCloud) at least weekly. The simplest way is to point your sync app (or a scheduled copy) at the `backups` folder.
+A backup on the same disk doesn't survive that disk failing or the laptop being lost. **Set `BACKUP_COPY_DIR` in `.env`** to a folder your sync app keeps (Google Drive, OneDrive, iCloud) or an external drive: every backup is then copied there too, with the same 30 days kept. If the folder is missing, for example a drive is unplugged, the backup still happens here and the log says the copy was skipped.
 
 ### Restore a backup
 
