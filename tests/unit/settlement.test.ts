@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageingBucket, allocateInOrder, portionBase } from "@/lib/settlement";
+import { ageingBucket, allocateInOrder, defaultMoneyAccount, portionBase } from "@/lib/settlement";
 
 describe("portionBase", () => {
   const remaining = { amountMinor: 100_01n, baseMinor: 8_334_13n };
@@ -45,5 +45,24 @@ describe("ageingBucket", () => {
       "D90_PLUS",
       "D90_PLUS",
     ]);
+  });
+});
+
+describe("defaultMoneyAccount", () => {
+  const cash = { id: "cash", currency: "INR", isBank: false };
+  const bank = { id: "bank", currency: "INR", isBank: true };
+  const usd = { id: "usd", currency: "USD", isBank: true };
+
+  it("starts in the bank, not the cash account listed first", () => {
+    expect(defaultMoneyAccount([cash, bank, usd], "INR")?.id).toBe("bank");
+  });
+
+  it("uses cash when there is no bank account in the currency", () => {
+    expect(defaultMoneyAccount([cash, usd], "INR")?.id).toBe("cash");
+  });
+
+  it("only offers an account in the document's currency", () => {
+    expect(defaultMoneyAccount([cash, bank, usd], "USD")?.id).toBe("usd");
+    expect(defaultMoneyAccount([cash, bank], "AED")).toBeUndefined();
   });
 });

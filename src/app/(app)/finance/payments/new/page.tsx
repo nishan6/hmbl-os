@@ -11,6 +11,8 @@ import { loadFinancePage, param } from "../../_components/load";
 import { recordPaymentAction } from "../actions";
 import { PaymentForm } from "./payment-form";
 
+import { defaultMoneyAccount } from "@/lib/settlement";
+
 export const metadata = { title: "Record a payment" };
 
 export default async function NewPaymentPage({ searchParams }: PageProps<"/finance/payments/new">) {
@@ -22,7 +24,7 @@ export default async function NewPaymentPage({ searchParams }: PageProps<"/finan
   ]);
   const back = withEntity("/finance/payments", entity);
   const bill = bills.find((b) => b.id === param(params.bill));
-  const account = accounts.find((a) => a.currency === (bill?.currency ?? entity.baseCurrency));
+  const account = defaultMoneyAccount(accounts, bill?.currency ?? entity.baseCurrency);
   return (
     <>
       <FinanceHeader

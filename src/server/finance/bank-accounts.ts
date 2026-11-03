@@ -202,6 +202,7 @@ export async function moneyAccountOptions(actor: Actor, legalEntityId: string) {
       code: a.code,
       name: a.name,
       currency: a.bankAccount?.currency ?? entity.baseCurrency,
+      isBank: a.subtype === "BANK",
     }));
 }
 

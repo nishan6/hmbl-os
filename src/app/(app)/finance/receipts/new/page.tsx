@@ -15,6 +15,8 @@ import { loadFinancePage, param } from "../../_components/load";
 import { recordReceiptAction } from "../actions";
 import { ReceiptForm } from "./receipt-form";
 
+import { defaultMoneyAccount } from "@/lib/settlement";
+
 export const metadata = { title: "Record a receipt" };
 
 export default async function NewReceiptPage({ searchParams }: PageProps<"/finance/receipts/new">) {
@@ -26,7 +28,7 @@ export default async function NewReceiptPage({ searchParams }: PageProps<"/finan
   ]);
   const back = withEntity("/finance/receipts", entity);
   const invoice = invoices.find((i) => i.id === param(params.invoice));
-  const account = accounts.find((a) => a.currency === (invoice?.currency ?? entity.baseCurrency));
+  const account = defaultMoneyAccount(accounts, invoice?.currency ?? entity.baseCurrency);
   return (
     <>
       <FinanceHeader

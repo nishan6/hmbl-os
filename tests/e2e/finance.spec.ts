@@ -162,6 +162,10 @@ test("finance records a receipt with TDS that settles an invoice", async ({ page
   await page.getByRole("combobox", { name: "TDS section" }).fill("194J");
   await page.getByRole("textbox", { name: "Reference" }).fill("UTR-E2E");
   await expect(page.getByText("On account ₹0.00")).toBeVisible();
+  const into = page.getByRole("combobox", { name: "Received into" });
+  await expect(into.locator("option:checked")).toHaveText(/^1100 · DEMO Bank/);
+  await into.selectOption({ label: "1000 · Cash in hand (INR)" });
+  await expect(page.getByText("On account ₹0.00")).toBeVisible();
   await page.getByRole("button", { name: "Record receipt" }).click();
   await expect(page.getByRole("heading", { level: 1, name: /^Receipt RCT\// })).toBeVisible();
   await expect(page.getByText("₹1,000.00 u/s 194J")).toBeVisible();
@@ -206,6 +210,11 @@ test("finance enters a bill with TDS, approves it and pays it", async ({ page })
   await page.getByRole("link", { name: "Record payment" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Record a payment" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: /Amount paid/ })).toHaveValue("11600.00");
+  await expect(page.getByText("Advance ₹0.00")).toBeVisible();
+  // Starts in the bank, and paying from another account keeps the bill settled.
+  const paidFrom = page.getByRole("combobox", { name: "Paid from" });
+  await expect(paidFrom.locator("option:checked")).toHaveText(/^1100 · DEMO Bank/);
+  await paidFrom.selectOption({ label: "1000 · Cash in hand (INR)" });
   await expect(page.getByText("Advance ₹0.00")).toBeVisible();
   await page.getByRole("button", { name: "Record payment" }).click();
   await expect(page.getByRole("heading", { level: 1, name: /^Payment PAY\// })).toBeVisible();

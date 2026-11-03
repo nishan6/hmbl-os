@@ -100,8 +100,11 @@ export function PaymentForm({
                 name="paidFromId"
                 value={accountId}
                 onChange={(e) => {
-                  setAccountId(e.target.value);
-                  setAllocations({});
+                  const next = e.target.value;
+                  setAccountId(next);
+                  // Allocations only stop fitting when the currency changes.
+                  const nextCurrency = accounts.find((a) => a.id === next)?.currency;
+                  if ((nextCurrency ?? baseCurrency) !== currency) setAllocations({});
                 }}
                 {...p}
               >

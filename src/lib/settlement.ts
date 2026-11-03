@@ -57,3 +57,15 @@ export function ageingBucket(daysOverdue: number): AgeingBucket {
   if (daysOverdue <= 90) return "D61_90";
   return "D90_PLUS";
 }
+
+/**
+ * The account a new receipt or payment starts in: the first bank account in
+ * the currency, since most money moves through the bank, else cash in it.
+ */
+export function defaultMoneyAccount<T extends { currency: string; isBank: boolean }>(
+  accounts: T[],
+  currency: string,
+): T | undefined {
+  const inCurrency = accounts.filter((a) => a.currency === currency);
+  return inCurrency.find((a) => a.isBank) ?? inCurrency[0];
+}

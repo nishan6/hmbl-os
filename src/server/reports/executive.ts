@@ -1,5 +1,6 @@
 import "server-only";
 import type { ProjectStatus } from "@/generated/prisma/enums";
+import { roundDiv } from "@/lib/pricing";
 import { db } from "@/server/db";
 import { localToday } from "@/server/commercial/quotes";
 import { effectiveProbability } from "@/server/crm/pipeline";
@@ -38,7 +39,7 @@ const overdue = (buckets: Record<string, bigint>) =>
   Object.entries(buckets).reduce((s, [k, v]) => (k === "CURRENT" ? s : s + v), 0n);
 
 const marginBps = (revenue: bigint, margin: bigint) =>
-  revenue > 0n ? Number((margin * 10_000n) / revenue) : null;
+  revenue > 0n ? Number(roundDiv(margin * 10_000n, revenue)) : null;
 
 async function pipeline(legalEntityId: string) {
   const open = await db.opportunity.findMany({

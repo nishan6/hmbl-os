@@ -48,4 +48,16 @@ test.describe("on a phone", () => {
     await expect(drawer).toBeHidden();
     await expect(page.getByRole("heading", { level: 1, name: "Organisation" })).toBeVisible();
   });
+
+  test("the top bar fits without scrolling sideways, even with the entity switcher", async ({
+    page,
+  }) => {
+    await signIn(page, DEMO.owner);
+    await expect(page.getByRole("combobox", { name: "Legal entity" })).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBe(0);
+    await expect(page.getByRole("button", { name: "Account: Demo Owner" })).toBeInViewport();
+  });
 });

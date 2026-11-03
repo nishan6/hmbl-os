@@ -59,7 +59,7 @@ export default async function ProjectCloseoutPage({
 
       <Section
         title="Closeout checklist"
-        description="Crew, equipment and vendor bills are checked against the records. Invoicing and payments are confirmed by hand until Finance tracks them."
+        description="Crew, equipment and vendor bills are checked against the records. Invoicing, payments and expenses are still confirmed by hand."
       >
         <ul className="flex flex-col gap-3">
           {closeout.items.map((item) => {

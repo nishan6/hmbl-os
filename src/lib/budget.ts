@@ -17,6 +17,8 @@
  * same amount, so moving from committed to actual never double-counts.
  */
 
+import { roundDiv } from "./pricing";
+
 export type CostEntryFigures = {
   id: string;
   kind: "COMMITMENT" | "ACTUAL";
@@ -124,6 +126,8 @@ export function profitFigures(
   const expectedRevenueMinor = contractValueMinor + changeRevenueMinor;
   const grossProfitMinor = expectedRevenueMinor - forecastMinor;
   const marginBps =
-    expectedRevenueMinor > 0n ? Number((grossProfitMinor * 10000n) / expectedRevenueMinor) : null;
+    expectedRevenueMinor > 0n
+      ? Number(roundDiv(grossProfitMinor * 10000n, expectedRevenueMinor))
+      : null;
   return { expectedRevenueMinor, grossProfitMinor, marginBps };
 }

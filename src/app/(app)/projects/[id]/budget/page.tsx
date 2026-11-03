@@ -237,7 +237,7 @@ export default async function ProjectBudgetPage({ params }: PageProps<"/projects
       {!draft ? (
         <Section
           title="Committed and actual costs"
-          description="Entered by hand until purchase orders, vendor bills and expenses come with Finance. Entries are never edited; void a mistake and enter it again."
+          description="Approved purchase orders, bills and expense claims and confirmed freelance crew add their own entries; record anything else by hand. Entries are never edited; void a mistake and enter it again."
         >
           {canEdit && budget.rows.length ? (
             <Panel className="mb-4">

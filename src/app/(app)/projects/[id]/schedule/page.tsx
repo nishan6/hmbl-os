@@ -182,7 +182,7 @@ export default async function ProjectSchedulePage({
 
       <Section
         title="Billing milestones"
-        description="From the quote's payment terms. Due dates follow the event dates unless set by hand. Invoicing comes with Finance."
+        description="From the quote's payment terms. Due dates follow the event dates unless set by hand. Finance invoices each one from Finance → Invoices."
       >
         {billing.length ? (
           <Table dense>
