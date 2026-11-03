@@ -33,6 +33,10 @@ The target is WCAG 2.2 AA.
 - Icon-only buttons require a label (`IconButton`). Form fields come with their label, description and error wired together (`Field`).
 - Scrollable tables are keyboard focusable.
 
+## Logo
+
+HMBL Entertainment's own logo, traced to vector from the artwork Nishan supplied, lives in `components/shell/logo-paths.ts`. `HmblMark` is "HMBL" alone and `HmblLockup` the full "HMBL ENTERTAINMENT"; both fill with the current text colour, so they read black in light mode and white in dark. `Brand` sets the mark beside a spaced "OS" for the app shell (`size="lg"` on signed-out pages). Printed quotes and tax documents carry the lockup above the issuing entity. The browser and home-screen icons (`app/icon.svg`, `app/apple-icon.png`, `app/favicon.ico`) are the mark in white on a near-black tile.
+
 ## Components
 
 | Component                                                    | File                                          | Use                                                                                             |
