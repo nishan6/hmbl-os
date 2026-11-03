@@ -35,6 +35,17 @@ export const DEFAULT_ROLES: RoleDefinition[] = (
       permissions: [...ALL_PERMISSIONS],
     },
     {
+      // Every permission, like the owner, for the person who runs HMBL OS
+      // without being the business owner. The "keep one owner" rule protects
+      // Owner only. A migration that gives the owner a new permission gives it
+      // to super_user too (see 20261103120000_super_user_role).
+      key: "super_user",
+      name: "Super user",
+      description:
+        "Every permission, for the person who runs and looks after HMBL OS. Not the business owner.",
+      permissions: [...ALL_PERMISSIONS],
+    },
+    {
       key: "administrator",
       name: "Administrator",
       description: "Manages users, roles and organisation settings. Can view, not transact.",
