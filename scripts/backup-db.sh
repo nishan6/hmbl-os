@@ -14,7 +14,7 @@ mkdir -p "$backups"
 file="$backups/${database}-$(date +%Y%m%d-%H%M%S).dump"
 
 # Custom format: compressed, and restorable table by table with pg_restore.
-docker compose exec -T postgres pg_dump -U hmbl --format=custom "$database" > "$file.partial"
+docker compose exec -T postgres pg_dump -U hmbl --format=custom "$database" </dev/null >"$file.partial"
 mv "$file.partial" "$file"
 echo "Backed up $database to $file ($(du -h "$file" | cut -f1))"
 
@@ -28,4 +28,21 @@ if [ -d "$storage" ]; then
   mkdir -p "$backups/storage"
   cp -Rn "$storage"/. "$backups/storage/"
   echo "Copied new documents from $storage to $backups/storage"
+fi
+
+# Off-site copy: a folder your cloud sync app (Google Drive, OneDrive, iCloud)
+# or an external drive keeps elsewhere. A backup on this disk alone doesn't
+# survive the disk failing or the computer being lost.
+copy_to="${BACKUP_COPY_DIR:-$(grep -E '^BACKUP_COPY_DIR=' .env 2>/dev/null | cut -d= -f2- || true)}"
+if [ -n "$copy_to" ]; then
+  if [ -d "$copy_to" ]; then
+    mkdir -p "$copy_to/storage"
+    cp "$file" "$copy_to/"
+    [ -d "$backups/storage" ] && cp -Rn "$backups/storage"/. "$copy_to/storage/"
+    find "$copy_to" -maxdepth 1 -name "${database}-*.dump" -mtime +"$keep_days" -delete
+    echo "Copied the backup to $copy_to"
+  else
+    echo "BACKUP_COPY_DIR $copy_to doesn't exist (drive unplugged?); backup kept here only" >&2
+    exit 2
+  fi
 fi

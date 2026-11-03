@@ -24,6 +24,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:backup": "bash scripts/backup-db.sh",
+    "live:setup": "bash scripts/go-live.sh",
+    "live:schedule": "bash scripts/schedule-jobs.sh",
     "db:restore-check": "tsx --conditions=react-server --tsconfig tsconfig.json scripts/restore-check.ts",
     "postinstall": "prisma generate",
     "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test",

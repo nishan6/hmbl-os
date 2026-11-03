@@ -4,7 +4,9 @@ A backup is only useful if it restores. HMBL OS takes backups with `pnpm db:back
 
 ## Taking backups
 
-`pnpm db:backup` (`scripts/backup-db.sh`) writes `<database>-<date>-<time>.dump` to `BACKUP_DIR` (default `backups`) in Postgres's compressed custom format, deletes dumps older than `BACKUP_KEEP_DAYS` (30), and copies new uploaded documents from `STORAGE_DIR` into `BACKUP_DIR/storage`. Documents are never changed once written, so copying new ones is enough.
+`pnpm db:backup` (`scripts/backup-db.sh`) writes `<database>-<date>-<time>.dump` to `BACKUP_DIR` (default `backups`) in Postgres's compressed custom format, deletes dumps older than `BACKUP_KEEP_DAYS` (30), and copies new uploaded documents from `STORAGE_DIR` into `BACKUP_DIR/storage`. Documents are never changed once written, so copying new ones is enough. When `BACKUP_COPY_DIR` is set, the dump and new documents are also copied there, for a copy off this computer.
+
+`pnpm live:schedule` (`scripts/schedule-jobs.sh`) adds the backup (daily 19:00), the reminders (daily 06:15) and a restore check (1st of the month, 19:30) to cron, with logs in `BACKUP_DIR/*.log`. `pnpm live:schedule --remove` takes them out.
 
 The readiness checks ([readiness.md](readiness.md)) warn when the newest backup is over 26 hours old and fail in production after 7 days.
 
@@ -44,5 +46,5 @@ Work entered after the backup was taken is lost and has to be entered again. The
 
 ## What this doesn't cover
 
-- A backup on the same disk doesn't survive that disk failing or the computer being lost. Copy `BACKUP_DIR` to an external drive or a cloud folder at least weekly.
+- A backup on the same disk doesn't survive that disk failing or the computer being lost. Set `BACKUP_COPY_DIR`, or copy `BACKUP_DIR` to an external drive or a cloud folder at least weekly.
 - The restore check proves the latest dump restores on this computer. It doesn't prove the off-site copy is current; check that by hand.

@@ -1,6 +1,6 @@
 # Deploying, updating and rolling back
 
-How HMBL OS goes live, how a new version goes on, and how to undo a bad one. HMBL OS currently runs on one computer (Hosting in [decisions.md](decisions.md)); the first installation is in [running-locally.md](running-locally.md). This page is the procedure for every release after that.
+How HMBL OS goes live, how a new version goes on, and how to undo a bad one. HMBL OS currently runs on one computer (Hosting in [decisions.md](decisions.md)); the first installation is in [running-locally.md](running-locally.md) (`pnpm live:setup` does it in one go). This page is the procedure for every release after that.
 
 ## Environment variables
 
@@ -16,6 +16,7 @@ Set in `.env` next to the code. `src/lib/env.ts` checks them at start and refuse
 | `STORAGE_DIR`        | `storage`                                                      | Uploaded documents. Back it up with the database                                                                                 |
 | `BACKUP_DIR`         | `backups`                                                      | Where `pnpm db:backup` writes and the readiness and restore checks look                                                          |
 | `BACKUP_KEEP_DAYS`   | `30`                                                           | Read by `scripts/backup-db.sh` only                                                                                              |
+| `BACKUP_COPY_DIR`    | a cloud-synced folder or external drive                        | Every backup is copied there too. Read by `scripts/backup-db.sh` only                                                            |
 | `PG_TOOLS`           | unset                                                          | `docker` or `local` forces where `pg_restore` runs for restore checks ([backups.md](backups.md))                                 |
 | `TEST_DATABASE_URL`  | unset                                                          | Development only: the database the automated tests empty and refill                                                              |
 
