@@ -5,7 +5,12 @@ import type { Grant } from "@/server/permissions/evaluate";
  * roles can move money or change who has access, so they must use an
  * authenticator app. Everyone else may turn it on. Change the list here.
  */
-export const TWO_FACTOR_REQUIRED_ROLES: readonly string[] = ["owner", "administrator", "finance"];
+export const TWO_FACTOR_REQUIRED_ROLES: readonly string[] = [
+  "owner",
+  "super_user",
+  "administrator",
+  "finance",
+];
 
 export function requiresTwoFactor(grants: Grant[]): boolean {
   return grants.some((g) => TWO_FACTOR_REQUIRED_ROLES.includes(g.roleKey));

@@ -30,7 +30,7 @@ Administration → **Users** (`/admin/users`) lists everyone who signs in to HMB
 ## Two-factor sign-in
 
 - After the password, users with two-factor enter a 6-digit code from a free authenticator app (Google Authenticator, Microsoft Authenticator, 1Password and similar). No SMS and no paid service: it is Better Auth's `twoFactor` plugin.
-- **Required for Owner, Administrator and Finance** (`TWO_FACTOR_REQUIRED_ROLES` in `src/server/auth/two-factor-policy.ts`, a labelled default in the [decision register](decisions.md)). Until such a user sets it up, `getActor()` gives them **no permissions** and the app shows only the setup screen, so every page and service refuses them on the server. They can't turn it off; the `/two-factor/disable` endpoint returns 403 for them.
+- **Required for Owner, Super user, Administrator and Finance** (`TWO_FACTOR_REQUIRED_ROLES` in `src/server/auth/two-factor-policy.ts`, a labelled default in the [decision register](decisions.md)). Until such a user sets it up, `getActor()` gives them **no permissions** and the app shows only the setup screen, so every page and service refuses them on the server. They can't turn it off; the `/two-factor/disable` endpoint returns 403 for them.
 - Everyone else can turn it on or off at **Account menu → Sign-in security**.
 - Setup: confirm password, scan a QR code (or type the key), enter one code to prove the app works, then save ten one-use backup codes.
 - Secrets and backup codes are encrypted with `BETTER_AUTH_SECRET` before they are stored. Losing that secret means everyone sets up two-factor again.
@@ -54,6 +54,7 @@ Created once if missing by `pnpm db:seed` or `pnpm user:create`, then editable. 
 | Role             | Intent                                                                                                    |
 | ---------------- | --------------------------------------------------------------------------------------------------------- |
 | Owner / Director | Every permission                                                                                          |
+| Super user       | Every permission, for the person who runs HMBL OS without being the business owner (see below)            |
 | Administrator    | Users, roles, organisation and audit; view-only elsewhere, no approvals or posting                        |
 | Finance          | Finance and reports in full, sensitive commercial/project/crew figures, procurement approval and settings |
 | Sales            | CRM, quotations up to submit and issue (not approve), project view                                        |
@@ -63,6 +64,12 @@ Created once if missing by `pnpm db:seed` or `pnpm user:create`, then editable. 
 | Procurement      | Vendors (not bank details or TDS), purchase orders up to submit, amendments and receipts                  |
 | Show crew        | The show day: view, status updates and notes; project and document view                                   |
 | Viewer           | View-only, no sensitive data, no users or audit                                                           |
+
+## Super user
+
+The Super user role holds every permission, like Owner, for the person who installs and looks after HMBL OS when that person isn't the business owner. Two things set it apart: "HMBL OS always keeps one active owner" counts only Owner, so the business owner's account is the protected one; and audit events show which of the two did something. It requires two-factor. Because it holds every permission, a super user can grant any role and reset anyone's sign-in, the owner's included, and an owner can do the same for a super user. Every such action is in the audit log.
+
+Existing databases get the role from migration `20261103120000_super_user_role`, with the owner's permissions at that time. A later migration that gives Owner a new permission must give it to `super_user` too.
 
 ## Portal users
 
