@@ -47,7 +47,7 @@
   --hm-border-strong: #aeaeb4;
 
   /* Brand accent: one deliberate colour. The fill is what solid buttons use. */
-  --hm-accent: #0062cc;
+  --hm-accent: #0066d6;
   --hm-accent-hover: #0055b3;
   --hm-accent-fill: #0066d6;
   --hm-accent-fill-hover: #0058ba;
@@ -102,7 +102,7 @@
   --hm-border: #3a3a3d;
   --hm-separator: #2a2a2d;
   --hm-border-strong: #525256;
-  --hm-accent: #4ea1ff;
+  --hm-accent: #3e8fea;
   --hm-accent-hover: #6fb2ff;
   --hm-accent-fill: #0a6bdc;
   --hm-accent-fill-hover: #0a60c4;
@@ -245,7 +245,7 @@
     --hm-border: #3a3a3d;
     --hm-separator: #2a2a2d;
     --hm-border-strong: #525256;
-    --hm-accent: #4ea1ff;
+    --hm-accent: #3e8fea;
     --hm-accent-hover: #6fb2ff;
     --hm-accent-fill: #0a6bdc;
     --hm-accent-fill-hover: #0a60c4;

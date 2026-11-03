@@ -102,10 +102,14 @@ export default async function ProjectCloseoutPage({
                     </p>
                   ) : null}
                   {blocked ? (
-                    <ul className="text-secondary mt-2 flex list-disc flex-col gap-1 pl-5 text-xs">
+                    <ul className="text-secondary mt-1 flex list-disc flex-col pl-5 text-xs">
                       {item.blockers.map((b) => (
                         <li key={b.text}>
-                          <Link href={b.href} className="text-accent underline">
+                          {/* 24px tall so stacked links meet WCAG 2.5.8 target size. */}
+                          <Link
+                            href={b.href}
+                            className="text-accent inline-flex min-h-6 items-center underline"
+                          >
                             {b.text}
                           </Link>
                         </li>
