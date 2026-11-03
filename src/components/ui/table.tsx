@@ -36,7 +36,12 @@ export function TBody(props: React.HTMLAttributes<HTMLTableSectionElement>) {
 }
 
 export function TR({ className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn("hover:bg-hover transition-colors", className)} {...props} />;
+  return (
+    <tr
+      className={cn("hover:bg-hover transition-colors duration-(--duration-fast)", className)}
+      {...props}
+    />
+  );
 }
 
 type Align = "left" | "right" | "center";
@@ -52,7 +57,7 @@ export function TH({
     <th
       scope="col"
       className={cn(
-        "h-row-dense border-separator text-secondary border-b px-3 text-xs font-medium whitespace-nowrap",
+        "h-row-dense border-separator text-muted border-b px-4 text-xs font-semibold whitespace-nowrap",
         align(a),
         className,
       )}
@@ -69,7 +74,7 @@ export function TD({
   return (
     <td
       className={cn(
-        "h-row text-text group-data-dense/table:h-row-dense px-3 align-middle",
+        "h-row text-text group-data-dense/table:h-row-dense px-4 align-middle",
         align(a),
         className,
       )}

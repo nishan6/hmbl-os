@@ -2,9 +2,9 @@ import { useId } from "react";
 import { cn } from "@/lib/cn";
 
 const control =
-  "h-control w-full rounded-md border border-border bg-surface px-2.5 text-base text-text shadow-sm " +
-  "placeholder:text-muted transition-colors duration-(--duration-fast) " +
-  "hover:border-border-strong focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-0 " +
+  "h-control w-full rounded-md border border-border bg-surface px-3 text-base text-text shadow-sm " +
+  "placeholder:text-muted transition-[border-color,box-shadow] duration-(--duration-fast) ease-(--ease-standard) " +
+  "hover:border-border-strong focus-visible:border-focus focus-visible:outline-3 focus-visible:outline-offset-0 focus-visible:outline-focus/40 " +
   "disabled:cursor-not-allowed disabled:bg-sunken disabled:text-disabled " +
   "aria-invalid:border-danger";
 
@@ -13,7 +13,7 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
 }
 
 export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(control, "pr-8", className)} {...props} />;
+  return <select className={cn(control, "select-chevron pr-8", className)} {...props} />;
 }
 
 export function Textarea({
@@ -49,7 +49,7 @@ export function Field({ label, description, errors, required, className, childre
   const errorId = errors?.length ? `${id}-error` : undefined;
   const describedBy = [descriptionId, errorId].filter(Boolean).join(" ") || undefined;
   return (
-    <div className={cn("flex flex-col gap-1", className)}>
+    <div className={cn("flex flex-col gap-1.5", className)}>
       <label htmlFor={id} className="text-text text-sm font-medium">
         {label}
         {required ? (

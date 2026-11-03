@@ -31,7 +31,7 @@ export function EntitySwitcher({
         value={selectedId ?? "all"}
         disabled={pending}
         onChange={(e) => startTransition(() => setEntityContext(e.target.value))}
-        className="h-control-sm text-text hover:border-border max-w-48 rounded-md border border-transparent bg-transparent pr-6 pl-1 text-sm"
+        className="select-chevron h-control-sm text-text hover:bg-hover max-w-48 rounded-md bg-transparent pr-7 pl-2 text-sm font-medium transition-colors duration-(--duration-fast)"
       >
         <option value="all">All entities</option>
         {entities.map((e) => (

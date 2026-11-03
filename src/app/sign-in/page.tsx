@@ -15,14 +15,16 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
   if ((await getSessionUser())?.kind === "EXTERNAL") redirect("/portal");
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-16">
+    <main className="backdrop-glow flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex justify-center">
+        <div className="mb-10 flex justify-center">
           <Brand href={null} />
         </div>
-        <div className="border-separator bg-surface rounded-lg border p-6 shadow-md">
-          <h1 className="text-text text-lg font-semibold tracking-tight">Sign in to HMBL OS</h1>
-          <p className="text-secondary mt-1 text-sm">Accounts are created by your administrator.</p>
+        <div className="border-separator bg-surface rounded-lg border p-8 shadow-lg">
+          <h1 className="text-text text-xl font-bold">Sign in to HMBL OS</h1>
+          <p className="text-secondary mt-1.5 text-base">
+            Accounts are created by your administrator.
+          </p>
           {welcome ? (
             <div className="mt-4">
               <Alert
