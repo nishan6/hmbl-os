@@ -16,6 +16,7 @@ import {
   saveInvoiceDraft,
 } from "@/server/finance/invoices";
 import { recordReceipt } from "@/server/finance/receipts";
+import { updateInvoiceLayout } from "@/server/finance/settings";
 import { receivablesAgeing } from "@/server/finance/receivables";
 import {
   getNumberingScheme,
@@ -274,6 +275,68 @@ describe("proforma and commercial invoices", () => {
     expect(view.actions).toMatchObject({ receive: false, credit: false, makeFrom: [] });
     expect(view.madeFrom.map((m) => m.kind)).toEqual(["TAX"]);
     expect((await getInvoice(finance, proforma.id)).actions.makeFrom).toEqual(["TAX"]);
+  });
+
+  it("keep sections, includes, terms and the advance, and the tax invoice drops the advance", async () => {
+    const { entity, finance, client } = await setup();
+    const mag = await client("MAG");
+    await updateInvoiceLayout(finance, entity.id, {
+      invoiceTerms: "60% payment before the work starts.",
+      invoiceContact: null,
+      invoiceWebsite: null,
+      invoiceSignatoryName: null,
+      invoiceSignatoryTitle: null,
+    });
+    const proforma = await createInvoice(finance, entity.id, {
+      clientId: mag.id,
+      kind: "PROFORMA",
+    });
+    expect(proforma.terms).toBe("60% payment before the work starts.");
+    const rate = await db.taxRate.findFirstOrThrow({ where: { code: "GST18" } });
+    const revenue = await db.ledgerAccount.findUniqueOrThrow({
+      where: { legalEntityId_systemKey: { legalEntityId: entity.id, systemKey: "REVENUE" } },
+    });
+    const draft = (advance: string) => ({
+      invoiceDate: "2026-10-01",
+      dueDate: "2026-10-31",
+      currency: "INR",
+      placeOfSupplyCountry: proforma.placeOfSupplyCountry,
+      placeOfSupplyCode: proforma.placeOfSupplyCode,
+      serviceCode: "VLR",
+      terms: "60% payment before the work starts.\nBalance on the show day.",
+      advance,
+      lines: [
+        {
+          section: "Rentals — Broadcast",
+          description: "Camera kit",
+          details: "Sony FX3\nTripods",
+          quantity: "1",
+          unitPrice: "100000",
+          taxRateId: rate.id,
+          revenueAccountId: revenue.id,
+        },
+      ],
+    });
+    // The advance can't exceed the total of ₹1,18,000.
+    await expect(saveInvoiceDraft(finance, proforma.id, draft("200000"))).rejects.toThrow(
+      ValidationError,
+    );
+    await saveInvoiceDraft(finance, proforma.id, draft("60000"));
+    await issueInvoice(finance, proforma.id);
+
+    const commercial = await makeInvoiceFrom(finance, proforma.id, { kind: "COMMERCIAL" });
+    expect(commercial).toMatchObject({
+      terms: "60% payment before the work starts.\nBalance on the show day.",
+      advanceMinor: 60_000_00n,
+    });
+    await issueInvoice(finance, commercial.id);
+    const tax = await makeInvoiceFrom(finance, commercial.id, { kind: "TAX" });
+    expect(tax.advanceMinor).toBe(0n);
+    const view = await getInvoice(finance, tax.id);
+    expect(view.lines[0]).toMatchObject({
+      section: "Rentals — Broadcast",
+      details: "Sony FX3\nTripods",
+    });
   });
 
   it("makes each later kind once, only from an issued earlier kind", async () => {

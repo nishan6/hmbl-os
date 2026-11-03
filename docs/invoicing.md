@@ -30,6 +30,22 @@ The type is chosen when the invoice is started (`kind` on `sales_invoices`, defa
 
 Only tax invoices count in receivables, the receipts screen, the finance dashboard's drafts and the period-close checklist.
 
+## Printed invoices
+
+The printed invoice (`/print/invoices/<id>`, and the client portal's copy) follows HMBL's own Google Sheets layout (Nishan, 2026-11-03), drawn by `src/app/print/_components/hmbl-invoice.tsx` with the rules in `src/lib/invoice-layout.ts`:
+
+- **Header**: the HMBL lockup and the document title (Pro forma invoice, Commercial invoice or Tax invoice).
+- **Invoice to / Project**: the client's name, address and GSTIN; the project as `Name | Venue (dd.mm.yyyy)` with the service's name below; invoice number, date, due date when it differs, the client's PO and the place of supply.
+- **Lines, grouped by section**: each line can carry a _section_ (e.g. "Production / Operation", "Rentals I — Broadcast") and _includes_ (one item per line). Consecutive lines with the same section print as one lettered group (A., B., …) with its total, and their descriptions are numbered under it. A line without a section is a group on its own, with its includes numbered. Quantities of 1 are left out, and amounts show whole rupees when there are no paise.
+- **Additional notes** from the invoice's notes.
+- **Total due** on the HMBL security pattern (the mark repeated in fine diagonal rows, drawn as SVG so it prints without background graphics) with the amount in words, next to subtotal, advance, GST and grand total. GST prints as CGST and SGST (intra-state) or IGST (inter-state) with the rate, as the GST rules require, not as one "GST" line.
+- **Advance**: on a proforma or commercial invoice, _Advance received_ is typed in the editor and only printed. On a tax invoice it is what has been received and credited against it. Total due is the grand total less the advance.
+- **Payment info**: the bank accounts marked _show on invoices_ (with their UPI ID), the entity's GSTIN and PAN (the PAN registration, else characters 3–12 of the GSTIN).
+- **Terms & conditions**: the invoice's terms, one per line, then two generated lines: "X% GST applicable on ₹Y/- for service rendition." and the SAC codes. New invoices copy the entity's default terms; Make tax invoice copies the source's terms.
+- **Contact, signatory and website** from Finance → Settings → Printed invoices (`finance.configure`). Without a signatory name it prints "For {legal name}" and "Authorised signatory".
+
+Credit notes still use the earlier layout.
+
 ## Invoice numbers
 
 HMBL's own format is `{FYS}-{CLIENT}-{SERVICE}-{CSEQ:2}-{SEQ:2}`, e.g. `26-MAG-VLR-03-08`: FY 2026-27, Magnanimous, a rental, MAG's third invoice and the eighth overall. See [numbering](numbering.md) for the tokens.

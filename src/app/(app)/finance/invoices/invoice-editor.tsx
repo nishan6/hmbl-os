@@ -17,7 +17,11 @@ import { parseQuantity } from "@/lib/pricing";
 import type { FormState } from "@/server/http/action-result";
 
 export type InvoiceRow = {
+  /** Heading on the printed invoice; consecutive lines with the same one group together. */
+  section: string;
   description: string;
+  /** What the line includes, one item per line. */
+  details: string;
   sacCode: string;
   quantity: string;
   unitPrice: string;
@@ -47,6 +51,7 @@ export function InvoiceEditor({
   services,
   baseCurrency,
   cancelHref,
+  advance = false,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   defaults: Record<string, string>;
@@ -58,6 +63,8 @@ export function InvoiceEditor({
   services: { code: string; name: string }[];
   baseCurrency: string;
   cancelHref: string;
+  /** Proforma and commercial invoices record an advance already paid. */
+  advance?: boolean;
 }) {
   const f = useForm(action, defaults);
   const markDirty = useUnsavedChangesWarning(f.state);
@@ -80,6 +87,7 @@ export function InvoiceEditor({
         services={services}
         baseCurrency={baseCurrency}
         markDirty={markDirty}
+        advance={advance}
       />
       <div className="bg-surface border-separator sticky bottom-0 -mx-4 flex gap-2 border-t px-4 py-3">
         <Button type="submit" variant="primary" disabled={f.pending}>
@@ -102,6 +110,7 @@ function Body({
   services,
   baseCurrency,
   markDirty,
+  advance,
 }: {
   f: ReturnType<typeof useForm>;
   initialRows: InvoiceRow[];
@@ -111,9 +120,12 @@ function Body({
   services: { code: string; name: string }[];
   baseCurrency: string;
   markDirty: () => void;
+  advance: boolean;
 }) {
-  const blank = (): InvoiceRow => ({
+  const blank = (after?: InvoiceRow): InvoiceRow => ({
+    section: after?.section ?? "",
     description: "",
+    details: "",
     sacCode: "998596",
     quantity: "1",
     unitPrice: "",
@@ -167,6 +179,23 @@ function Body({
           <Field label="Client PO number" errors={f.errors("clientPoNumber")}>
             {(p) => <Input name="clientPoNumber" defaultValue={f.value("clientPoNumber")} {...p} />}
           </Field>
+          {advance ? (
+            <Field
+              label="Advance received"
+              description="Printed as (ADVANCE) and taken off the total due"
+              errors={f.errors("advance")}
+            >
+              {(p) => (
+                <Input
+                  name="advance"
+                  inputMode="decimal"
+                  className="tabular"
+                  defaultValue={f.value("advance")}
+                  {...p}
+                />
+              )}
+            </Field>
+          ) : null}
           {services.length ? (
             <Field
               label="Service"
@@ -273,9 +302,22 @@ function Body({
             </p>
           </div>
         </div>
-        <Field label="Notes on the invoice" errors={f.errors("notes")}>
-          {(p) => <Textarea name="notes" defaultValue={f.value("notes")} rows={2} {...p} />}
-        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Additional notes"
+            description="Event name and code, dates, venue"
+            errors={f.errors("notes")}
+          >
+            {(p) => <Textarea name="notes" defaultValue={f.value("notes")} rows={4} {...p} />}
+          </Field>
+          <Field
+            label="Terms"
+            description="One per line. The GST and SAC lines are added when printed."
+            errors={f.errors("terms")}
+          >
+            {(p) => <Textarea name="terms" defaultValue={f.value("terms")} rows={4} {...p} />}
+          </Field>
+        </div>
       </fieldset>
 
       <fieldset className="flex flex-col gap-3">
@@ -306,14 +348,34 @@ function Body({
                   ) : null;
                 return (
                   <tr key={i} className="align-top">
-                    <td className="py-1 pr-2">
+                    <td className="flex flex-col gap-1 py-1 pr-2">
+                      <Input
+                        aria-label={`Line ${i + 1} section`}
+                        placeholder="Section, e.g. Production / Operation"
+                        className="h-control-sm text-sm font-medium"
+                        value={row.section}
+                        aria-invalid={err("section") ? true : undefined}
+                        onChange={(e) => update(i, { section: e.target.value })}
+                      />
+                      {message("section")}
                       <Input
                         aria-label={`Line ${i + 1} description`}
+                        placeholder="Description"
                         value={row.description}
                         aria-invalid={err("description") ? true : undefined}
                         onChange={(e) => update(i, { description: e.target.value })}
                       />
                       {message("description")}
+                      <Textarea
+                        aria-label={`Line ${i + 1} includes`}
+                        placeholder="Includes, one item per line (optional)"
+                        className="min-h-14 text-sm"
+                        rows={2}
+                        value={row.details}
+                        aria-invalid={err("details") ? true : undefined}
+                        onChange={(e) => update(i, { details: e.target.value })}
+                      />
+                      {message("details")}
                     </td>
                     <td className="py-1 pr-2">
                       <Input
@@ -397,7 +459,7 @@ function Body({
           </table>
         </div>
         <div>
-          <Button onClick={() => change([...rows, blank()])}>
+          <Button onClick={() => change([...rows, blank(rows.at(-1))])}>
             <Plus aria-hidden />
             Add line
           </Button>

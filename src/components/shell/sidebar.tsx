@@ -20,14 +20,14 @@ export function SidebarNav({
   const pathname = usePathname();
   const allowed = new Set(visible);
   return (
-    <nav aria-label="Main" className="flex flex-col gap-5 px-2 py-3">
+    <nav aria-label="Main" className="flex flex-col gap-6 px-3 pt-2 pb-6">
       {NAV.map((group, gi) => {
         const items = group.items.filter((item) => allowed.has(item.label));
         if (!items.length) return null;
         return (
           <div key={gi} className="flex flex-col gap-0.5">
             {group.label ? (
-              <p className="text-muted px-2 pb-1 text-xs font-medium">{group.label}</p>
+              <p className="text-muted px-2.5 pb-1.5 text-xs font-semibold">{group.label}</p>
             ) : null}
             <ul className="flex flex-col gap-0.5">
               {items.map(({ label, icon: Icon, href }) => (
@@ -38,18 +38,21 @@ export function SidebarNav({
                       onClick={onNavigate}
                       aria-current={isActive(pathname, href) ? "page" : undefined}
                       className={cn(
-                        "text-secondary flex h-8 items-center gap-2.5 rounded-md px-2 text-base",
-                        "hover:bg-hover hover:text-text transition-colors duration-(--duration-fast)",
-                        "aria-[current=page]:bg-selected aria-[current=page]:text-text aria-[current=page]:font-medium",
+                        "group/nav text-secondary flex h-8 items-center gap-2.5 rounded-md px-2.5 text-base",
+                        "hover:bg-hover hover:text-text transition-colors duration-(--duration-fast) ease-(--ease-standard)",
+                        "aria-[current=page]:bg-selected aria-[current=page]:text-text aria-[current=page]:font-semibold",
                       )}
                     >
-                      <Icon className="size-4 shrink-0" aria-hidden />
+                      <Icon
+                        className="group-aria-[current=page]/nav:text-accent size-4 shrink-0"
+                        aria-hidden
+                      />
                       {label}
                     </Link>
                   ) : (
                     <span
                       aria-disabled="true"
-                      className="text-disabled flex h-8 cursor-default items-center gap-2.5 rounded-md px-2 text-base"
+                      className="text-disabled flex h-8 cursor-default items-center gap-2.5 rounded-md px-2.5 text-base"
                     >
                       <Icon className="size-4 shrink-0" aria-hidden />
                       {label}

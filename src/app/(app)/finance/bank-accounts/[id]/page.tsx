@@ -54,6 +54,7 @@ export default async function BankAccountPage({
                 ifsc: account.ifsc ?? "",
                 swift: account.swift ?? "",
                 iban: account.iban ?? "",
+                upiId: account.upiId ?? "",
                 currency: account.currency,
                 showOnInvoices: account.showOnInvoices ? "true" : "",
               }}

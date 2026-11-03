@@ -1,22 +1,23 @@
 # Design system and app shell
 
-An original, calm interface for dense business work: restrained colour, clear hierarchy, compact tables. It takes cues from Apple's human interface principles (clarity, deference to content, depth through layering) without copying Apple's assets, fonts or components.
+An original, calm and premium interface for dense business work: quiet greys, white grouped surfaces, one accent, translucent bars and large, tightly set titles. It follows Apple's Human Interface Guidelines in spirit (clarity, deference to content, depth through layering and materials) without copying Apple's assets, icons or components. Type uses the device's own system font, so Macs and iPhones render SF Pro from the operating system; nothing Apple-licensed is bundled.
 
 ## Tokens
 
 All raw values live in `src/app/globals.css`. Components only use the semantic names Tailwind generates from them.
 
-| Group    | Utilities                                                                                                    | Notes                                                             |
-| -------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| Surfaces | `bg-bg`, `bg-surface`, `bg-surface-2`, `bg-sunken`, `bg-elevated`, `bg-sidebar`, `bg-hover`, `bg-selected`   | In dark mode surfaces get lighter as they rise                    |
-| Text     | `text-text`, `text-secondary`, `text-muted`, `text-disabled`, `text-on-accent`, `text-on-danger`             | `muted` is the lightest colour allowed for readable text          |
-| Lines    | `border-border`, `border-separator`, `border-border-strong`                                                  | Separators for structure, borders for controls                    |
-| Accent   | `bg-accent`, `text-accent`, `bg-accent-soft`, `outline-focus`                                                | One brand colour, used for primary actions, selection and focus   |
-| Status   | `success`, `warning`, `danger`, `info`, `neutral`, each with `-soft`                                         | Never the only signal; always with an icon or label               |
-| Type     | `text-xs` 12, `text-sm` 13, `text-base` 14, `text-md` 16, `text-lg` 20, `text-xl` 24                         | System font stack; `tabular` utility for figures                  |
-| Shape    | `rounded-sm` 4, `rounded-md` 6, `rounded-lg` 10; `shadow-sm/md/lg`                                           | Three radii only                                                  |
-| Layout   | `w-sidebar`, `h-topbar`, `h-control(-sm/-lg)`, `h-row(-dense)`, `max-w-content`, `max-w-form`, `max-w-prose` | Control height 32px; comfortable table rows 40px, dense 32px      |
-| Motion   | `duration-(--duration-fast)`, `ease-(--ease-standard)`                                                       | Short and functional; switched off under `prefers-reduced-motion` |
+| Group     | Utilities                                                                                                    | Notes                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Surfaces  | `bg-bg`, `bg-surface`, `bg-surface-2`, `bg-sunken`, `bg-elevated`, `bg-sidebar`, `bg-hover`, `bg-selected`   | In dark mode surfaces get lighter as they rise                                                          |
+| Materials | `bg-material-bar`, `bg-material-sidebar`, `bg-material-menu` with the `material` utility                     | Translucent layers that blur and saturate what scrolls beneath                                          |
+| Text      | `text-text`, `text-secondary`, `text-muted`, `text-disabled`, `text-on-accent`, `text-on-danger`             | `muted` is the lightest colour allowed for readable text                                                |
+| Lines     | `border-border`, `border-separator`, `border-border-strong`                                                  | Separators for structure, borders for controls                                                          |
+| Accent    | `text-accent`, `bg-accent-fill`, `bg-accent-soft`, `outline-focus`                                           | One brand colour. `accent` is for text and links; `accent-fill` sits behind white text on solid buttons |
+| Status    | `success`, `warning`, `danger`, `info`, `neutral`, each with `-soft`                                         | Never the only signal; always with an icon or label                                                     |
+| Type      | `text-xs` 12, `text-sm` 13, `text-base` 14, `text-md` 17, `text-lg` 22, `text-xl` 28, `text-2xl` 34          | System font; larger sizes carry their own tighter tracking; `tabular` for figures                       |
+| Shape     | `rounded-sm` 6, `rounded-md` 9, `rounded-lg` 14, `rounded-full` for pills; `shadow-sm/md/lg`                 | Three radii plus pills; shadows are soft with a hairline edge                                           |
+| Layout    | `w-sidebar`, `h-topbar`, `h-control(-sm/-lg)`, `h-row(-dense)`, `max-w-content`, `max-w-form`, `max-w-prose` | Control height 32px; comfortable table rows 40px, dense 32px                                            |
+| Motion    | `duration-(--duration-fast/base/slow)`, `ease-(--ease-standard)`, `ease-(--ease-emphasized)`                 | Short and functional; switched off under `prefers-reduced-motion`                                       |
 
 ### Themes
 
@@ -32,6 +33,10 @@ The target is WCAG 2.2 AA.
 - Icon-only buttons require a label (`IconButton`). Form fields come with their label, description and error wired together (`Field`).
 - Scrollable tables are keyboard focusable.
 
+## Logo
+
+HMBL Entertainment's own logo, traced to vector from the artwork Nishan supplied, lives in `components/shell/logo-paths.ts`. `HmblMark` is "HMBL" alone and `HmblLockup` the full "HMBL ENTERTAINMENT"; both fill with the current text colour, so they read black in light mode and white in dark. `Brand` sets the mark beside a spaced "OS" for the app shell (`size="lg"` on signed-out pages). Printed quotes and tax documents carry the lockup above the issuing entity. The browser and home-screen icons (`app/icon.svg`, `app/apple-icon.png`, `app/favicon.ico`) are the mark in white on a near-black tile.
+
 ## Components
 
 | Component                                                    | File                                          | Use                                                                                             |
@@ -42,6 +47,7 @@ The target is WCAG 2.2 AA.
 | `Table`, `THead`, `TBody`, `TR`, `TH`, `TD`                  | `components/ui/table.tsx`                     | `align="right"` for numbers and money; sticky header; horizontal scroll                         |
 | `PageHeader`, `Section`, `Panel`, `DetailList`, `EmptyState` | `components/ui/page.tsx`                      | Page structure: hierarchy and spacing first, cards only where they help                         |
 | `Alert`, `Skeleton`, `Breadcrumbs`                           | `components/ui/page.tsx`                      | Feedback, loading and wayfinding                                                                |
+| `tabList`, `tab`                                             | `components/ui/tabs.ts`                       | Section tabs as a segmented control; each tab is a link with `aria-current="page"`              |
 | `ActionButton`                                               | `components/ui/action-button.tsx`             | One-click server actions (archive, make default) with an inline error and optional confirmation |
 | `useForm`, `FormAlert`                                       | `components/ui/use-form.ts`, `form-alert.tsx` | Form state for server actions: keeps values after an error, resets after success                |
 
@@ -51,8 +57,8 @@ Formatting helpers live in `src/lib/format.ts`: `formatMoney` takes integer mino
 
 `src/app/(app)/layout.tsx` wraps every signed-in page.
 
-- **Sidebar** (`components/shell/sidebar.tsx`): the information architecture from the spec. The server decides which items the user may see; modules that aren't built yet are shown as "Planned" without a link. Below 1024px it becomes a drawer (`mobile-nav.tsx`).
-- **Top bar**: the entity switcher and the account menu. The entity switcher appears when a user can see more than one legal entity and narrows entity-owned lists such as number formats and the audit log; the choice is kept in an http-only cookie and checked against the user's permissions on every request. The account menu holds the theme choice and sign-out.
+- **Sidebar** (`components/shell/sidebar.tsx`): a translucent material layer holding the information architecture from the spec; the current page is tinted and its icon takes the accent. The server decides which items the user may see; modules that aren't built yet are shown as "Planned" without a link. Below 1024px it becomes a drawer (`mobile-nav.tsx`).
+- **Top bar**: a translucent bar that blurs content scrolling beneath it, holding the entity switcher and the account menu. The entity switcher appears when a user can see more than one legal entity and narrows entity-owned lists such as number formats and the audit log; the choice is kept in an http-only cookie and checked against the user's permissions on every request. The account menu holds the theme choice and sign-out.
 - **States**: `loading.tsx` shows skeletons, `error.tsx` shows a retry with the error reference only, and `not-found.tsx` is also what users see for records outside their entities.
 
 Hiding a navigation item is never the access control. Each page and service checks permissions on the server; the e2e suite checks that a user without `audit.view` gets "Page not found" at `/admin/audit`.

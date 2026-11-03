@@ -5,16 +5,17 @@ type Variant = "primary" | "secondary" | "quiet" | "destructive";
 type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-accent text-on-accent hover:bg-accent-hover shadow-sm",
-  secondary: "bg-surface text-text border border-border hover:bg-hover shadow-sm",
+  primary: "bg-accent-fill text-on-accent hover:bg-accent-fill-hover shadow-sm",
+  secondary:
+    "bg-surface text-text border border-border hover:bg-surface-2 hover:border-border-strong shadow-sm",
   quiet: "text-text hover:bg-hover",
   destructive: "bg-danger text-on-danger hover:opacity-90 shadow-sm",
 };
 
 const sizes: Record<Size, string> = {
   sm: "h-control-sm px-2.5 text-sm gap-1.5",
-  md: "h-control px-3 text-base gap-2",
-  lg: "h-control-lg px-4 text-base gap-2",
+  md: "h-control px-3.5 text-base gap-2",
+  lg: "h-control-lg px-5 text-md gap-2",
 };
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -31,7 +32,8 @@ export function buttonClasses(
 ) {
   return cn(
     "inline-flex shrink-0 select-none items-center justify-center rounded-md font-medium whitespace-nowrap",
-    "transition-colors duration-(--duration-fast) ease-(--ease-standard)",
+    "transition-[color,background-color,border-color,box-shadow,transform] duration-(--duration-fast) ease-(--ease-standard)",
+    "active:scale-[0.98]",
     "disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
     variants[variant],
     sizes[size],

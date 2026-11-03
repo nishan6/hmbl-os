@@ -9,8 +9,9 @@ const grant = (roleKey: string, legalEntityId: string | null = null): Grant => (
 });
 
 describe("two-factor policy", () => {
-  it("requires it for owners, administrators and finance, scoped or not", () => {
+  it("requires it for owners, super users, administrators and finance, scoped or not", () => {
     expect(requiresTwoFactor([grant("owner")])).toBe(true);
+    expect(requiresTwoFactor([grant("super_user")])).toBe(true);
     expect(requiresTwoFactor([grant("administrator")])).toBe(true);
     expect(requiresTwoFactor([grant("finance", "entity-1")])).toBe(true);
     expect(requiresTwoFactor([grant("viewer"), grant("sales")])).toBe(false);

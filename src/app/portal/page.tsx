@@ -75,7 +75,7 @@ export default async function PortalHome() {
               <li key={c.href}>
                 <Link href={c.href} className="block">
                   <Panel className="hover:bg-hover h-full transition-colors">
-                    <p className="text-text tabular text-2xl font-semibold">{c.value}</p>
+                    <p className="text-text tabular text-xl font-semibold">{c.value}</p>
                     <p className="text-secondary text-sm">{c.label}</p>
                   </Panel>
                 </Link>

@@ -3,6 +3,7 @@ import { formatMoney } from "@/lib/format";
 import { GST_STATES, rupeesInWords, type SupplyType } from "@/lib/gst";
 import { formatBps } from "@/lib/percent";
 import { PrintButton } from "./print-button";
+import { HmblLockup } from "@/components/shell/brand";
 
 type Amounts = {
   cgstMinor: bigint;
@@ -104,6 +105,7 @@ export function TaxDocument(d: TaxDocumentProps) {
 
         <header className="flex flex-wrap justify-between gap-6">
           <div>
+            <HmblLockup className="mb-4 h-6" title="HMBL Entertainment" />
             <p className="text-md font-semibold">{d.supplier.name}</p>
             {d.supplier.legalName && d.supplier.legalName !== d.supplier.name ? (
               <p>{d.supplier.legalName}</p>

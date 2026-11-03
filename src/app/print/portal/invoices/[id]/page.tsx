@@ -1,8 +1,7 @@
 import { getClientInvoice } from "@/server/portal/client";
-import { formatDate } from "@/lib/format";
-import { INVOICE_KINDS } from "@/lib/invoice-kinds";
+import { invoiceDocumentExtras } from "@/server/finance/invoice-document";
 import { orNotFound, requireClientPortal } from "../../../../portal/_lib/guard";
-import { addressOf, TaxDocument } from "../../../_components/tax-document";
+import { documentTitle, HmblInvoice } from "../../../_components/hmbl-invoice";
 
 export const metadata = { title: "Invoice" };
 
@@ -12,44 +11,44 @@ export default async function PortalInvoiceDocumentPage({
 }: PageProps<"/print/portal/invoices/[id]">) {
   const { id } = await params;
   const actor = await requireClientPortal("invoices.view");
-  const { invoice: inv, bankAccounts } = await orNotFound(getClientInvoice(actor, id));
+  const {
+    invoice: inv,
+    bankAccounts,
+    paidMinor,
+    creditedMinor,
+  } = await orNotFound(getClientInvoice(actor, id));
   const e = inv.legalEntity;
+  const extras = await invoiceDocumentExtras({ ...inv, legalEntityId: e.id });
   const tax = inv.kind === "TAX";
-  const notice = [
-    tax ? null : "This is not a tax invoice",
-    inv.isDemo || e.isDemo ? "Demo data" : null,
-  ].filter(Boolean);
-  const date = (d: Date) => formatDate(d, "UTC");
   return (
-    <TaxDocument
-      title={
-        tax ? (e.countryCode === "IN" ? "Tax invoice" : "Invoice") : INVOICE_KINDS[inv.kind].label
-      }
+    <HmblInvoice
+      title={documentTitle(inv.kind, e.countryCode)}
       backHref="/portal/invoices"
       backLabel="Back to your invoices"
-      notice={notice.length ? notice.join(" · ") : null}
-      facts={[
-        ["Number", inv.number ?? ""],
-        ["Date", date(inv.invoiceDate)],
-        ["Due", date(inv.dueDate)],
-        ...(inv.clientPoNumber ? ([["Your PO", inv.clientPoNumber]] as [string, string][]) : []),
-        ...(inv.project ? ([["Project", inv.project.number]] as [string, string][]) : []),
-      ]}
-      supplier={{
-        name: e.tradingName ?? e.legalName,
-        legalName: e.legalName,
-        address: addressOf(e),
-        gstin: inv.entityGstin,
-      }}
-      recipient={{ name: inv.clientName, address: inv.clientAddress, gstin: inv.clientGstin }}
+      notice={inv.isDemo || e.isDemo ? "Demo data" : null}
+      number={inv.number}
+      invoiceDate={inv.invoiceDate}
+      dueDate={inv.dueDate}
+      clientPoNumber={inv.clientPoNumber}
+      client={{ name: inv.clientName, address: inv.clientAddress, gstin: inv.clientGstin }}
+      project={inv.project}
+      serviceName={extras.serviceName}
       placeOfSupply={{ country: inv.placeOfSupplyCountry, code: inv.placeOfSupplyCode }}
       supplyType={inv.supplyType}
       currency={inv.currency}
       lines={inv.lines.map((l) => ({ ...l, quantity: l.quantity.toString() }))}
       totals={inv}
+      advanceMinor={tax ? paidMinor + creditedMinor : inv.advanceMinor}
       notes={inv.notes}
+      terms={inv.terms}
+      supplier={{ legalName: e.legalName, gstin: inv.entityGstin, pan: extras.pan }}
       bankAccounts={bankAccounts}
-      footer={`${e.legalName} · ${inv.number ?? ""}`}
+      contact={extras.settings.invoiceContact}
+      website={extras.settings.invoiceWebsite}
+      signatory={{
+        name: extras.settings.invoiceSignatoryName,
+        title: extras.settings.invoiceSignatoryTitle,
+      }}
     />
   );
 }

@@ -36,8 +36,9 @@ describe("default roles", () => {
     }
   });
 
-  it("give the owner every permission", () => {
+  it("give the owner and the super user every permission", () => {
     expect(new Set(role("owner").permissions)).toEqual(new Set(ALL_PERMISSIONS));
+    expect(new Set(role("super_user").permissions)).toEqual(new Set(ALL_PERMISSIONS));
   });
 
   it("keep the viewer read-only and away from sensitive data", () => {

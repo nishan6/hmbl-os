@@ -15,7 +15,7 @@ export function NotificationsLink({ unread }: { unread: number }) {
       {unread ? (
         <span
           aria-hidden
-          className="bg-accent text-on-accent tabular absolute -top-0.5 -right-0.5 min-w-4 rounded-full px-1 text-center text-[10px] leading-4 font-semibold"
+          className="bg-accent-fill text-on-accent tabular absolute -top-0.5 -right-0.5 min-w-4 rounded-full px-1 text-center text-[10px] leading-4 font-semibold"
         >
           {unread > 99 ? "99+" : unread}
         </span>
