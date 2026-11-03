@@ -51,7 +51,7 @@ export default async function PortalLayout({ children }: LayoutProps<"/portal">)
       >
         Skip to content
       </a>
-      <header className="h-topbar border-separator bg-bg/85 sticky top-0 z-30 flex items-center gap-3 border-b px-3 backdrop-blur sm:px-4">
+      <header className="h-topbar border-separator bg-material-bar material sticky top-0 z-30 flex items-center gap-3 border-b px-3 sm:px-4">
         <Brand href="/portal" />
         <span className="text-secondary hidden items-center gap-1.5 text-sm sm:flex">
           <Tag>{PORTAL_KIND_LABELS[actor.kind]}</Tag>

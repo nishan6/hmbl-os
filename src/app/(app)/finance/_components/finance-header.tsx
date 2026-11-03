@@ -5,6 +5,7 @@ import { Select } from "@/components/ui/field";
 import { PageHeader, type Crumb } from "@/components/ui/page";
 import { Tag } from "@/components/ui/status";
 import type { FinanceEntity } from "@/server/finance/context";
+import { tab, tabList } from "@/components/ui/tabs";
 
 export const FINANCE_TABS = [
   { path: "/finance", label: "Overview" },
@@ -98,19 +99,13 @@ export function FinanceHeader({
         }
       />
       {crumbs ? null : (
-        <nav
-          aria-label="Finance"
-          className="border-separator mb-6 flex gap-4 overflow-x-auto border-b"
-        >
+        <nav aria-label="Finance" className={tabList}>
           {FINANCE_TABS.map((t) => (
             <Link
               key={t.path}
               href={withEntity(t.path, entity)}
               aria-current={t.path === current ? "page" : undefined}
-              className={cn(
-                "text-secondary hover:text-text -mb-px border-b-2 border-transparent pb-2 text-base whitespace-nowrap",
-                "aria-[current=page]:border-accent aria-[current=page]:text-text aria-[current=page]:font-medium",
-              )}
+              className={cn(tab)}
             >
               {t.label}
             </Link>

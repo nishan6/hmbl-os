@@ -12,6 +12,7 @@ import { StatusBadge, Tag } from "@/components/ui/status";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { PROJECT_STATUS } from "../projects/_components/status";
 import { UPDATE_STATUS } from "./_components/show-tabs";
+import { tab, tabList } from "@/components/ui/tabs";
 
 export const metadata = { title: "Production" };
 
@@ -41,7 +42,7 @@ export default async function ProductionPage({ searchParams }: PageProps<"/produ
           </a>
         }
       />
-      <nav aria-label="Shows" className="border-separator mb-6 flex gap-4 border-b">
+      <nav aria-label="Shows" className={tabList}>
         {[
           { href: "/production", label: "Today and coming up", current: !past },
           { href: "/production?when=past", label: "Past", current: past },
@@ -50,10 +51,7 @@ export default async function ProductionPage({ searchParams }: PageProps<"/produ
             key={t.href}
             href={t.href}
             aria-current={t.current ? "page" : undefined}
-            className={cn(
-              "text-secondary hover:text-text -mb-px border-b-2 border-transparent pb-2 text-base",
-              "aria-[current=page]:border-accent aria-[current=page]:text-text aria-[current=page]:font-medium",
-            )}
+            className={cn(tab)}
           >
             {t.label}
           </Link>

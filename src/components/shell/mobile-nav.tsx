@@ -18,8 +18,8 @@ export function MobileNav({ visible }: { visible: string[] }) {
         </IconButton>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="bg-overlay fixed inset-0 z-40" />
-        <Dialog.Content className="bg-sidebar fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col overflow-y-auto shadow-lg">
+        <Dialog.Overlay className="bg-overlay fixed inset-0 z-40 backdrop-blur-sm" />
+        <Dialog.Content className="bg-material-sidebar material fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col overflow-y-auto shadow-lg">
           <div className="h-topbar flex items-center justify-between px-3">
             <Brand />
             <Dialog.Close asChild>
